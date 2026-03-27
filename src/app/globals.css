@@ -2,13 +2,16 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* Leaflet 커스텀 툴팁 */
+/* Leaflet 커스텀 툴팁 — 기본 스타일 완전 제거 */
+.leaflet-tooltip.wm-tooltip-wrapper,
 .wm-tooltip-wrapper {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
+  border-radius: 0 !important;
 }
+.leaflet-tooltip.wm-tooltip-wrapper::before,
 .wm-tooltip-wrapper::before {
   display: none !important;
 }

@@ -1,14 +1,30 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet'
-import L from 'leaflet'
-import type { StyleFunction, LeafletMouseEvent } from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 import * as topojson from 'topojson-client'
 import type { Topology } from 'topojson-specification'
-import type { Feature, FeatureCollection, Geometry } from 'geojson'
+import type { Feature, FeatureCollection, Geometry, GeoJsonProperties } from 'geojson'
 import isoCountries from 'i18n-iso-countries'
+import localeKo from 'i18n-iso-countries/langs/ko.json'
+import localeEn from 'i18n-iso-countries/langs/en.json'
+
+isoCountries.registerLocale(localeKo)
+isoCountries.registerLocale(localeEn)
+
+const SUPPORTED_LOCALES = ['ko', 'en']
+
+function getLocale(): string {
+  if (typeof navigator === 'undefined') return 'en'
+  const lang = navigator.language.split('-')[0]
+  return SUPPORTED_LOCALES.includes(lang) ? lang : 'en'
+}
+
+const LOCALE = getLocale()
+import {
+  geoOrthographic,
+  geoPath,
+  geoGraticule,
+} from 'd3-geo'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const worldTopo = require('world-atlas/countries-110m.json') as Topology
@@ -19,6 +35,8 @@ const worldGeo = topojson.feature(
   worldTopo,
   worldTopo.objects.countries
 ) as FeatureCollection<Geometry, CountryProps>
+
+const landGeo = topojson.feature(worldTopo, worldTopo.objects.land) as FeatureCollection
 
 type ClickEntry = { name?: string; total: number }
 type ClickData = { [alpha2: string]: ClickEntry }
@@ -31,27 +49,17 @@ function topN(data: ClickData, n = 10) {
     .slice(0, n)
 }
 
-// 티어별 색상 — 테두리 없이 fill만 사용 (Voyager 타일이 국경선 담당)
 const TIERS = [
-  { min: 1,   max: 9,    color: '#60a5fa', label: '1–9',    tag: '입문' },
-  { min: 10,  max: 49,   color: '#818cf8', label: '10–49',  tag: '활발' },
-  { min: 50,  max: 199,  color: '#c084fc', label: '50–199', tag: '인기' },
-  { min: 200, max: 999,  color: '#f472b6', label: '200–999',tag: '핫' },
-  { min: 1000,max: Infinity, color: '#fb7185', label: '1000+', tag: '🔥전설' },
+  { min: 1,    max: 9,        color: '#60a5fa', label: '1–9',     tag: '입문' },
+  { min: 10,   max: 49,       color: '#818cf8', label: '10–49',   tag: '활발' },
+  { min: 50,   max: 199,      color: '#c084fc', label: '50–199',  tag: '인기' },
+  { min: 200,  max: 999,      color: '#f472b6', label: '200–999', tag: '핫' },
+  { min: 1000, max: Infinity, color: '#fb7185', label: '1000+',   tag: '🔥전설' },
 ]
 
 function countryColor(count: number): string {
-  if (count === 0) return 'transparent'
+  if (count === 0) return '#2d4a6b'
   return TIERS.find(t => count >= t.min && count <= t.max)?.color ?? '#fb7185'
-}
-
-function countryOpacity(count: number): number {
-  if (count === 0)   return 0
-  if (count < 10)   return 0.42
-  if (count < 50)   return 0.55
-  if (count < 200)  return 0.65
-  if (count < 1000) return 0.75
-  return 0.85
 }
 
 const MEDALS = ['🥇', '🥈', '🥉']
@@ -65,9 +73,23 @@ const glass: React.CSSProperties = {
 }
 
 export default function WorldMap() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const [clickData, setClickData] = useState<ClickData>({})
   const clickDataRef = useRef<ClickData>({})
-  const [geoKey, setGeoKey] = useState(0)
+
+  // 회전 상태 [lambda(경도), phi(위도)]
+  const rotationRef = useRef<[number, number]>([-30, -20])
+  // 줌 상태
+  const scaleRef = useRef(0)
+  // 드래그 시작점
+  const dragStartRef = useRef<{ x: number; y: number; rotation: [number, number] } | null>(null)
+  // hover된 나라
+  const [hoveredAlpha2, setHoveredAlpha2] = useState<string | null>(null)
+  const [tooltip, setTooltip] = useState<{ name: string; count: number; x: number; y: number } | null>(null)
+  const animFrameRef = useRef<number>(0)
+  // 자동 회전
+  const autoRotateRef = useRef(true)
 
   useEffect(() => {
     fetch('/api/clicks')
@@ -78,82 +100,257 @@ export default function WorldMap() {
       })
   }, [])
 
-  const handleFeatureClick = useCallback(async (numericId: string, geoName: string) => {
-    const alpha2 = isoCountries.numericToAlpha2(numericId)
-    if (!alpha2) return
+  const getProjection = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    const size = Math.min(canvas.width, canvas.height)
+    // 화면보다 훨씬 큰 지구본 → 가까이서 보는 거대한 지구 느낌
+    const baseScale = size * 1.6
+    const scale = baseScale * Math.pow(1.3, scaleRef.current)
+    return geoOrthographic()
+      .scale(scale)
+      .translate([canvas.width / 2, canvas.height / 2])
+      .rotate([rotationRef.current[0], rotationRef.current[1], 0])
+      .clipAngle(90)
+  }, [])
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const proj = getProjection()
+    if (!proj) return
+    const path = geoPath(proj, ctx)
+    const graticule = geoGraticule()
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    // 바다 (구 배경)
+    ctx.beginPath()
+    path({ type: 'Sphere' } as Feature<Geometry, GeoJsonProperties>)
+    const centerX = canvas.width / 2
+    const centerY = canvas.height / 2
+    const radius = proj.scale()
+    const gradient = ctx.createRadialGradient(
+      centerX - radius * 0.2, centerY - radius * 0.25, radius * 0.05,
+      centerX, centerY, radius * 1.1
+    )
+    gradient.addColorStop(0, '#1a6fa8')
+    gradient.addColorStop(0.5, '#0d4f7a')
+    gradient.addColorStop(1, '#062840')
+    ctx.fillStyle = gradient
+    ctx.fill()
+
+    // 위경도 격자선
+    ctx.beginPath()
+    path(graticule())
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+    ctx.lineWidth = 0.5
+    ctx.stroke()
+
+    // 육지 베이스
+    ctx.beginPath()
+    path(landGeo)
+    ctx.fillStyle = '#2a5a3a'
+    ctx.fill()
+
+    // 국가별 색상
+    for (const feature of worldGeo.features) {
+      const numericId = String((feature as Feature & { id?: string | number }).id ?? '')
+      const alpha2 = isoCountries.numericToAlpha2(numericId)
+      const count = alpha2 ? (clickDataRef.current[alpha2]?.total ?? 0) : 0
+      const isHovered = alpha2 === hoveredAlpha2
+
+      ctx.beginPath()
+      path(feature)
+
+      if (isHovered) {
+        ctx.fillStyle = 'rgba(255,255,255,0.35)'
+        ctx.fill()
+      } else if (count > 0) {
+        ctx.fillStyle = countryColor(count)
+        ctx.globalAlpha = 0.7
+        ctx.fill()
+        ctx.globalAlpha = 1
+      }
+    }
+
+    // 국경선
+    ctx.beginPath()
+    path(topojson.mesh(worldTopo, worldTopo.objects.countries, (a, b) => a !== b))
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'
+    ctx.lineWidth = 0.4
+    ctx.stroke()
+
+    // 구 테두리
+    ctx.beginPath()
+    path({ type: 'Sphere' } as Feature<Geometry, GeoJsonProperties>)
+    ctx.strokeStyle = 'rgba(100,180,255,0.25)'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+
+    // 구 광택 효과
+    const shineGrad = ctx.createRadialGradient(
+      centerX - radius * 0.35, centerY - radius * 0.35, radius * 0.02,
+      centerX - radius * 0.1, centerY - radius * 0.1, radius * 0.75
+    )
+    shineGrad.addColorStop(0, 'rgba(255,255,255,0.12)')
+    shineGrad.addColorStop(0.4, 'rgba(255,255,255,0.03)')
+    shineGrad.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.beginPath()
+    path({ type: 'Sphere' } as Feature<Geometry, GeoJsonProperties>)
+    ctx.fillStyle = shineGrad
+    ctx.fill()
+  }, [getProjection, hoveredAlpha2])
+
+  // 자동 회전 루프
+  useEffect(() => {
+    let last = performance.now()
+    const loop = (now: number) => {
+      if (autoRotateRef.current && !dragStartRef.current) {
+        const dt = now - last
+        rotationRef.current = [rotationRef.current[0] + dt * 0.004, rotationRef.current[1]]
+      }
+      last = now
+      draw()
+      animFrameRef.current = requestAnimationFrame(loop)
+    }
+    animFrameRef.current = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(animFrameRef.current)
+  }, [draw])
+
+  // 캔버스 크기 맞추기
+  useEffect(() => {
+    const resize = () => {
+      const canvas = canvasRef.current
+      const container = containerRef.current
+      if (!canvas || !container) return
+      canvas.width = container.clientWidth
+      canvas.height = container.clientHeight
+    }
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
+
+  // 마우스 위치 → 나라 찾기
+  const getAlpha2AtPoint = useCallback((x: number, y: number) => {
+    const proj = getProjection()
+    if (!proj) return null
+    const coords = proj.invert?.([x, y])
+    if (!coords) return null
+    const path = geoPath(proj)
+    for (const feature of [...worldGeo.features].reverse()) {
+      if (path.measure(feature) === 0) continue
+      try {
+        if (geoPath(proj).bounds(feature) && path.area(feature) > 0) {
+          // point-in-polygon check
+        }
+      } catch { /* skip */ }
+      const numericId = String((feature as Feature & { id?: string | number }).id ?? '')
+      const alpha2 = isoCountries.numericToAlpha2(numericId)
+      // canvas point-in-path check
+      const canvas = canvasRef.current
+      if (!canvas) continue
+      const ctx = canvas.getContext('2d')
+      if (!ctx) continue
+      ctx.beginPath()
+      geoPath(proj, ctx)(feature)
+      if (ctx.isPointInPath(x, y)) {
+        return { alpha2, numericId, feature }
+      }
+    }
+    return null
+  }, [getProjection])
+
+  // 드래그
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    autoRotateRef.current = false
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      rotation: [...rotationRef.current] as [number, number],
+    }
+  }, [])
+
+  const onMouseMove = useCallback((e: React.MouseEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    if (dragStartRef.current) {
+      const dx = e.clientX - dragStartRef.current.x
+      const dy = e.clientY - dragStartRef.current.y
+      const sensitivity = 0.15
+      rotationRef.current = [
+        dragStartRef.current.rotation[0] + dx * sensitivity,
+        Math.max(-90, Math.min(90, dragStartRef.current.rotation[1] - dy * sensitivity)),
+      ]
+      setTooltip(null)
+      return
+    }
+
+    // hover 감지
+    const hit = getAlpha2AtPoint(x, y)
+    if (hit?.alpha2) {
+      const count = clickDataRef.current[hit.alpha2]?.total ?? 0
+      const name = clickDataRef.current[hit.alpha2]?.name
+        ?? isoCountries.getName(hit.alpha2, LOCALE)
+        ?? hit.alpha2
+      setHoveredAlpha2(hit.alpha2)
+      setTooltip({ name, count, x: e.clientX - rect.left, y: e.clientY - rect.top })
+      canvas.style.cursor = 'pointer'
+    } else {
+      setHoveredAlpha2(null)
+      setTooltip(null)
+      canvas.style.cursor = 'grab'
+    }
+  }, [getAlpha2AtPoint])
+
+  const onMouseUp = useCallback(() => {
+    dragStartRef.current = null
+  }, [])
+
+  const onMouseLeave = useCallback(() => {
+    dragStartRef.current = null
+    setHoveredAlpha2(null)
+    setTooltip(null)
+    autoRotateRef.current = true
+  }, [])
+
+  const onClick = useCallback(async (e: React.MouseEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    const hit = getAlpha2AtPoint(x, y)
+    if (!hit?.alpha2) return
+
+    const alpha2 = hit.alpha2
+    const name = clickDataRef.current[alpha2]?.name
+      ?? isoCountries.getName(alpha2, LOCALE)
+      ?? alpha2
 
     const res = await fetch('/api/clicks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ alpha2, name: geoName }),
+      body: JSON.stringify({ alpha2, name }),
     })
     const updated: ClickEntry = await res.json()
-    const prev = clickDataRef.current[alpha2]
-    const merged: ClickEntry = { name: prev?.name ?? geoName, total: updated.total }
-
+    const merged: ClickEntry = { name, total: updated.total }
     clickDataRef.current = { ...clickDataRef.current, [alpha2]: merged }
     setClickData({ ...clickDataRef.current })
-    setGeoKey(k => k + 1)
-  }, [])
+    setTooltip(prev => prev ? { ...prev, count: updated.total } : null)
+  }, [getAlpha2AtPoint])
 
-  const onEachFeature = useCallback(
-    (feature: Feature<Geometry, CountryProps>, layer: L.Layer) => {
-      const numericId = String((feature as Feature & { id?: string | number }).id ?? '')
-      const geoName = feature.properties?.name ?? numericId
-      const alpha2 = isoCountries.numericToAlpha2(numericId)
-      const pathLayer = layer as L.Path
-
-      pathLayer.on({
-        click: () => handleFeatureClick(numericId, geoName),
-        mouseover: (e: LeafletMouseEvent) => {
-          const count = alpha2 ? (clickDataRef.current[alpha2]?.total ?? 0) : 0
-          // 테두리만 볼드 처리 — fill은 그대로, 국경선만 강조
-          e.target.setStyle({
-            weight: 2,
-            color: '#fff',
-            fillOpacity: count > 0 ? Math.min(countryOpacity(count) + 0.15, 1) : 0.18,
-          })
-          e.target.openTooltip()
-        },
-        mouseout: (e: LeafletMouseEvent) => {
-          const count = alpha2 ? (clickDataRef.current[alpha2]?.total ?? 0) : 0
-          e.target.setStyle({
-            weight: 0,
-            color: 'transparent',
-            fillOpacity: countryOpacity(count),
-          })
-          e.target.closeTooltip()
-        },
-      })
-
-      const count = alpha2 ? (clickDataRef.current[alpha2]?.total ?? 0) : 0
-      const tier = TIERS.find(t => count >= t.min && count <= t.max)
-
-      pathLayer.bindTooltip(
-        `<div class="wm-tooltip">
-          <div class="wm-tooltip-name">${geoName}</div>
-          ${count > 0
-            ? `<div class="wm-tooltip-count">🖱 ${count.toLocaleString()}회 클릭</div>
-               <div class="wm-tooltip-tier" style="color:${tier?.color ?? '#a78bfa'}">${tier?.tag ?? ''}</div>`
-            : `<div class="wm-tooltip-hint">클릭해서 기록하기</div>`}
-        </div>`,
-        { sticky: true, opacity: 1, className: 'wm-tooltip-wrapper' }
-      )
-    },
-    [handleFeatureClick]
-  )
-
-  // 테두리 완전 제거 → 가로줄 아티팩트 해결
-  const styleFeature: StyleFunction = useCallback((feature?: Feature) => {
-    const numericId = String((feature as (Feature & { id?: string | number }) | undefined)?.id ?? '')
-    const alpha2 = isoCountries.numericToAlpha2(numericId)
-    const count = alpha2 ? (clickDataRef.current[alpha2]?.total ?? 0) : 0
-    return {
-      fillColor: countryColor(count),
-      fillOpacity: countryOpacity(count),
-      color: 'transparent',
-      weight: 0,
-    }
+  // 스크롤 줌
+  const onWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+    scaleRef.current = Math.max(-3, Math.min(5, scaleRef.current - e.deltaY * 0.003))
   }, [])
 
   const allTimeTop = topN(clickData)
@@ -162,34 +359,51 @@ export default function WorldMap() {
   const countryCount = Object.keys(clickData).length
 
   return (
-    <div style={{ position: 'relative', height: '100%', width: '100%' }}>
-      <MapContainer
-        center={[20, 0]}
-        zoom={2}
-        minZoom={2}
-        maxZoom={8}
-        doubleClickZoom={false}
-        style={{ height: '100%', width: '100%' }}
-        worldCopyJump={false}
-        maxBounds={[[-85, -210], [85, 210]]}
-        maxBoundsViscosity={0.4}
-      >
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
-          subdomains="abcd"
-        />
-        <GeoJSON key={geoKey} data={worldGeo} style={styleFeature} onEachFeature={onEachFeature} />
-      </MapContainer>
+    <div ref={containerRef} style={{ position: 'relative', height: '100%', width: '100%', background: '#050a10', overflow: 'hidden' }}>
+      <canvas
+        ref={canvasRef}
+        style={{ display: 'block', width: '100%', height: '100%', cursor: 'grab' }}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseLeave}
+        onClick={onClick}
+        onWheel={onWheel}
+      />
+
+      {/* 툴팁 */}
+      {tooltip && (
+        <div style={{
+          ...glass,
+          position: 'absolute',
+          left: tooltip.x + 14,
+          top: tooltip.y - 10,
+          borderRadius: 10,
+          padding: '9px 13px',
+          pointerEvents: 'none',
+          zIndex: 1000,
+          minWidth: 130,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{tooltip.name}</div>
+          {tooltip.count > 0
+            ? <>
+                <div style={{ fontSize: 11, color: '#a78bfa', marginTop: 3 }}>🖱 {tooltip.count.toLocaleString()}회 클릭</div>
+                <div style={{ fontSize: 11, marginTop: 2, color: TIERS.find(t => tooltip.count >= t.min && tooltip.count <= t.max)?.color ?? '#a78bfa' }}>
+                  {TIERS.find(t => tooltip.count >= t.min && tooltip.count <= t.max)?.tag}
+                </div>
+              </>
+            : <div style={{ fontSize: 11, color: '#475569', marginTop: 3 }}>클릭해서 기록하기</div>
+          }
+        </div>
+      )}
 
       {/* 안내 — 좌상단 */}
       <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 10, padding: '7px 13px', fontSize: 11, color: '#64748b' }}>
-        스크롤 줌 &middot; 드래그 이동 &middot; 클릭으로 카운트
+        드래그 회전 &middot; 스크롤 줌 &middot; 클릭으로 카운트
       </div>
 
       {/* 통계 패널 — 우상단 */}
       <div style={{ ...glass, position: 'absolute', top: 16, right: 16, zIndex: 1000, borderRadius: 16, padding: 16, width: 240 }}>
-        {/* 요약 수치 */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <div style={{ flex: 1, background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#a78bfa', lineHeight: 1 }}>{totalClicks.toLocaleString()}</div>
@@ -228,7 +442,6 @@ export default function WorldMap() {
                       width: `${(e.count / maxCount) * 100}%`,
                       background: 'linear-gradient(90deg, #818cf8, #c084fc)',
                       borderRadius: 2,
-                      transition: 'width 0.4s ease',
                     }} />
                   </div>
                 </div>
