@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -20,11 +21,13 @@ interface Country {
 
 const tabs = [
   { id: 'list', label: '🗂️ 국가 목록' },
-  { id: 'map', label: '🗺️ 세계 지도' },
+  { id: 'map', label: '🌐 Countries of Interest' },
 ]
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'list' | 'map'>('list')
+  const searchParams = useSearchParams()
+  const initialTab = searchParams.get('tab') === 'map' ? 'map' : 'list'
+  const [activeTab, setActiveTab] = useState<'list' | 'map'>(initialTab)
 
   const [countries, setCountries] = useState<Country[]>([])
   const [search, setSearch] = useState('')
@@ -63,33 +66,36 @@ export default function Home() {
     <main className="h-screen bg-zinc-950 text-white flex flex-col overflow-hidden">
       {/* 헤더 */}
       <div className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">🌍 WorldStats</h1>
-            <p className="text-zinc-400 text-sm">글로벌 국가 비교 · 통계 정보</p>
+        <div className="max-w-7xl mx-auto px-6 flex items-center gap-6 h-12">
+          {/* 로고 */}
+          <span className="text-base font-bold tracking-tight whitespace-nowrap">🌍 WorldStats</span>
+
+          <div className="w-px h-5 bg-zinc-700" />
+
+          {/* 탭 */}
+          <div className="flex gap-0">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as 'list' | 'map')}
+                className={`px-5 h-12 text-sm font-medium transition-all border-b-2 ${
+                  activeTab === tab.id
+                    ? 'border-white text-white'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
+
+          <div className="flex-1" />
+
           {activeTab === 'list' && (
             <Badge variant="outline" className="text-zinc-400 border-zinc-700">
               {filtered.length}개국
             </Badge>
           )}
-        </div>
-
-        {/* 탭 */}
-        <div className="max-w-7xl mx-auto px-6 flex gap-0 border-t border-zinc-800/50">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as 'list' | 'map')}
-              className={`px-5 py-3 text-sm font-medium transition-all border-b-2 ${
-                activeTab === tab.id
-                  ? 'border-white text-white'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
         </div>
       </div>
 

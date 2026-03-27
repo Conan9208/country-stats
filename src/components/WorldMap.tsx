@@ -10,6 +10,8 @@ import localeEn from 'i18n-iso-countries/langs/en.json'
 import { geoOrthographic, geoPath, geoGraticule } from 'd3-geo'
 import StarField from '@/components/StarField'
 import CommentPanel from '@/components/CommentPanel'
+import DebtModal from '@/components/DebtModal'
+import CountryInfoModal from '@/components/CountryInfoModal'
 import type { ClickData, ClickEntry, CountryProps, TooltipState } from '@/types/map'
 import { TIERS, glass } from '@/lib/mapConstants'
 import { formatCount, countryColor, getTier, topN, topNToday, getLocale } from '@/lib/mapUtils'
@@ -30,6 +32,27 @@ const worldGeo = topojson.feature(
 
 const landGeo = topojson.feature(worldTopo, worldTopo.objects.land) as FeatureCollection
 
+// 모듈 레벨 1회 계산 — 매 프레임 재계산 방지
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const bordersMesh = topojson.mesh(worldTopo as any, (worldTopo as any).objects.countries, (a: unknown, b: unknown) => a !== b) as unknown as Feature<Geometry, GeoJsonProperties>
+const graticuleData = geoGraticule()()
+
+// numericId → alpha2 lookup map
+const alpha2Map = new Map<string, string>()
+for (const f of worldGeo.features) {
+  const numericId = String((f as Feature & { id?: string | number }).id ?? '')
+  const a2 = isoCountries.numericToAlpha2(numericId)
+  if (a2) alpha2Map.set(numericId, a2)
+}
+
+// alpha2 → feature lookup map (플래시 효과용)
+const featureByAlpha2 = new Map<string, Feature<Geometry, CountryProps>>()
+for (const f of worldGeo.features) {
+  const numericId = String((f as Feature & { id?: string | number }).id ?? '')
+  const a2 = alpha2Map.get(numericId)
+  if (a2) featureByAlpha2.set(a2, f)
+}
+
 export default function WorldMap() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -42,11 +65,28 @@ export default function WorldMap() {
   const scaleRef = useRef(0)
   // 드래그 시작점
   const dragStartRef = useRef<{ x: number; y: number; rotation: [number, number] } | null>(null)
-  // hover된 나라
-  const [hoveredAlpha2, setHoveredAlpha2] = useState<string | null>(null)
+  // 관성 velocity
+  const velocityRef = useRef<[number, number]>([0, 0])
+  const lastMouseRef = useRef<{ x: number; y: number; t: number } | null>(null)
+  // hover된 나라 (ref로 관리 → React 리렌더 없음)
+  const hoveredAlpha2Ref = useRef<string | null>(null)
+  const hoveredNameRef   = useRef<string | null>(null)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
+  // 우클릭 컨텍스트 메뉴
+  type ContextMenu = { x: number; y: number; alpha2: string; name: string }
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
+  const contextMenuRef    = useRef<ContextMenu | null>(null)
+  const selectedAlpha2Ref = useRef<string | null>(null)
+  const closeContextMenu  = useCallback(() => {
+    contextMenuRef.current    = null
+    selectedAlpha2Ref.current = null
+    setContextMenu(null)
+  }, [])
   // 댓글 패널
   const [commentCountry, setCommentCountry] = useState<{ code: string; name: string } | null>(null)
+  // 모달
+  const [debtCountry, setDebtCountry]   = useState<{ code: string; name: string } | null>(null)
+  const [infoCountry, setInfoCountry]   = useState<{ code: string; name: string } | null>(null)
   const [toast, setToast] = useState<{ message: string; sub: string } | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 내 클릭 기록 (localStorage)
@@ -87,6 +127,13 @@ export default function WorldMap() {
       }
     } catch { /* ignore */ }
   }, [])
+
+  // 캔버스 밖 클릭 시 컨텍스트 메뉴 닫기
+  useEffect(() => {
+    const handler = () => { if (contextMenuRef.current) closeContextMenu() }
+    window.addEventListener('mousedown', handler)
+    return () => window.removeEventListener('mousedown', handler)
+  }, [closeContextMenu])
 
   // Supabase Realtime 구독 — 다른 사람이 클릭하면 내 화면도 업데이트
   useEffect(() => {
@@ -140,7 +187,7 @@ export default function WorldMap() {
     const scale = baseScale * Math.pow(1.3, scaleRef.current)
     return geoOrthographic()
       .scale(scale)
-      .translate([canvas.width / 2, canvas.height / 2])
+      .translate([canvas.width / 2 - 128, canvas.height / 2])
       .rotate([rotationRef.current[0], rotationRef.current[1], 0])
       .clipAngle(90)
   }, [])
@@ -153,7 +200,6 @@ export default function WorldMap() {
     const proj = getProjection()
     if (!proj) return
     const path = geoPath(proj, ctx)
-    const graticule = geoGraticule()
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
@@ -175,7 +221,7 @@ export default function WorldMap() {
 
     // 위경도 격자선
     ctx.beginPath()
-    path(graticule())
+    path(graticuleData)
     ctx.strokeStyle = 'rgba(255,255,255,0.06)'
     ctx.lineWidth = 0.5
     ctx.stroke()
@@ -189,14 +235,22 @@ export default function WorldMap() {
     // 국가별 색상
     for (const feature of worldGeo.features) {
       const numericId = String((feature as Feature & { id?: string | number }).id ?? '')
-      const alpha2 = isoCountries.numericToAlpha2(numericId)
+      const alpha2 = alpha2Map.get(numericId) ?? null
       const count = alpha2 ? (clickDataRef.current[alpha2]?.total ?? 0) : 0
-      const isHovered = alpha2 === hoveredAlpha2
+      const isHovered   = alpha2 !== null && alpha2 === hoveredAlpha2Ref.current
+      const isSelected  = alpha2 !== null && alpha2 === selectedAlpha2Ref.current
 
       ctx.beginPath()
       path(feature)
 
-      if (isHovered) {
+      if (isSelected) {
+        // 우클릭 선택 나라: 밝은 주황 + 테두리 강조
+        ctx.fillStyle = 'rgba(251,146,60,0.55)'
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(251,146,60,0.9)'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+      } else if (isHovered) {
         ctx.fillStyle = 'rgba(255,255,255,0.35)'
         ctx.fill()
       } else if (count > 0) {
@@ -209,8 +263,7 @@ export default function WorldMap() {
 
     // 국경선
     ctx.beginPath()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    path(topojson.mesh(worldTopo as any, (worldTopo as any).objects.countries, (a: unknown, b: unknown) => a !== b) as unknown as Feature<Geometry, GeoJsonProperties>)
+    path(bordersMesh)
     ctx.strokeStyle = 'rgba(255,255,255,0.18)'
     ctx.lineWidth = 0.4
     ctx.stroke()
@@ -240,10 +293,7 @@ export default function WorldMap() {
     flashesRef.current = flashesRef.current.filter(f => now - f.t < 500)
     for (const flash of flashesRef.current) {
       const age = (now - flash.t) / 500
-      const feature = worldGeo.features.find(ft => {
-        const nid = String((ft as Feature & { id?: string | number }).id ?? '')
-        return isoCountries.numericToAlpha2(nid) === flash.alpha2
-      })
+      const feature = featureByAlpha2.get(flash.alpha2)
       if (!feature) continue
       ctx.beginPath()
       path(feature)
@@ -279,7 +329,7 @@ export default function WorldMap() {
     // 커서 — 글로우 도트 + 부드럽게 맥동하는 외곽 링
     const mp = mousePosRef.current
     if (mp) {
-      const onCountry = hoveredAlpha2 !== null
+      const onCountry = hoveredAlpha2Ref.current !== null
       const pulse = (Math.sin(now * 0.004) + 1) / 2        // 0→1 맥동
       const outerR = 14 + pulse * 5                          // 14~19px
       const outerA = 0.35 + pulse * 0.25                     // 0.35~0.60
@@ -307,17 +357,27 @@ export default function WorldMap() {
       ctx.fillStyle = onCountry ? '#facc15' : 'rgba(255,255,255,0.9)'
       ctx.fill()
     }
-  }, [getProjection, hoveredAlpha2])
+  }, [getProjection])
 
-  // 자동 회전 루프
+  // 자동 회전 + 관성 루프
   useEffect(() => {
     let last = performance.now()
     const loop = (now: number) => {
-      if (autoRotateRef.current && !dragStartRef.current) {
-        const dt = now - last
-        rotationRef.current = [rotationRef.current[0] + dt * 0.004, rotationRef.current[1]]
-      }
+      const dt = now - last
       last = now
+      if (!dragStartRef.current) {
+        const [vx, vy] = velocityRef.current
+        if (Math.abs(vx) > 0.0001 || Math.abs(vy) > 0.0001) {
+          rotationRef.current = [
+            rotationRef.current[0] + vx * dt,
+            Math.max(-90, Math.min(90, rotationRef.current[1] - vy * dt)),
+          ]
+          velocityRef.current = [vx * 0.88, vy * 0.88]
+        } else if (autoRotateRef.current && !contextMenuRef.current) {
+          rotationRef.current = [rotationRef.current[0] + dt * 0.004, rotationRef.current[1]]
+          velocityRef.current = [0, 0]
+        }
+      }
       draw()
       animFrameRef.current = requestAnimationFrame(loop)
     }
@@ -369,9 +429,12 @@ export default function WorldMap() {
     return null
   }, [getProjection])
 
+  const hasDraggedRef = useRef(false)
+
   // 드래그
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     autoRotateRef.current = false
+    hasDraggedRef.current = false
     dragStartRef.current = {
       x: e.clientX,
       y: e.clientY,
@@ -397,6 +460,19 @@ export default function WorldMap() {
         dragStartRef.current.rotation[0] + dx * sensitivity,
         Math.max(-90, Math.min(90, dragStartRef.current.rotation[1] - dy * sensitivity)),
       ]
+      // velocity 추적
+      const now = performance.now()
+      const last = lastMouseRef.current
+      if (last) {
+        const dt = Math.max(1, now - last.t)
+        velocityRef.current = [
+          (e.clientX - last.x) / dt * sensitivity,
+          (e.clientY - last.y) / dt * sensitivity,
+        ]
+      }
+      lastMouseRef.current = { x: e.clientX, y: e.clientY, t: now }
+      hasDraggedRef.current = true
+      hoveredAlpha2Ref.current = null
       setTooltip(null)
       return
     }
@@ -408,45 +484,47 @@ export default function WorldMap() {
       const name = clickDataRef.current[hit.alpha2]?.name
         ?? isoCountries.getName(hit.alpha2, LOCALE)
         ?? hit.alpha2
-      setHoveredAlpha2(hit.alpha2)
+      hoveredAlpha2Ref.current = hit.alpha2
+      hoveredNameRef.current   = name
       setTooltip({ name, count, x: e.clientX - rect.left, y: e.clientY - rect.top })
     } else {
-      setHoveredAlpha2(null)
+      hoveredAlpha2Ref.current = null
+      hoveredNameRef.current   = null
       setTooltip(null)
     }
-  }, [getAlpha2AtPoint])
+  }, [getAlpha2AtPoint, getProjection])
 
   const onMouseUp = useCallback(() => {
     dragStartRef.current = null
+    lastMouseRef.current = null
   }, [])
 
   const onMouseLeave = useCallback(() => {
     dragStartRef.current = null
     mousePosRef.current = null
-    setHoveredAlpha2(null)
+    lastMouseRef.current = null
+    hoveredAlpha2Ref.current = null
     setTooltip(null)
     autoRotateRef.current = true
   }, [])
 
   const onClick = useCallback(async (e: React.MouseEvent) => {
+    if (contextMenuRef.current) { closeContextMenu(); return }
+    if (hasDraggedRef.current) return
+    const alpha2 = hoveredAlpha2Ref.current
+    if (!alpha2) return
+    const name = hoveredNameRef.current ?? alpha2
+
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    const hit = getAlpha2AtPoint(x, y)
-    if (!hit?.alpha2) return
 
-    const alpha2 = hit.alpha2
-    const name = clickDataRef.current[alpha2]?.name
-      ?? isoCountries.getName(alpha2, LOCALE)
-      ?? alpha2
-
-    // 즉시 이펙트 (API 응답 기다리지 않음)
+    // 즉시 이펙트
     const t = performance.now()
     shockwavesRef.current.push({ x, y, t })
     flashesRef.current.push({ alpha2, t })
-    // 파티클 8방향 버스트
     for (let i = 0; i < 8; i++) {
       const angle = (i / 8) * Math.PI * 2
       const speed = 55 + Math.random() * 30
@@ -459,6 +537,27 @@ export default function WorldMap() {
       })
     }
 
+    // 낙관적 업데이트: API 기다리지 않고 즉시 +1 표시
+    const prevTotal = clickDataRef.current[alpha2]?.total ?? 0
+    const optimistic = prevTotal + 1
+    clickDataRef.current = {
+      ...clickDataRef.current,
+      [alpha2]: { ...clickDataRef.current[alpha2], name, total: optimistic },
+    }
+    setClickData({ ...clickDataRef.current })
+    setTooltip(prev => prev ? { ...prev, count: optimistic } : null)
+
+    const container = containerRef.current
+    if (container) {
+      const cRect = container.getBoundingClientRect()
+      const fx = e.clientX - cRect.left
+      const fy = e.clientY - cRect.top
+      const id = Date.now() + Math.random()
+      setFloatNums(prev => [...prev, { id, x: fx, y: fy, value: optimistic }])
+      setTimeout(() => setFloatNums(prev => prev.filter(n => n.id !== id)), 1000)
+    }
+
+    // 백그라운드에서 실제 API 호출 → 서버 값으로 보정
     const res = await fetch('/api/clicks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -466,6 +565,13 @@ export default function WorldMap() {
     })
 
     if (res.status === 429) {
+      // 롤백
+      clickDataRef.current = {
+        ...clickDataRef.current,
+        [alpha2]: { ...clickDataRef.current[alpha2], total: prevTotal },
+      }
+      setClickData({ ...clickDataRef.current })
+      setTooltip(prev => prev ? { ...prev, count: prevTotal } : null)
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
       setToast({ message: '잠깐, 너무 빠르다! 🚦', sub: '1분에 10번까지만 클릭할 수 있어요.' })
       toastTimerRef.current = setTimeout(() => setToast(null), 3000)
@@ -478,17 +584,6 @@ export default function WorldMap() {
     setClickData({ ...clickDataRef.current })
     setTooltip(prev => prev ? { ...prev, count: updated.total } : null)
 
-    // +N 플로팅 텍스트
-    const container = containerRef.current
-    if (container) {
-      const cRect = container.getBoundingClientRect()
-      const fx = e.clientX - cRect.left
-      const fy = e.clientY - cRect.top
-      const id = Date.now() + Math.random()
-      setFloatNums(prev => [...prev, { id, x: fx, y: fy, value: updated.total }])
-      setTimeout(() => setFloatNums(prev => prev.filter(n => n.id !== id)), 1000)
-    }
-
     // 내 클릭 기록 저장
     if (!myClicksRef.current.has(alpha2)) {
       myClicksRef.current.add(alpha2)
@@ -498,13 +593,31 @@ export default function WorldMap() {
 
     // 댓글 패널 열기
     setCommentCountry({ code: alpha2, name })
-  }, [getAlpha2AtPoint])
+  }, [closeContextMenu])
 
   // 스크롤 줌
   const onWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
     scaleRef.current = Math.max(-3, Math.min(5, scaleRef.current - e.deltaY * 0.003))
   }, [])
+
+  const onContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const alpha2 = hoveredAlpha2Ref.current
+    const name   = hoveredNameRef.current
+    if (!alpha2 || !name) return
+    selectedAlpha2Ref.current = alpha2
+    const menu = { x: e.clientX, y: e.clientY, alpha2, name }
+    contextMenuRef.current = menu
+    setContextMenu(menu)
+  }, [])
+
+  const handleMenuSelect = useCallback((action: 'info' | 'debt' | 'comment', alpha2: string, name: string) => {
+    closeContextMenu()
+    if (action === 'info')    setInfoCountry({ code: alpha2, name })
+    if (action === 'debt')    setDebtCountry({ code: alpha2, name })
+    if (action === 'comment') setCommentCountry({ code: alpha2, name })
+  }, [closeContextMenu])
 
   const allTimeTop = topN(clickData)
   const todayTop = topNToday(clickData)
@@ -522,6 +635,7 @@ export default function WorldMap() {
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseLeave}
         onClick={onClick}
+        onContextMenu={onContextMenu}
         onWheel={onWheel}
       />
 
@@ -537,8 +651,9 @@ export default function WorldMap() {
         <div style={{
           ...glass,
           position: 'absolute',
-          left: tooltip.x + 14,
+          left: tooltip.x - 14,
           top: tooltip.y - 10,
+          transform: 'translateX(-100%)',
           borderRadius: 10,
           padding: '9px 13px',
           pointerEvents: 'none',
@@ -610,10 +725,51 @@ export default function WorldMap() {
           </div>
         </div>
 
-        <RankList title="🏆 전체" entries={allTimeTop} emptyMsg="아직 클릭 데이터가 없어요" />
+        <RankList title="🏆 전체" entries={allTimeTop} emptyMsg="아직 클릭 데이터가 없어요" onSelect={setCommentCountry} />
         <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '12px 0' }} />
-        <RankList title="📅 오늘" entries={todayTop} emptyMsg="오늘 아직 클릭 없어요" live />
+        <RankList title="📅 오늘" entries={todayTop} emptyMsg="오늘 아직 클릭 없어요" live onSelect={setCommentCountry} />
       </div>
+
+      {/* 우클릭 컨텍스트 메뉴 */}
+      {contextMenu && (
+        <div
+          onMouseDown={e => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            zIndex: 2000,
+            ...glass,
+            borderRadius: 12,
+            padding: '6px 0',
+            minWidth: 200,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+          }}
+        >
+          <div style={{ fontSize: 11, color: '#475569', padding: '6px 14px 4px', fontWeight: 700, letterSpacing: '0.06em' }}>
+            {contextMenu.name}
+          </div>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '4px 0' }} />
+          {(['info', 'debt', 'comment'] as const).map((action) => {
+            const labels = { info: '📊 기본 정보', debt: '💸 부채 정보', comment: '💬 댓글 보기' }
+            return (
+              <button
+                key={action}
+                onClick={() => handleMenuSelect(action, contextMenu.alpha2, contextMenu.name)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 14px', fontSize: 13, color: '#e2e8f0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                {labels[action]}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* 모달 */}
+      {debtCountry && <DebtModal code={debtCountry.code} name={debtCountry.name} onClose={() => setDebtCountry(null)} />}
+      {infoCountry && <CountryInfoModal code={infoCountry.code} name={infoCountry.name} onClose={() => setInfoCountry(null)} />}
 
       {/* 범례 — 좌하단 */}
       <div style={{ ...glass, position: 'absolute', bottom: 32, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 14px' }}>
@@ -636,11 +792,12 @@ export default function WorldMap() {
 
 type RankEntry = { alpha2: string; name: string; count: number }
 
-function RankList({ title, entries, emptyMsg, live }: {
+function RankList({ title, entries, emptyMsg, live, onSelect }: {
   title: string
   entries: RankEntry[]
   emptyMsg: string
   live?: boolean
+  onSelect: (c: { code: string; name: string }) => void
 }) {
   const max = entries[0]?.count ?? 1
   return (
@@ -667,7 +824,10 @@ function RankList({ title, entries, emptyMsg, live }: {
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
-                    <span style={{ fontSize: 12, color: '#e2e8f0', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>
+                    <span
+                      onClick={() => onSelect({ code: e.alpha2, name: e.name })}
+                      style={{ fontSize: 12, color: '#e2e8f0', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.2)', textUnderlineOffset: 3 }}
+                    >
                       {e.name}
                     </span>
                     <span style={{ fontSize: 11, color: tier?.color ?? '#a78bfa', flexShrink: 0, marginLeft: 6, fontWeight: 600 }}>
