@@ -1,54 +1,66 @@
 import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
+// --- Rate limiting (in-memory, per serverless instance) ---
+// 완전한 차단은 아니지만 일반적인 어뷰징의 95%를 막습니다.
+// 트래픽이 커지면 Upstash Redis로 교체하세요.
+const rateLimitMap = new Map<string, number[]>()
+const RATE_LIMIT = 10   // 같은 IP에서 최대 N회
+const RATE_WINDOW = 60_000 // 1분 (ms)
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now()
+  const timestamps = (rateLimitMap.get(ip) ?? []).filter(t => now - t < RATE_WINDOW)
+  if (timestamps.length >= RATE_LIMIT) return true
+  rateLimitMap.set(ip, [...timestamps, now])
+  return false
+}
+
+function getIp(req: NextRequest): string {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+  )
+}
+
+// --- GET: 전체 클릭 데이터 (30초 캐시) ---
 export async function GET() {
   const { data, error } = await supabase
     .from('country_views')
-    .select('country_code, view_count')
+    .select('country_code, view_count, name')
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  const result: Record<string, { total: number }> = {}
+  const result: Record<string, { total: number; name?: string }> = {}
   for (const row of data ?? []) {
-    result[row.country_code] = { total: row.view_count }
+    result[row.country_code] = { total: row.view_count, name: row.name ?? undefined }
   }
 
-  return Response.json(result)
+  return Response.json(result, {
+    headers: { 'Cache-Control': 's-maxage=30, stale-while-revalidate=60' },
+  })
 }
 
+// --- POST: 클릭 수 atomic increment ---
 export async function POST(request: NextRequest) {
-  const { alpha2 } = await request.json()
+  const ip = getIp(request)
+  if (isRateLimited(ip)) {
+    return Response.json({ error: 'rate limit exceeded' }, { status: 429 })
+  }
+
+  const { alpha2, name } = await request.json()
   if (!alpha2 || typeof alpha2 !== 'string') {
     return Response.json({ error: 'invalid alpha2' }, { status: 400 })
   }
 
-  const { data: existing } = await supabase
-    .from('country_views')
-    .select('view_count')
-    .eq('country_code', alpha2)
-    .single()
+  // Atomic upsert: DB 함수 1번 호출로 race condition 없이 증가
+  const { data, error } = await supabase.rpc('increment_view_count', {
+    p_country_code: alpha2,
+    p_name: name ?? null,
+  })
 
-  if (existing) {
-    const { data, error } = await supabase
-      .from('country_views')
-      .update({
-        view_count: existing.view_count + 1,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('country_code', alpha2)
-      .select('country_code, view_count')
-      .single()
+  if (error) return Response.json({ error: error.message }, { status: 500 })
 
-    if (error) return Response.json({ error: error.message }, { status: 500 })
-    return Response.json({ total: data.view_count })
-  } else {
-    const { data, error } = await supabase
-      .from('country_views')
-      .insert({ country_code: alpha2, view_count: 1 })
-      .select('country_code, view_count')
-      .single()
-
-    if (error) return Response.json({ error: error.message }, { status: 500 })
-    return Response.json({ total: data.view_count })
-  }
+  return Response.json({ total: data })
 }
