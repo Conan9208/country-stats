@@ -11,6 +11,7 @@ import { geoOrthographic, geoPath, geoGraticule } from 'd3-geo'
 import type { ClickData, ClickEntry, CountryProps, TooltipState } from '@/types/map'
 import { TIERS, MEDALS, glass } from '@/lib/mapConstants'
 import { formatCount, countryColor, getTier, topN, getLocale } from '@/lib/mapUtils'
+import { supabase } from '@/lib/supabase'
 
 isoCountries.registerLocale(localeKo)
 isoCountries.registerLocale(localeEn)
@@ -44,6 +45,9 @@ export default function WorldMap() {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const [toast, setToast] = useState<{ message: string; sub: string } | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 내 클릭 기록 (localStorage)
+  const myClicksRef = useRef<Set<string>>(new Set())
+  const [myClickCount, setMyClickCount] = useState(0)
   const animFrameRef = useRef<number>(0)
   // 자동 회전
   const autoRotateRef = useRef(true)
@@ -55,6 +59,42 @@ export default function WorldMap() {
         clickDataRef.current = data
         setClickData(data)
       })
+  }, [])
+
+  // localStorage에서 내 클릭 기록 불러오기
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('my_clicked_countries')
+      if (stored) {
+        const arr: string[] = JSON.parse(stored)
+        myClicksRef.current = new Set(arr)
+        setMyClickCount(arr.length)
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  // Supabase Realtime 구독 — 다른 사람이 클릭하면 내 화면도 업데이트
+  useEffect(() => {
+    const channel = supabase
+      .channel('country_views_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'country_views' },
+        (payload) => {
+          const row = payload.new as { country_code: string; view_count: number; name?: string }
+          if (!row?.country_code) return
+          clickDataRef.current = {
+            ...clickDataRef.current,
+            [row.country_code]: {
+              total: Number(row.view_count) || 0,
+              name: row.name ?? clickDataRef.current[row.country_code]?.name,
+            },
+          }
+          setClickData({ ...clickDataRef.current })
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, [])
 
   const getProjection = useCallback(() => {
@@ -310,6 +350,13 @@ export default function WorldMap() {
     clickDataRef.current = { ...clickDataRef.current, [alpha2]: merged }
     setClickData({ ...clickDataRef.current })
     setTooltip(prev => prev ? { ...prev, count: updated.total } : null)
+
+    // 내 클릭 기록 저장
+    if (!myClicksRef.current.has(alpha2)) {
+      myClicksRef.current.add(alpha2)
+      setMyClickCount(myClicksRef.current.size)
+      try { localStorage.setItem('my_clicked_countries', JSON.stringify([...myClicksRef.current])) } catch { /* ignore */ }
+    }
   }, [getAlpha2AtPoint])
 
   // 스크롤 줌
@@ -400,13 +447,17 @@ export default function WorldMap() {
             <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>총 클릭</div>
           </div>
           <div style={{ flex: 1, background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', lineHeight: 1 }}>{countryCount}</div>
-            <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>방문 국가</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', lineHeight: 1 }}>{myClickCount}</div>
+            <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>내 클릭 국가</div>
           </div>
         </div>
 
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>
-          🏆 Most Clicked
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>🏆 Most Clicked</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#22c55e', fontWeight: 600, letterSpacing: 0 }}>
+            <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+            LIVE
+          </span>
         </div>
         {allTimeTop.length === 0 ? (
           <p style={{ color: '#334155', fontSize: 12 }}>아직 클릭 데이터가 없어요</p>
