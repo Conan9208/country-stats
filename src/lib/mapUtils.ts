@@ -25,6 +25,14 @@ export function topN(data: ClickData, n = 20) {
     .slice(0, n)
 }
 
+export function topNToday(data: ClickData, n = 20) {
+  return Object.entries(data)
+    .map(([alpha2, entry]) => ({ alpha2, name: entry.name ?? alpha2, count: entry.today ?? 0 }))
+    .filter(e => e.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, n)
+}
+
 export function getLocale(): string {
   if (typeof navigator === 'undefined') return 'en'
   const lang = navigator.language.split('-')[0]

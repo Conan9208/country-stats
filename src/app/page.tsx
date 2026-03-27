@@ -95,7 +95,7 @@ export default function Home() {
 
       {/* 탭 콘텐츠 */}
       {activeTab === 'list' && (
-        <>
+        <div className="flex-1 overflow-y-auto">
           {/* 검색 + 필터 */}
           <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col sm:flex-row gap-4 w-full">
             <Input
@@ -163,7 +163,7 @@ export default function Home() {
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
 
       {activeTab === 'map' && (

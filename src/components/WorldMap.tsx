@@ -8,9 +8,11 @@ import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
 import localeEn from 'i18n-iso-countries/langs/en.json'
 import { geoOrthographic, geoPath, geoGraticule } from 'd3-geo'
+import StarField from '@/components/StarField'
+import CommentPanel from '@/components/CommentPanel'
 import type { ClickData, ClickEntry, CountryProps, TooltipState } from '@/types/map'
-import { TIERS, MEDALS, glass } from '@/lib/mapConstants'
-import { formatCount, countryColor, getTier, topN, getLocale } from '@/lib/mapUtils'
+import { TIERS, glass } from '@/lib/mapConstants'
+import { formatCount, countryColor, getTier, topN, topNToday, getLocale } from '@/lib/mapUtils'
 import { supabase } from '@/lib/supabase'
 
 isoCountries.registerLocale(localeKo)
@@ -43,6 +45,8 @@ export default function WorldMap() {
   // hover된 나라
   const [hoveredAlpha2, setHoveredAlpha2] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
+  // 댓글 패널
+  const [commentCountry, setCommentCountry] = useState<{ code: string; name: string } | null>(null)
   const [toast, setToast] = useState<{ message: string; sub: string } | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 내 클릭 기록 (localStorage)
@@ -51,6 +55,17 @@ export default function WorldMap() {
   const animFrameRef = useRef<number>(0)
   // 자동 회전
   const autoRotateRef = useRef(true)
+
+  // 이펙트
+  type Shockwave = { x: number; y: number; t: number }
+  type Particle  = { x: number; y: number; vx: number; vy: number; t: number; size: number }
+  type Flash     = { alpha2: string; t: number }
+  type FloatNum  = { id: number; x: number; y: number; value: number }
+  const shockwavesRef = useRef<Shockwave[]>([])
+  const particlesRef  = useRef<Particle[]>([])
+  const flashesRef    = useRef<Flash[]>([])
+  const mousePosRef   = useRef<{ x: number; y: number } | null>(null)
+  const [floatNums, setFloatNums] = useState<FloatNum[]>([])
 
   useEffect(() => {
     fetch('/api/clicks')
@@ -68,7 +83,7 @@ export default function WorldMap() {
       if (stored) {
         const arr: string[] = JSON.parse(stored)
         myClicksRef.current = new Set(arr)
-        setMyClickCount(arr.length)
+        setTimeout(() => setMyClickCount(arr.length), 0)
       }
     } catch { /* ignore */ }
   }, [])
@@ -76,7 +91,7 @@ export default function WorldMap() {
   // Supabase Realtime 구독 — 다른 사람이 클릭하면 내 화면도 업데이트
   useEffect(() => {
     const channel = supabase
-      .channel('country_views_realtime')
+      .channel('country_stats_realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'country_views' },
@@ -86,8 +101,27 @@ export default function WorldMap() {
           clickDataRef.current = {
             ...clickDataRef.current,
             [row.country_code]: {
+              ...clickDataRef.current[row.country_code],
               total: Number(row.view_count) || 0,
               name: row.name ?? clickDataRef.current[row.country_code]?.name,
+            },
+          }
+          setClickData({ ...clickDataRef.current })
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'country_daily_views' },
+        (payload) => {
+          const row = payload.new as { country_code: string; view_count: number; view_date: string }
+          if (!row?.country_code) return
+          const today = new Date().toISOString().slice(0, 10)
+          if (row.view_date !== today) return
+          clickDataRef.current = {
+            ...clickDataRef.current,
+            [row.country_code]: {
+              ...clickDataRef.current[row.country_code],
+              today: Number(row.view_count) || 0,
             },
           }
           setClickData({ ...clickDataRef.current })
@@ -125,7 +159,7 @@ export default function WorldMap() {
 
     // 바다 (구 배경)
     ctx.beginPath()
-    path({ type: 'Sphere' } as Feature<Geometry, GeoJsonProperties>)
+    path({ type: 'Sphere' } as unknown as Feature<Geometry, GeoJsonProperties>)
     const centerX = canvas.width / 2
     const centerY = canvas.height / 2
     const radius = proj.scale()
@@ -175,14 +209,15 @@ export default function WorldMap() {
 
     // 국경선
     ctx.beginPath()
-    path(topojson.mesh(worldTopo, worldTopo.objects.countries, (a, b) => a !== b))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    path(topojson.mesh(worldTopo as any, (worldTopo as any).objects.countries, (a: unknown, b: unknown) => a !== b) as unknown as Feature<Geometry, GeoJsonProperties>)
     ctx.strokeStyle = 'rgba(255,255,255,0.18)'
     ctx.lineWidth = 0.4
     ctx.stroke()
 
     // 구 테두리
     ctx.beginPath()
-    path({ type: 'Sphere' } as Feature<Geometry, GeoJsonProperties>)
+    path({ type: 'Sphere' } as unknown as Feature<Geometry, GeoJsonProperties>)
     ctx.strokeStyle = 'rgba(100,180,255,0.25)'
     ctx.lineWidth = 1.5
     ctx.stroke()
@@ -196,9 +231,82 @@ export default function WorldMap() {
     shineGrad.addColorStop(0.4, 'rgba(255,255,255,0.03)')
     shineGrad.addColorStop(1, 'rgba(0,0,0,0)')
     ctx.beginPath()
-    path({ type: 'Sphere' } as Feature<Geometry, GeoJsonProperties>)
+    path({ type: 'Sphere' } as unknown as Feature<Geometry, GeoJsonProperties>)
     ctx.fillStyle = shineGrad
     ctx.fill()
+
+    // 클릭 플래시 — 나라 위에 황금색 오버레이
+    const now = performance.now()
+    flashesRef.current = flashesRef.current.filter(f => now - f.t < 500)
+    for (const flash of flashesRef.current) {
+      const age = (now - flash.t) / 500
+      const feature = worldGeo.features.find(ft => {
+        const nid = String((ft as Feature & { id?: string | number }).id ?? '')
+        return isoCountries.numericToAlpha2(nid) === flash.alpha2
+      })
+      if (!feature) continue
+      ctx.beginPath()
+      path(feature)
+      ctx.fillStyle = `rgba(250,204,21,${0.75 * (1 - age)})`
+      ctx.fill()
+    }
+
+    // 충격파 (shockwave) — 빠르게 퍼지는 단일 링
+    shockwavesRef.current = shockwavesRef.current.filter(s => now - s.t < 500)
+    for (const sw of shockwavesRef.current) {
+      const age = (now - sw.t) / 500
+      const eased = 1 - Math.pow(1 - age, 3)   // ease-out cubic
+      ctx.beginPath()
+      ctx.arc(sw.x, sw.y, eased * 90, 0, Math.PI * 2)
+      ctx.strokeStyle = `rgba(250,204,21,${(1 - age) * 0.9})`
+      ctx.lineWidth = (1 - age) * 3.5
+      ctx.stroke()
+    }
+
+    // 파티클 버스트
+    particlesRef.current = particlesRef.current.filter(p => now - p.t < 600)
+    for (const p of particlesRef.current) {
+      const age = (now - p.t) / 600
+      const eased = 1 - Math.pow(1 - age, 2)
+      const px = p.x + p.vx * eased
+      const py = p.y + p.vy * eased
+      ctx.beginPath()
+      ctx.arc(px, py, p.size * (1 - age), 0, Math.PI * 2)
+      ctx.fillStyle = `rgba(250,204,21,${1 - age})`
+      ctx.fill()
+    }
+
+    // 커서 — 글로우 도트 + 부드럽게 맥동하는 외곽 링
+    const mp = mousePosRef.current
+    if (mp) {
+      const onCountry = hoveredAlpha2 !== null
+      const pulse = (Math.sin(now * 0.004) + 1) / 2        // 0→1 맥동
+      const outerR = 14 + pulse * 5                          // 14~19px
+      const outerA = 0.35 + pulse * 0.25                     // 0.35~0.60
+      const cr = onCountry ? '250,204,21' : '255,255,255'
+
+      // 소프트 글로우
+      const glow = ctx.createRadialGradient(mp.x, mp.y, 0, mp.x, mp.y, outerR * 2)
+      glow.addColorStop(0,   `rgba(${cr},${onCountry ? 0.18 : 0.08})`)
+      glow.addColorStop(1,   'rgba(0,0,0,0)')
+      ctx.beginPath()
+      ctx.arc(mp.x, mp.y, outerR * 2, 0, Math.PI * 2)
+      ctx.fillStyle = glow
+      ctx.fill()
+
+      // 외곽 링
+      ctx.beginPath()
+      ctx.arc(mp.x, mp.y, outerR, 0, Math.PI * 2)
+      ctx.strokeStyle = `rgba(${cr},${outerA})`
+      ctx.lineWidth = 1
+      ctx.stroke()
+
+      // 중심 도트
+      ctx.beginPath()
+      ctx.arc(mp.x, mp.y, onCountry ? 4 : 3, 0, Math.PI * 2)
+      ctx.fillStyle = onCountry ? '#facc15' : 'rgba(255,255,255,0.9)'
+      ctx.fill()
+    }
   }, [getProjection, hoveredAlpha2])
 
   // 자동 회전 루프
@@ -278,10 +386,13 @@ export default function WorldMap() {
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
+    mousePosRef.current = { x, y }
+
     if (dragStartRef.current) {
       const dx = e.clientX - dragStartRef.current.x
       const dy = e.clientY - dragStartRef.current.y
-      const sensitivity = 0.15
+      const proj = getProjection()
+      const sensitivity = proj ? (180 / Math.PI) / proj.scale() : 0.05
       rotationRef.current = [
         dragStartRef.current.rotation[0] + dx * sensitivity,
         Math.max(-90, Math.min(90, dragStartRef.current.rotation[1] - dy * sensitivity)),
@@ -299,11 +410,9 @@ export default function WorldMap() {
         ?? hit.alpha2
       setHoveredAlpha2(hit.alpha2)
       setTooltip({ name, count, x: e.clientX - rect.left, y: e.clientY - rect.top })
-      canvas.style.cursor = 'pointer'
     } else {
       setHoveredAlpha2(null)
       setTooltip(null)
-      canvas.style.cursor = 'grab'
     }
   }, [getAlpha2AtPoint])
 
@@ -313,6 +422,7 @@ export default function WorldMap() {
 
   const onMouseLeave = useCallback(() => {
     dragStartRef.current = null
+    mousePosRef.current = null
     setHoveredAlpha2(null)
     setTooltip(null)
     autoRotateRef.current = true
@@ -332,6 +442,23 @@ export default function WorldMap() {
       ?? isoCountries.getName(alpha2, LOCALE)
       ?? alpha2
 
+    // 즉시 이펙트 (API 응답 기다리지 않음)
+    const t = performance.now()
+    shockwavesRef.current.push({ x, y, t })
+    flashesRef.current.push({ alpha2, t })
+    // 파티클 8방향 버스트
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2
+      const speed = 55 + Math.random() * 30
+      particlesRef.current.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        t,
+        size: 2.5 + Math.random() * 1.5,
+      })
+    }
+
     const res = await fetch('/api/clicks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -345,11 +472,22 @@ export default function WorldMap() {
       return
     }
 
-    const updated: ClickEntry = await res.json()
-    const merged: ClickEntry = { name, total: updated.total }
+    const updated: { total: number; today: number } = await res.json()
+    const merged: ClickEntry = { name, total: updated.total, today: updated.today }
     clickDataRef.current = { ...clickDataRef.current, [alpha2]: merged }
     setClickData({ ...clickDataRef.current })
     setTooltip(prev => prev ? { ...prev, count: updated.total } : null)
+
+    // +N 플로팅 텍스트
+    const container = containerRef.current
+    if (container) {
+      const cRect = container.getBoundingClientRect()
+      const fx = e.clientX - cRect.left
+      const fy = e.clientY - cRect.top
+      const id = Date.now() + Math.random()
+      setFloatNums(prev => [...prev, { id, x: fx, y: fy, value: updated.total }])
+      setTimeout(() => setFloatNums(prev => prev.filter(n => n.id !== id)), 1000)
+    }
 
     // 내 클릭 기록 저장
     if (!myClicksRef.current.has(alpha2)) {
@@ -357,6 +495,9 @@ export default function WorldMap() {
       setMyClickCount(myClicksRef.current.size)
       try { localStorage.setItem('my_clicked_countries', JSON.stringify([...myClicksRef.current])) } catch { /* ignore */ }
     }
+
+    // 댓글 패널 열기
+    setCommentCountry({ code: alpha2, name })
   }, [getAlpha2AtPoint])
 
   // 스크롤 줌
@@ -366,15 +507,16 @@ export default function WorldMap() {
   }, [])
 
   const allTimeTop = topN(clickData)
-  const maxCount = allTimeTop[0]?.count ?? 1
+  const todayTop = topNToday(clickData)
   const totalClicks = Object.values(clickData).reduce((s, e) => s + (Number(e.total) || 0), 0)
   const countryCount = Object.keys(clickData).length
 
   return (
     <div ref={containerRef} style={{ position: 'relative', height: '100%', width: '100%', background: '#050a10', overflow: 'hidden' }}>
+      <StarField />
       <canvas
         ref={canvasRef}
-        style={{ display: 'block', width: '100%', height: '100%', cursor: 'grab' }}
+        style={{ display: 'block', width: '100%', height: '100%', cursor: 'none', position: 'relative', zIndex: 1, background: 'transparent' }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -382,6 +524,13 @@ export default function WorldMap() {
         onClick={onClick}
         onWheel={onWheel}
       />
+
+      {/* +N 플로팅 숫자 */}
+      {floatNums.map(n => (
+        <div key={n.id} className="float-num" style={{ left: n.x - 16, top: n.y - 24 }}>
+          +{n.value.toLocaleString()}
+        </div>
+      ))}
 
       {/* 툴팁 */}
       {tooltip && (
@@ -439,8 +588,17 @@ export default function WorldMap() {
         드래그 회전 &middot; 스크롤 줌 &middot; 클릭으로 카운트
       </div>
 
-      {/* 통계 패널 — 우상단 */}
-      <div style={{ ...glass, position: 'absolute', top: 16, right: 16, zIndex: 1000, borderRadius: 16, padding: 16, width: 240 }}>
+      {/* 댓글 패널 */}
+      {commentCountry && (
+        <CommentPanel
+          countryCode={commentCountry.code}
+          countryName={commentCountry.name}
+          onClose={() => setCommentCountry(null)}
+        />
+      )}
+
+      {/* 통계 패널 — 우상단 (댓글 패널 열릴 때 왼쪽으로 이동) */}
+      <div style={{ ...glass, position: 'absolute', top: 16, right: commentCountry ? 324 : 16, zIndex: 1000, borderRadius: 16, padding: 16, width: 240, transition: 'right 0.35s cubic-bezier(0.4,0,0.2,1)' }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <div style={{ flex: 1, background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#a78bfa', lineHeight: 1 }}>{formatCount(totalClicks)}</div>
@@ -452,47 +610,9 @@ export default function WorldMap() {
           </div>
         </div>
 
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>🏆 Most Clicked</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#22c55e', fontWeight: 600, letterSpacing: 0 }}>
-            <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-            LIVE
-          </span>
-        </div>
-        {allTimeTop.length === 0 ? (
-          <p style={{ color: '#334155', fontSize: 12 }}>아직 클릭 데이터가 없어요</p>
-        ) : (
-          <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
-            {allTimeTop.map((e, i) => {
-              const tier = TIERS.find(t => e.count >= t.min && e.count <= t.max)
-              return (
-                <li key={e.alpha2} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 20, textAlign: 'center', fontSize: i < 3 ? 14 : 11, color: '#475569', flexShrink: 0 }}>
-                    {i < 3 ? MEDALS[i] : i + 1}
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                      <span style={{ fontSize: 12, color: '#e2e8f0', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>
-                        {e.name}
-                      </span>
-                      <span style={{ fontSize: 11, color: tier?.color ?? '#a78bfa', flexShrink: 0, marginLeft: 6, fontWeight: 600 }}>
-                        {formatCount(e.count)}
-                      </span>
-                    </div>
-                    <div style={{ height: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${(e.count / maxCount) * 100}%`,
-                        background: `linear-gradient(90deg, ${tier?.color ?? '#818cf8'}, #c084fc)`,
-                        borderRadius: 2,
-                      }} />
-                    </div>
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
-        )}
+        <RankList title="🏆 전체" entries={allTimeTop} emptyMsg="아직 클릭 데이터가 없어요" />
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '12px 0' }} />
+        <RankList title="📅 오늘" entries={todayTop} emptyMsg="오늘 아직 클릭 없어요" live />
       </div>
 
       {/* 범례 — 좌하단 */}
@@ -510,6 +630,59 @@ export default function WorldMap() {
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+type RankEntry = { alpha2: string; name: string; count: number }
+
+function RankList({ title, entries, emptyMsg, live }: {
+  title: string
+  entries: RankEntry[]
+  emptyMsg: string
+  live?: boolean
+}) {
+  const max = entries[0]?.count ?? 1
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.07em', textTransform: 'uppercase' }}>{title}</span>
+        {live && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#22c55e', fontWeight: 600 }}>
+            <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+            LIVE
+          </span>
+        )}
+      </div>
+      {entries.length === 0 ? (
+        <p style={{ color: '#334155', fontSize: 12, margin: 0 }}>{emptyMsg}</p>
+      ) : (
+        <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto', paddingRight: 14, marginRight: -4, scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,0.3) transparent' }}>
+          {entries.map((e, i) => {
+            const tier = TIERS.find(t => e.count >= t.min && e.count <= t.max)
+            return (
+              <li key={e.alpha2} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 20, textAlign: 'center', fontSize: i < 3 ? 13 : 11, color: '#475569', flexShrink: 0 }}>
+                  {i < 3 ? ['🥇','🥈','🥉'][i] : i + 1}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
+                    <span style={{ fontSize: 12, color: '#e2e8f0', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>
+                      {e.name}
+                    </span>
+                    <span style={{ fontSize: 11, color: tier?.color ?? '#a78bfa', flexShrink: 0, marginLeft: 6, fontWeight: 600 }}>
+                      {formatCount(e.count)}
+                    </span>
+                  </div>
+                  <div style={{ height: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(e.count / max) * 100}%`, background: `linear-gradient(90deg, ${tier?.color ?? '#818cf8'}, #c084fc)`, borderRadius: 2 }} />
+                  </div>
+                </div>
+              </li>
+            )
+          })}
+        </ol>
+      )}
     </div>
   )
 }

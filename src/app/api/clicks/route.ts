@@ -24,17 +24,29 @@ function getIp(req: NextRequest): string {
   )
 }
 
-// --- GET: 전체 클릭 데이터 (30초 캐시) ---
+// --- GET: 전체 + 오늘 클릭 데이터 ---
 export async function GET() {
-  const { data, error } = await supabase
-    .from('country_views')
-    .select('country_code, view_count, name')
+  const today = new Date().toISOString().slice(0, 10)
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  const [totalRes, dailyRes] = await Promise.all([
+    supabase.from('country_views').select('country_code, view_count, name'),
+    supabase.from('country_daily_views').select('country_code, view_count').eq('view_date', today),
+  ])
 
-  const result: Record<string, { total: number; name?: string }> = {}
-  for (const row of data ?? []) {
-    result[row.country_code] = { total: Number(row.view_count) || 0, name: row.name ?? undefined }
+  if (totalRes.error) return Response.json({ error: totalRes.error.message }, { status: 500 })
+
+  const todayMap: Record<string, number> = {}
+  for (const row of dailyRes.data ?? []) {
+    todayMap[row.country_code] = Number(row.view_count) || 0
+  }
+
+  const result: Record<string, { total: number; today: number; name?: string }> = {}
+  for (const row of totalRes.data ?? []) {
+    result[row.country_code] = {
+      total: Number(row.view_count) || 0,
+      today: todayMap[row.country_code] ?? 0,
+      name: row.name ?? undefined,
+    }
   }
 
   return Response.json(result, {
@@ -62,5 +74,6 @@ export async function POST(request: NextRequest) {
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  return Response.json({ total: data })
+  const { total, today } = data as { total: number; today: number }
+  return Response.json({ total, today })
 }
