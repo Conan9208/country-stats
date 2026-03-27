@@ -42,6 +42,8 @@ export default function WorldMap() {
   // hover된 나라
   const [hoveredAlpha2, setHoveredAlpha2] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
+  const [toast, setToast] = useState<{ message: string; sub: string } | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const animFrameRef = useRef<number>(0)
   // 자동 회전
   const autoRotateRef = useRef(true)
@@ -295,6 +297,14 @@ export default function WorldMap() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ alpha2, name }),
     })
+
+    if (res.status === 429) {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+      setToast({ message: '잠깐, 너무 빠르다! 🚦', sub: '1분에 10번까지만 클릭할 수 있어요.' })
+      toastTimerRef.current = setTimeout(() => setToast(null), 3000)
+      return
+    }
+
     const updated: ClickEntry = await res.json()
     const merged: ClickEntry = { name, total: updated.total }
     clickDataRef.current = { ...clickDataRef.current, [alpha2]: merged }
@@ -351,6 +361,31 @@ export default function WorldMap() {
           }
         </div>
       )}
+
+      {/* 토스트 알림 */}
+      <div style={{
+        position: 'absolute',
+        bottom: 40,
+        left: '50%',
+        transform: `translateX(-50%) translateY(${toast ? 0 : 20}px)`,
+        opacity: toast ? 1 : 0,
+        transition: 'opacity 0.25s ease, transform 0.25s ease',
+        pointerEvents: 'none',
+        zIndex: 2000,
+        ...glass,
+        borderRadius: 14,
+        padding: '12px 20px',
+        textAlign: 'center',
+        minWidth: 240,
+        border: '1px solid rgba(251,146,60,0.35)',
+      }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#fb923c' }}>
+          {toast?.message}
+        </div>
+        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+          {toast?.sub}
+        </div>
+      </div>
 
       {/* 안내 — 좌상단 */}
       <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 10, padding: '7px 13px', fontSize: 11, color: '#64748b' }}>
