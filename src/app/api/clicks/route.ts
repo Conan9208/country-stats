@@ -34,7 +34,7 @@ export async function GET() {
 
   const result: Record<string, { total: number; name?: string }> = {}
   for (const row of data ?? []) {
-    result[row.country_code] = { total: row.view_count, name: row.name ?? undefined }
+    result[row.country_code] = { total: Number(row.view_count) || 0, name: row.name ?? undefined }
   }
 
   return Response.json(result, {

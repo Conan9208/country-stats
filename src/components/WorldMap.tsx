@@ -320,7 +320,7 @@ export default function WorldMap() {
 
   const allTimeTop = topN(clickData)
   const maxCount = allTimeTop[0]?.count ?? 1
-  const totalClicks = Object.values(clickData).reduce((s, e) => s + e.total, 0)
+  const totalClicks = Object.values(clickData).reduce((s, e) => s + (Number(e.total) || 0), 0)
   const countryCount = Object.keys(clickData).length
 
   return (
