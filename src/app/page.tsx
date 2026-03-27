@@ -60,7 +60,7 @@ export default function Home() {
   }, [search, selectedRegion, countries])
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white flex flex-col">
+    <main className="h-screen bg-zinc-950 text-white flex flex-col overflow-hidden">
       {/* 헤더 */}
       <div className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -167,7 +167,7 @@ export default function Home() {
       )}
 
       {activeTab === 'map' && (
-        <div className="flex-1 max-w-7xl mx-auto px-6 py-6 w-full flex flex-col" style={{ minHeight: 'calc(100vh - 120px)' }}>
+        <div className="flex-1 overflow-hidden">
           <WorldMap />
         </div>
       )}
