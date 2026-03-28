@@ -100,7 +100,7 @@ export default function WorldMap() {
   type Shockwave = { x: number; y: number; t: number }
   type Particle  = { x: number; y: number; vx: number; vy: number; t: number; size: number }
   type Flash     = { alpha2: string; t: number }
-  type FloatNum  = { id: number; x: number; y: number; value: number }
+  type FloatNum  = { id: number; x: number; y: number; value: number; isRateLimit?: boolean }
   const shockwavesRef = useRef<Shockwave[]>([])
   const particlesRef  = useRef<Particle[]>([])
   const flashesRef    = useRef<Flash[]>([])
@@ -149,7 +149,11 @@ export default function WorldMap() {
             ...clickDataRef.current,
             [row.country_code]: {
               ...clickDataRef.current[row.country_code],
-              total: Number(row.view_count) || 0,
+              // Math.max — 낙관적 업데이트보다 낮은 값으로 절대 뒤로 가지 않음
+              total: Math.max(
+                clickDataRef.current[row.country_code]?.total ?? 0,
+                Number(row.view_count) || 0
+              ),
               name: row.name ?? clickDataRef.current[row.country_code]?.name,
             },
           }
@@ -177,6 +181,16 @@ export default function WorldMap() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
+
+  // clickData(서버 확정값)가 바뀔 때마다 tooltip도 같이 갱신 — 낙관적 flicker 방지
+  useEffect(() => {
+    setTooltip(prev => {
+      if (!prev || !hoveredAlpha2Ref.current) return prev
+      const confirmed = clickDataRef.current[hoveredAlpha2Ref.current]?.total ?? 0
+      if (confirmed === prev.count) return prev
+      return { ...prev, count: confirmed }
+    })
+  }, [clickData])
 
   const getProjection = useCallback(() => {
     const canvas = canvasRef.current
@@ -537,7 +551,13 @@ export default function WorldMap() {
       })
     }
 
-    // 낙관적 업데이트: API 기다리지 않고 즉시 +1 표시
+    // 클릭 위치 미리 캡처 (await 이후엔 synthetic event 접근 불가)
+    const container = containerRef.current
+    const cRect = container?.getBoundingClientRect()
+    const fx = cRect ? e.clientX - cRect.left : x
+    const fy = cRect ? e.clientY - cRect.top  : y
+
+    // 낙관적 업데이트: 지구본 색상만 즉시 반영 (tooltip은 건드리지 않음)
     const prevTotal = clickDataRef.current[alpha2]?.total ?? 0
     const optimistic = prevTotal + 1
     clickDataRef.current = {
@@ -545,17 +565,12 @@ export default function WorldMap() {
       [alpha2]: { ...clickDataRef.current[alpha2], name, total: optimistic },
     }
     setClickData({ ...clickDataRef.current })
-    setTooltip(prev => prev ? { ...prev, count: optimistic } : null)
+    // tooltip은 useEffect(clickData)가 확정값으로 동기화 — 여기선 건드리지 않음
 
-    const container = containerRef.current
-    if (container) {
-      const cRect = container.getBoundingClientRect()
-      const fx = e.clientX - cRect.left
-      const fy = e.clientY - cRect.top
-      const id = Date.now() + Math.random()
-      setFloatNums(prev => [...prev, { id, x: fx, y: fy, value: optimistic }])
-      setTimeout(() => setFloatNums(prev => prev.filter(n => n.id !== id)), 1000)
-    }
+    // +1 플로팅 피드백
+    const floatId = Date.now() + Math.random()
+    setFloatNums(prev => [...prev, { id: floatId, x: fx, y: fy, value: 1 }])
+    setTimeout(() => setFloatNums(prev => prev.filter(n => n.id !== floatId)), 1000)
 
     // 백그라운드에서 실제 API 호출 → 서버 값으로 보정
     const res = await fetch('/api/clicks', {
@@ -565,13 +580,17 @@ export default function WorldMap() {
     })
 
     if (res.status === 429) {
-      // 롤백
+      // 낙관적 +1 롤백 (지구본 색상용)
       clickDataRef.current = {
         ...clickDataRef.current,
         [alpha2]: { ...clickDataRef.current[alpha2], total: prevTotal },
       }
       setClickData({ ...clickDataRef.current })
-      setTooltip(prev => prev ? { ...prev, count: prevTotal } : null)
+      // tooltip은 useEffect가 prevTotal로 자동 동기화
+      // 이모지 float — 클릭이 튕겼음을 재밌게 표시
+      const rlId = Date.now() + Math.random()
+      setFloatNums(prev => [...prev, { id: rlId, x: fx, y: fy - 28, value: 0, isRateLimit: true }])
+      setTimeout(() => setFloatNums(prev => prev.filter(n => n.id !== rlId)), 1500)
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
       setToast({ message: '잠깐, 너무 빠르다! 🚦', sub: '1분에 10번까지만 클릭할 수 있어요.' })
       toastTimerRef.current = setTimeout(() => setToast(null), 3000)
@@ -579,10 +598,12 @@ export default function WorldMap() {
     }
 
     const updated: { total: number; today: number } = await res.json()
-    const merged: ClickEntry = { name, total: updated.total, today: updated.today }
+    // Math.max — 여러 요청이 순서 바뀌어 도착해도 절대 뒤로 가지 않음
+    const confirmedTotal = Math.max(clickDataRef.current[alpha2]?.total ?? 0, updated.total)
+    const merged: ClickEntry = { name, total: confirmedTotal, today: updated.today }
     clickDataRef.current = { ...clickDataRef.current, [alpha2]: merged }
     setClickData({ ...clickDataRef.current })
-    setTooltip(prev => prev ? { ...prev, count: updated.total } : null)
+    // tooltip은 setClickData → useEffect가 자동 동기화
 
     // 내 클릭 기록 저장
     if (!myClicksRef.current.has(alpha2)) {
@@ -639,10 +660,14 @@ export default function WorldMap() {
         onWheel={onWheel}
       />
 
-      {/* +N 플로팅 숫자 */}
+      {/* 플로팅 피드백 */}
       {floatNums.map(n => (
-        <div key={n.id} className="float-num" style={{ left: n.x - 16, top: n.y - 24 }}>
-          +{n.value.toLocaleString()}
+        <div
+          key={n.id}
+          className={n.isRateLimit ? 'float-num float-num--rate-limit' : 'float-num'}
+          style={{ left: n.x - 16, top: n.y - 24 }}
+        >
+          {n.isRateLimit ? '😤' : `+${n.value.toLocaleString()}`}
         </div>
       ))}
 
