@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
@@ -29,7 +29,7 @@ const tabs = [
 
 type TabId = 'list' | 'map' | 'calc'
 
-export default function Home() {
+function HomeContent() {
   const searchParams = useSearchParams()
   const rawTab = searchParams.get('tab')
   const initialTab: TabId = rawTab === 'map' ? 'map' : rawTab === 'calc' ? 'calc' : 'list'
@@ -192,5 +192,13 @@ export default function Home() {
 
       {activeTab === 'calc' && <Calculator />}
     </main>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="h-screen bg-zinc-950" />}>
+      <HomeContent />
+    </Suspense>
   )
 }
