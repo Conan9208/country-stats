@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import Calculator from '@/components/Calculator'
@@ -101,6 +102,12 @@ export default function Home() {
               {filtered.length}개국
             </Badge>
           )}
+
+          <div className="hidden sm:flex items-center gap-4 text-xs text-zinc-600">
+            <Link href="/about" className="hover:text-zinc-400 transition-colors">About</Link>
+            <Link href="/privacy" className="hover:text-zinc-400 transition-colors">Privacy</Link>
+            <Link href="/contact" className="hover:text-zinc-400 transition-colors">Contact</Link>
+          </div>
         </div>
       </div>
 
