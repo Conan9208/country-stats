@@ -721,12 +721,12 @@ export default function WorldMap() {
 
       {/* 안내 — 좌상단 */}
       <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 16px', lineHeight: 1.35 }}>
-        <div style={{ fontFamily: "'Bangers', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9' }}>
+        <div style={{ fontFamily: "'Pacifico', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9' }}>
           <span style={{ color: '#34d399' }}>❤ Left click</span>
           <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
           <span style={{ color: '#cbd5e1' }}>you love this country</span>
         </div>
-        <div style={{ fontFamily: "'Bangers', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9', marginTop: 3 }}>
+        <div style={{ fontFamily: "'Pacifico', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9', marginTop: 3 }}>
           <span style={{ color: '#a78bfa' }}>🔍 Right click</span>
           <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
           <span style={{ color: '#cbd5e1' }}>wanna know more?</span>
