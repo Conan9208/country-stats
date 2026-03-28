@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import Calculator from '@/components/Calculator'
 
 const WorldMap = dynamic(() => import('@/components/WorldMap'), { ssr: false })
 
@@ -22,12 +23,16 @@ interface Country {
 const tabs = [
   { id: 'list', label: '🗂️ 국가 목록' },
   { id: 'map', label: '🌐 Countries of Interest' },
+  { id: 'calc', label: '🧮 계산기' },
 ]
+
+type TabId = 'list' | 'map' | 'calc'
 
 export default function Home() {
   const searchParams = useSearchParams()
-  const initialTab = searchParams.get('tab') === 'map' ? 'map' : 'list'
-  const [activeTab, setActiveTab] = useState<'list' | 'map'>(initialTab)
+  const rawTab = searchParams.get('tab')
+  const initialTab: TabId = rawTab === 'map' ? 'map' : rawTab === 'calc' ? 'calc' : 'list'
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab)
 
   const [countries, setCountries] = useState<Country[]>([])
   const [search, setSearch] = useState('')
@@ -77,7 +82,7 @@ export default function Home() {
             {tabs.map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'list' | 'map')}
+                onClick={() => setActiveTab(tab.id as TabId)}
                 className={`px-5 h-12 text-sm font-medium transition-all border-b-2 ${
                   activeTab === tab.id
                     ? 'border-white text-white'
@@ -177,6 +182,8 @@ export default function Home() {
           <WorldMap />
         </div>
       )}
+
+      {activeTab === 'calc' && <Calculator />}
     </main>
   )
 }
