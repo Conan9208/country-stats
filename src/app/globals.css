@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import url('https://fonts.googleapis.com/css2?family=Bangers&family=Pacifico&display=swap');
 
 /* Leaflet 커스텀 툴팁 — 기본 스타일 완전 제거 */
 .leaflet-tooltip.wm-tooltip-wrapper,
