@@ -561,6 +561,13 @@ export default function WorldMap() {
       [alpha2]: { ...clickDataRef.current[alpha2], name, total: prevTotal + 1 },
     }
 
+    // +1 float 즉시 표시 → 429 오면 같은 float을 😤 로 교체 (double float 방지)
+    const floatId = Date.now() + Math.random()
+    setFloatNums(prev => [...prev, { id: floatId, x: fx, y: fy, value: 1 }])
+    const floatCleanup = setTimeout(
+      () => setFloatNums(prev => prev.filter(n => n.id !== floatId)), 1000
+    )
+
     // 백그라운드에서 실제 API 호출
     const res = await fetch('/api/clicks', {
       method: 'POST',
@@ -575,10 +582,10 @@ export default function WorldMap() {
         [alpha2]: { ...clickDataRef.current[alpha2], total: prevTotal },
       }
       setClickData({ ...clickDataRef.current })
-      // 😤 이모지 float — 429 전용, +1은 안 뜸
-      const rlId = Date.now() + Math.random()
-      setFloatNums(prev => [...prev, { id: rlId, x: fx, y: fy, value: 0, isRateLimit: true }])
-      setTimeout(() => setFloatNums(prev => prev.filter(n => n.id !== rlId)), 1500)
+      // +1 float → 😤 로 in-place 교체 (새 float 추가 X → double float 없음)
+      clearTimeout(floatCleanup)
+      setFloatNums(prev => prev.map(n => n.id === floatId ? { ...n, isRateLimit: true } : n))
+      setTimeout(() => setFloatNums(prev => prev.filter(n => n.id !== floatId)), 1400)
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
       setToast({ message: '잠깐, 너무 빠르다! 🚦', sub: '1분에 10번까지만 클릭할 수 있어요.' })
       toastTimerRef.current = setTimeout(() => setToast(null), 3000)
@@ -592,11 +599,7 @@ export default function WorldMap() {
     const merged: ClickEntry = { name, total: confirmedTotal, today: updated.today }
     clickDataRef.current = { ...clickDataRef.current, [alpha2]: merged }
     setClickData({ ...clickDataRef.current })
-
-    // +1 float — 서버 확정 후에만 표시 (shockwave/particles가 즉각 피드백 담당)
-    const floatId = Date.now() + Math.random()
-    setFloatNums(prev => [...prev, { id: floatId, x: fx, y: fy, value: 1 }])
-    setTimeout(() => setFloatNums(prev => prev.filter(n => n.id !== floatId)), 1000)
+    // +1 float은 이미 떠있음, floatCleanup 타이머가 1초 후 자동 제거
 
     // 내 클릭 기록 저장
     if (!myClicksRef.current.has(alpha2)) {
