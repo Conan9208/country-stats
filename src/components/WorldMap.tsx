@@ -720,8 +720,20 @@ export default function WorldMap() {
       </div>
 
       {/* 안내 — 좌상단 */}
-      <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 10, padding: '7px 13px', fontSize: 11, color: '#64748b' }}>
-        드래그 회전 &middot; 스크롤 줌 &middot; 클릭으로 카운트
+      <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 16px', lineHeight: 1.35 }}>
+        <div style={{ fontFamily: "'Bangers', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9' }}>
+          <span style={{ color: '#34d399' }}>❤ Left click</span>
+          <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
+          <span style={{ color: '#cbd5e1' }}>you love this country</span>
+        </div>
+        <div style={{ fontFamily: "'Bangers', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9', marginTop: 3 }}>
+          <span style={{ color: '#a78bfa' }}>🔍 Right click</span>
+          <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
+          <span style={{ color: '#cbd5e1' }}>wanna know more?</span>
+        </div>
+        <div style={{ fontSize: 10, color: '#334155', marginTop: 6, letterSpacing: '0.03em' }}>
+          drag · scroll to zoom · spin the globe
+        </div>
       </div>
 
       {/* 댓글 패널 */}
