@@ -16,6 +16,8 @@ import type { ClickData, ClickEntry, CountryProps, TooltipState } from '@/types/
 import { TIERS, glass } from '@/lib/mapConstants'
 import { formatCount, countryColor, pollVoteColor, getTier, topN, topNToday, getLocale } from '@/lib/mapUtils'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
+import AdminPanel from '@/components/AdminPanel'
 
 isoCountries.registerLocale(localeKo)
 isoCountries.registerLocale(localeEn)
@@ -699,7 +701,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       setFloatNums(prev => prev.map(n => n.id === floatId ? { ...n, isRateLimit: true } : n))
       setTimeout(() => setFloatNums(prev => prev.filter(n => n.id !== floatId)), 1400)
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-      setToast({ message: '잠깐, 너무 빠르다! 🚦', sub: '1분에 10번까지만 클릭할 수 있어요.' })
+      setToast({ message: '잠깐, 너무 빠르다! 🔥', sub: '1분에 10번까지만 클릭할 수 있어요.' })
       toastTimerRef.current = setTimeout(() => setToast(null), 3000)
       return
     }
@@ -775,7 +777,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           className={n.isRateLimit ? 'float-num float-num--rate-limit' : 'float-num'}
           style={{ left: n.x - 16, top: n.y - 24 }}
         >
-          {n.isRateLimit ? '😤' : `+${n.value.toLocaleString()}`}
+          {n.isRateLimit ? '🚫' : `+${n.value.toLocaleString()}`}
         </div>
       ))}
 
@@ -799,13 +801,13 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
             if (!lt) return null
             return (
               <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>
-                🕐 {lt.city ? `${lt.city} 기준 ${lt.time}` : lt.time}
+                🌐 {lt.city ? `${lt.city} 기준 ${lt.time}` : lt.time}
               </div>
             )
           })()}
           {tooltip.count > 0
             ? <>
-                <div style={{ fontSize: 11, color: '#a78bfa', marginTop: 3 }}>🖱 {formatCount(tooltip.count)}회 클릭</div>
+                <div style={{ fontSize: 11, color: '#a78bfa', marginTop: 3 }}>👆 {formatCount(tooltip.count)}회 클릭</div>
                 <div style={{ fontSize: 11, marginTop: 2, color: getTier(tooltip.count)?.color ?? '#a78bfa' }}>
                   {getTier(tooltip.count)?.tag}
                 </div>
@@ -844,10 +846,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 16px', lineHeight: 1.35 }}>
         {pollMode ? (
           <>
-            <div style={{ fontFamily: "'Pacifico', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9' }}>
+            <div style={{ fontFamily: "'Bungee', cursive", letterSpacing: '0.04em', fontSize: 15, color: '#f1f5f9' }}>
               <span style={{ color: '#a78bfa' }}>🗳️ Click a country</span>
             </div>
-            <div style={{ fontFamily: "'Pacifico', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#cbd5e1', marginTop: 3 }}>
+            <div style={{ fontFamily: "'Bungee', cursive", letterSpacing: '0.04em', fontSize: 15, color: '#cbd5e1', marginTop: 3 }}>
               to cast your vote!
             </div>
             <div style={{ fontSize: 10, color: '#334155', marginTop: 6, letterSpacing: '0.03em' }}>
@@ -856,12 +858,12 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           </>
         ) : (
           <>
-            <div style={{ fontFamily: "'Pacifico', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9' }}>
+            <div style={{ fontFamily: "'Bungee', cursive", letterSpacing: '0.04em', fontSize: 15, color: '#f1f5f9' }}>
               <span style={{ color: '#34d399' }}>❤ Left click</span>
               <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
               <span style={{ color: '#cbd5e1' }}>you love this country</span>
             </div>
-            <div style={{ fontFamily: "'Pacifico', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9', marginTop: 3 }}>
+            <div style={{ fontFamily: "'Bungee', cursive", letterSpacing: '0.04em', fontSize: 15, color: '#f1f5f9', marginTop: 3 }}>
               <span style={{ color: '#a78bfa' }}>🔍 Right click</span>
               <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
               <span style={{ color: '#cbd5e1' }}>wanna know more?</span>
@@ -1045,6 +1047,32 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       {/* 모달 */}
       {debtCountry && <DebtModal code={debtCountry.code} name={debtCountry.name} onClose={() => setDebtCountry(null)} />}
       {infoCountry && <CountryInfoModal code={infoCountry.code} name={infoCountry.name} onClose={() => setInfoCountry(null)} />}
+
+      {/* AdminPanel — 랭킹 패널 왼쪽 */}
+      <AdminPanel right={(commentCountry ? 324 : 16) + 240 + 8} />
+
+      {/* 방문자 통계 링크 — AdminPanel 왼쪽 */}
+      <Link
+        href="/stats"
+        style={{
+          position: 'absolute',
+          bottom: 80,
+          right: (commentCountry ? 324 : 16) + 240 + 8 + 34 + 8,
+          zIndex: 1000,
+          padding: '6px 14px',
+          borderRadius: 99,
+          background: 'rgba(15,15,25,0.65)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          color: '#475569',
+          fontSize: 12,
+          fontWeight: 500,
+          backdropFilter: 'blur(8px)',
+          textDecoration: 'none',
+          transition: 'right 0.35s cubic-bezier(0.4,0,0.2,1)',
+        }}
+      >
+        📊 방문자 통계
+      </Link>
 
       {/* 범례 — 좌하단 · pollMode 시 숨김 */}
       <div style={{ ...glass, position: 'absolute', bottom: 32, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 14px', display: pollMode ? 'none' : undefined }}>

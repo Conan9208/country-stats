@@ -31,6 +31,11 @@ function HomeContent() {
   const [pollQuestion, setPollQuestion] = useState<{ emoji: string; text: string } | null>(null)
   const [pollTotalVotes, setPollTotalVotes] = useState(0)
 
+  // 페이지 진입 시 방문 기록 (1회)
+  useEffect(() => {
+    fetch('/api/track', { method: 'POST' }).catch(() => {})
+  }, [])
+
   // map 탭 진입 시 오늘의 질문 프리로드
   useEffect(() => {
     if (activeTab !== 'map') return
@@ -203,6 +208,7 @@ function HomeContent() {
               🗳️ 오늘의 투표 참여하기
             </button>
           )}
+
 
           {/* 투표 후 이유 입력 → 축하 → 일반 모드 복귀 */}
           {voteModal && (
