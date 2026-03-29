@@ -14,7 +14,7 @@ import DebtModal from '@/components/DebtModal'
 import CountryInfoModal from '@/components/CountryInfoModal'
 import type { ClickData, ClickEntry, CountryProps, TooltipState } from '@/types/map'
 import { TIERS, glass } from '@/lib/mapConstants'
-import { formatCount, countryColor, getTier, topN, topNToday, getLocale } from '@/lib/mapUtils'
+import { formatCount, countryColor, pollVoteColor, getTier, topN, topNToday, getLocale } from '@/lib/mapUtils'
 import { supabase } from '@/lib/supabase'
 
 isoCountries.registerLocale(localeKo)
@@ -53,7 +53,88 @@ for (const f of worldGeo.features) {
   if (a2) featureByAlpha2.set(a2, f)
 }
 
-export default function WorldMap() {
+// alpha2 → IANA 타임존 (대표 도시 기준, 외부 API 없이 즉시 계산)
+const TIMEZONE_MAP: Record<string, string> = {
+  AF: 'Asia/Kabul',         AL: 'Europe/Tirane',      DZ: 'Africa/Algiers',
+  AO: 'Africa/Luanda',      AR: 'America/Argentina/Buenos_Aires',
+  AM: 'Asia/Yerevan',       AU: 'Australia/Sydney',   AT: 'Europe/Vienna',
+  AZ: 'Asia/Baku',          BH: 'Asia/Bahrain',       BD: 'Asia/Dhaka',
+  BY: 'Europe/Minsk',       BE: 'Europe/Brussels',    BO: 'America/La_Paz',
+  BA: 'Europe/Sarajevo',    BR: 'America/Sao_Paulo',  BG: 'Europe/Sofia',
+  KH: 'Asia/Phnom_Penh',    CM: 'Africa/Douala',      CA: 'America/Toronto',
+  CL: 'America/Santiago',   CN: 'Asia/Shanghai',      CO: 'America/Bogota',
+  HR: 'Europe/Zagreb',      CU: 'America/Havana',     CZ: 'Europe/Prague',
+  DK: 'Europe/Copenhagen',  EC: 'America/Guayaquil',  EG: 'Africa/Cairo',
+  ET: 'Africa/Addis_Ababa', FI: 'Europe/Helsinki',    FR: 'Europe/Paris',
+  GE: 'Asia/Tbilisi',       DE: 'Europe/Berlin',      GH: 'Africa/Accra',
+  GR: 'Europe/Athens',      GT: 'America/Guatemala',  HN: 'America/Tegucigalpa',
+  HK: 'Asia/Hong_Kong',     HU: 'Europe/Budapest',    IS: 'Atlantic/Reykjavik',
+  IN: 'Asia/Kolkata',       ID: 'Asia/Jakarta',       IR: 'Asia/Tehran',
+  IQ: 'Asia/Baghdad',       IE: 'Europe/Dublin',      IL: 'Asia/Jerusalem',
+  IT: 'Europe/Rome',        JM: 'America/Jamaica',    JP: 'Asia/Tokyo',
+  JO: 'Asia/Amman',         KZ: 'Asia/Almaty',        KE: 'Africa/Nairobi',
+  KP: 'Asia/Pyongyang',     KR: 'Asia/Seoul',         KW: 'Asia/Kuwait',
+  LB: 'Asia/Beirut',        LY: 'Africa/Tripoli',     LT: 'Europe/Vilnius',
+  LU: 'Europe/Luxembourg',  MY: 'Asia/Kuala_Lumpur',  MX: 'America/Mexico_City',
+  MA: 'Africa/Casablanca',  NP: 'Asia/Kathmandu',     NL: 'Europe/Amsterdam',
+  NZ: 'Pacific/Auckland',   NG: 'Africa/Lagos',       NO: 'Europe/Oslo',
+  PK: 'Asia/Karachi',       PA: 'America/Panama',     PE: 'America/Lima',
+  PH: 'Asia/Manila',        PL: 'Europe/Warsaw',      PT: 'Europe/Lisbon',
+  QA: 'Asia/Qatar',         RO: 'Europe/Bucharest',   RU: 'Europe/Moscow',
+  SA: 'Asia/Riyadh',        SN: 'Africa/Dakar',       RS: 'Europe/Belgrade',
+  SG: 'Asia/Singapore',     ZA: 'Africa/Johannesburg',ES: 'Europe/Madrid',
+  LK: 'Asia/Colombo',       SE: 'Europe/Stockholm',   CH: 'Europe/Zurich',
+  SY: 'Asia/Damascus',      TW: 'Asia/Taipei',        TZ: 'Africa/Dar_es_Salaam',
+  TH: 'Asia/Bangkok',       TN: 'Africa/Tunis',       TR: 'Europe/Istanbul',
+  UA: 'Europe/Kyiv',        AE: 'Asia/Dubai',         GB: 'Europe/London',
+  US: 'America/New_York',   UY: 'America/Montevideo', UZ: 'Asia/Tashkent',
+  VE: 'America/Caracas',    VN: 'Asia/Ho_Chi_Minh',   YE: 'Asia/Aden',
+  ZM: 'Africa/Lusaka',      ZW: 'Africa/Harare',
+}
+
+// 여러 시간대 나라 → 대표 도시명 명시
+const CITY_LABEL: Record<string, string> = {
+  US: '뉴욕', RU: '모스크바', CA: '토론토', AU: '시드니',
+  BR: '상파울루', MX: '멕시코시티', ID: '자카르타', CN: '베이징',
+}
+
+function getLocalTime(alpha2: string): { time: string; city: string | null } | null {
+  const key = alpha2.toUpperCase()
+  const tz = TIMEZONE_MAP[key]
+  if (!tz) return null
+  const time = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: tz,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date())
+  return { time, city: CITY_LABEL[key] ?? null }
+}
+
+type WorldMapProps = {
+  pollMode?: boolean
+  onPollVote?: (alpha2: string, name: string) => void
+  pollVotedCountry?: string | null
+  pollData?: Record<string, number>
+  pollQuestion?: { emoji: string; text: string } | null
+  pollTotalVotes?: number
+  pollMyVote?: string | null
+  onCancelPollVote?: () => void
+  onStartPoll?: () => void
+}
+
+function flagEmoji(alpha2: string): string {
+  return alpha2.toUpperCase().split('').map(c => String.fromCodePoint(0x1f1e6 - 65 + c.charCodeAt(0))).join('')
+}
+
+export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollData, pollQuestion, pollTotalVotes, pollMyVote, onCancelPollVote, onStartPoll }: WorldMapProps = {}) {
+  // refs so draw() can read latest props without being a dependency
+  const pollModeRef         = useRef(pollMode)
+  const pollVotedCountryRef = useRef(pollVotedCountry)
+  const pollDataRef         = useRef(pollData)
+  useEffect(() => { pollModeRef.current = pollMode }, [pollMode])
+  useEffect(() => { pollVotedCountryRef.current = pollVotedCountry }, [pollVotedCountry])
+  useEffect(() => { pollDataRef.current = pollData }, [pollData])
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [clickData, setClickData] = useState<ClickData>({})
@@ -90,6 +171,7 @@ export default function WorldMap() {
   const [debtCountry, setDebtCountry]   = useState<{ code: string; name: string } | null>(null)
   const [infoCountry, setInfoCountry]   = useState<{ code: string; name: string } | null>(null)
   const [toast, setToast] = useState<{ message: string; sub: string } | null>(null)
+  const [pollCopied, setPollCopied] = useState(false)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 내 클릭 기록 (localStorage)
   const myClicksRef = useRef<Set<string>>(new Set())
@@ -249,6 +331,9 @@ export default function WorldMap() {
       const count = alpha2 ? (clickDataRef.current[alpha2]?.total ?? 0) : 0
       const isHovered   = alpha2 !== null && alpha2 === hoveredAlpha2Ref.current
       const isSelected  = alpha2 !== null && alpha2 === selectedAlpha2Ref.current
+      const isPoll       = pollModeRef.current
+      const isMyPollVote = isPoll && alpha2 !== null && alpha2 === pollVotedCountryRef.current
+      const pData        = pollDataRef.current
 
       ctx.beginPath()
       path(feature)
@@ -260,10 +345,23 @@ export default function WorldMap() {
         ctx.strokeStyle = 'rgba(251,146,60,0.9)'
         ctx.lineWidth = 1.5
         ctx.stroke()
-      } else if (isHovered) {
-        ctx.fillStyle = 'rgba(255,255,255,0.35)'
+      } else if (isMyPollVote) {
+        // 내가 투표한 나라: emerald 강조
+        ctx.fillStyle = 'rgba(52,211,153,0.6)'
         ctx.fill()
-      } else if (count > 0) {
+        ctx.strokeStyle = 'rgba(52,211,153,0.95)'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+      } else if (isHovered) {
+        ctx.fillStyle = isPoll ? 'rgba(167,139,250,0.45)' : 'rgba(255,255,255,0.35)'
+        ctx.fill()
+      } else if (isPoll && pData && alpha2 && pData[alpha2]) {
+        const maxVotes = Math.max(...Object.values(pData))
+        ctx.fillStyle = pollVoteColor(pData[alpha2], maxVotes)
+        ctx.globalAlpha = 0.75
+        ctx.fill()
+        ctx.globalAlpha = 1
+      } else if (!isPoll && count > 0) {
         ctx.fillStyle = countryColor(count)
         ctx.globalAlpha = 0.7
         ctx.fill()
@@ -497,7 +595,7 @@ export default function WorldMap() {
         ?? hit.alpha2
       hoveredAlpha2Ref.current = hit.alpha2
       hoveredNameRef.current   = name
-      setTooltip({ name, count, x: e.clientX - rect.left, y: e.clientY - rect.top })
+      setTooltip({ name, count, x: e.clientX - rect.left, y: e.clientY - rect.top, alpha2: hit.alpha2 })
     } else {
       hoveredAlpha2Ref.current = null
       hoveredNameRef.current   = null
@@ -519,12 +617,26 @@ export default function WorldMap() {
     autoRotateRef.current = true
   }, [])
 
+  const onPollVoteRef = useRef(onPollVote)
+  useEffect(() => { onPollVoteRef.current = onPollVote }, [onPollVote])
+
   const onClick = useCallback(async (e: React.MouseEvent) => {
     if (contextMenuRef.current) { closeContextMenu(); return }
     if (hasDraggedRef.current) return
     const alpha2 = hoveredAlpha2Ref.current
     if (!alpha2) return
     const name = hoveredNameRef.current ?? alpha2
+
+    // 투표 모드: 즉시 모달 오픈 → API는 백그라운드 처리
+    if (pollModeRef.current) {
+      onPollVoteRef.current?.(alpha2, name)
+      fetch('/api/polls/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alpha2 }),
+      }).catch(() => { /* 네트워크 오류는 조용히 무시 */ })
+      return
+    }
 
     const canvas = canvasRef.current
     if (!canvas) return
@@ -682,6 +794,15 @@ export default function WorldMap() {
           minWidth: 130,
         }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{tooltip.name}</div>
+          {(() => {
+            const lt = getLocalTime(tooltip.alpha2)
+            if (!lt) return null
+            return (
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>
+                🕐 {lt.city ? `${lt.city} 기준 ${lt.time}` : lt.time}
+              </div>
+            )
+          })()}
           {tooltip.count > 0
             ? <>
                 <div style={{ fontSize: 11, color: '#a78bfa', marginTop: 3 }}>🖱 {formatCount(tooltip.count)}회 클릭</div>
@@ -721,19 +842,35 @@ export default function WorldMap() {
 
       {/* 안내 — 좌상단 */}
       <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 16px', lineHeight: 1.35 }}>
-        <div style={{ fontFamily: "'Pacifico', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9' }}>
-          <span style={{ color: '#34d399' }}>❤ Left click</span>
-          <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
-          <span style={{ color: '#cbd5e1' }}>you love this country</span>
-        </div>
-        <div style={{ fontFamily: "'Pacifico', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9', marginTop: 3 }}>
-          <span style={{ color: '#a78bfa' }}>🔍 Right click</span>
-          <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
-          <span style={{ color: '#cbd5e1' }}>wanna know more?</span>
-        </div>
-        <div style={{ fontSize: 10, color: '#334155', marginTop: 6, letterSpacing: '0.03em' }}>
-          drag · scroll to zoom · spin the globe
-        </div>
+        {pollMode ? (
+          <>
+            <div style={{ fontFamily: "'Pacifico', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9' }}>
+              <span style={{ color: '#a78bfa' }}>🗳️ Click a country</span>
+            </div>
+            <div style={{ fontFamily: "'Pacifico', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#cbd5e1', marginTop: 3 }}>
+              to cast your vote!
+            </div>
+            <div style={{ fontSize: 10, color: '#334155', marginTop: 6, letterSpacing: '0.03em' }}>
+              drag · scroll to zoom · spin the globe
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontFamily: "'Pacifico', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9' }}>
+              <span style={{ color: '#34d399' }}>❤ Left click</span>
+              <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
+              <span style={{ color: '#cbd5e1' }}>you love this country</span>
+            </div>
+            <div style={{ fontFamily: "'Pacifico', cursive", letterSpacing: '0.06em', fontSize: 15, color: '#f1f5f9', marginTop: 3 }}>
+              <span style={{ color: '#a78bfa' }}>🔍 Right click</span>
+              <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
+              <span style={{ color: '#cbd5e1' }}>wanna know more?</span>
+            </div>
+            <div style={{ fontSize: 10, color: '#334155', marginTop: 6, letterSpacing: '0.03em' }}>
+              drag · scroll to zoom · spin the globe
+            </div>
+          </>
+        )}
       </div>
 
       {/* 댓글 패널 */}
@@ -745,8 +882,8 @@ export default function WorldMap() {
         />
       )}
 
-      {/* 통계 패널 — 우상단 (댓글 패널 열릴 때 왼쪽으로 이동) */}
-      <div style={{ ...glass, position: 'absolute', top: 16, right: commentCountry ? 324 : 16, zIndex: 1000, borderRadius: 16, padding: 16, width: 240, transition: 'right 0.35s cubic-bezier(0.4,0,0.2,1)' }}>
+      {/* 통계 패널 — 우상단 · 항상 표시 */}
+      <div style={{ ...glass, position: 'absolute', top: 16, right: commentCountry ? 324 : 16, zIndex: 1000, borderRadius: 16, padding: 16, width: 240, transition: 'right 0.35s cubic-bezier(0.4,0,0.2,1)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', scrollbarWidth: 'none' }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <div style={{ flex: 1, background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#a78bfa', lineHeight: 1 }}>{formatCount(totalClicks)}</div>
@@ -758,9 +895,114 @@ export default function WorldMap() {
           </div>
         </div>
 
-        <RankList title="🏆 전체" entries={allTimeTop} emptyMsg="아직 클릭 데이터가 없어요" onSelect={setCommentCountry} />
+        <RankList title="🏆 전체클릭 순위" entries={allTimeTop} emptyMsg="아직 클릭 데이터가 없어요" onSelect={setCommentCountry} />
         <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '12px 0' }} />
-        <RankList title="📅 오늘" entries={todayTop} emptyMsg="오늘 아직 클릭 없어요" live onSelect={setCommentCountry} />
+        <RankList title="📅 오늘클릭 순위" entries={todayTop} emptyMsg="오늘 아직 클릭 없어요" live onSelect={setCommentCountry} />
+
+        {/* 오늘의 투표 랭킹 섹션 */}
+        {(pollTotalVotes ?? 0) > 0 && pollQuestion && (() => {
+          const top5Poll = Object.entries(pollData ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 5)
+          const MEDAL = ['🥇', '🥈', '🥉', '4위', '5위']
+          const POLL_COLORS = ['#facc15', '#a78bfa', '#60a5fa', '#94a3b8', '#94a3b8']
+          const myVoteInTop5 = top5Poll.some(([a]) => a === pollMyVote)
+
+          const handlePollShare = async () => {
+            const topLines = top5Poll.map(([a2, count], i) => {
+              const pct = (pollTotalVotes ?? 0) > 0 ? Math.round(count / (pollTotalVotes ?? 1) * 100) : 0
+              const name = isoCountries.getName(a2.toUpperCase(), LOCALE) ?? a2
+              return `${MEDAL[i]} ${flagEmoji(a2)} ${name} (${pct}%)`
+            }).join('\n')
+            const myLine = pollMyVote ? `\n나는 ${flagEmoji(pollMyVote)} ${isoCountries.getName(pollMyVote.toUpperCase(), LOCALE) ?? pollMyVote}에 투표했어!` : ''
+            const text = [`🗳️ ${pollQuestion.emoji} ${pollQuestion.text}`, `전 세계 ${(pollTotalVotes ?? 0).toLocaleString()}명 참여${myLine}`, '', topLines, '', '너도 투표해봐 👉 worldstats.vercel.app'].join('\n')
+            try {
+              await navigator.clipboard.writeText(text)
+              setPollCopied(true)
+              setTimeout(() => setPollCopied(false), 2000)
+            } catch {
+              window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
+            }
+          }
+
+          const handleTwitterShare = () => {
+            const topLines = top5Poll.map(([a2, count], i) => {
+              const pct = (pollTotalVotes ?? 0) > 0 ? Math.round(count / (pollTotalVotes ?? 1) * 100) : 0
+              const name = isoCountries.getName(a2.toUpperCase(), LOCALE) ?? a2
+              return `${MEDAL[i]} ${flagEmoji(a2)} ${name} (${pct}%)`
+            }).join('\n')
+            const myLine = pollMyVote ? `\n나는 ${flagEmoji(pollMyVote)} ${isoCountries.getName(pollMyVote.toUpperCase(), LOCALE) ?? pollMyVote}에 투표했어!` : ''
+            const text = [`🗳️ ${pollQuestion.emoji} ${pollQuestion.text}`, `전 세계 ${(pollTotalVotes ?? 0).toLocaleString()}명 참여${myLine}`, '', topLines, '', '너도 투표해봐 👉 worldstats.vercel.app'].join('\n')
+            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
+          }
+
+          return (
+            <>
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '12px 0' }} />
+              {/* 헤더 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: '50%', background: '#a78bfa', display: 'inline-block', flexShrink: 0 }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.07em' }}>오늘의 투표</span>
+                <span style={{ fontSize: 10, color: '#334155', marginLeft: 'auto' }}>{(pollTotalVotes ?? 0).toLocaleString()}명</span>
+              </div>
+              {/* 질문 */}
+              <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10, lineHeight: 1.45 }}>
+                {pollQuestion.emoji} {pollQuestion.text}
+              </div>
+              {/* TOP5 랭킹 */}
+              {top5Poll.map(([alpha2, count], i) => {
+                const pct = (pollTotalVotes ?? 0) > 0 ? Math.round(count / (pollTotalVotes ?? 1) * 100) : 0
+                const isMyVote = pollMyVote === alpha2
+                const name = isoCountries.getName(alpha2.toUpperCase(), LOCALE) ?? alpha2
+                return (
+                  <div key={alpha2} style={{ marginBottom: 6, padding: '5px 7px', borderRadius: 8, border: isMyVote ? '1px solid rgba(167,139,250,0.5)' : '1px solid transparent', background: isMyVote ? 'rgba(167,139,250,0.08)' : 'transparent' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, minWidth: 20, color: POLL_COLORS[i] }}>{MEDAL[i]}</span>
+                      <span style={{ fontSize: 13 }}>{flagEmoji(alpha2)}</span>
+                      <span style={{ fontSize: 11, color: '#cbd5e1', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                      <span style={{ fontSize: 11, color: POLL_COLORS[i], fontWeight: 600, flexShrink: 0 }}>{pct}%</span>
+                    </div>
+                    <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: isMyVote ? '#a78bfa' : POLL_COLORS[i], borderRadius: 2, transition: 'width 0.4s ease' }} />
+                    </div>
+                  </div>
+                )
+              })}
+              {/* 내 투표가 TOP5 밖일 때 */}
+              {pollMyVote && !myVoteInTop5 && (
+                <div style={{ marginBottom: 6, padding: '5px 7px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.5)', background: 'rgba(167,139,250,0.08)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 11, color: '#a78bfa', minWidth: 20 }}>내</span>
+                    <span style={{ fontSize: 13 }}>{flagEmoji(pollMyVote)}</span>
+                    <span style={{ fontSize: 11, color: '#a78bfa', flex: 1 }}>{isoCountries.getName(pollMyVote.toUpperCase(), LOCALE) ?? pollMyVote}</span>
+                  </div>
+                </div>
+              )}
+              {/* 하단 버튼 영역 */}
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                {pollMyVote ? (
+                  <>
+                    <button
+                      onClick={onCancelPollVote}
+                      style={{ flex: 1, padding: '5px 0', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#64748b', fontSize: 11, cursor: 'pointer' }}
+                    >취소</button>
+                    <button
+                      onClick={handlePollShare}
+                      style={{ flex: 1, padding: '5px 0', borderRadius: 8, background: pollCopied ? 'rgba(34,197,94,0.15)' : 'rgba(167,139,250,0.12)', border: `1px solid ${pollCopied ? 'rgba(34,197,94,0.3)' : 'rgba(167,139,250,0.25)'}`, color: pollCopied ? '#4ade80' : '#a78bfa', fontSize: 11, cursor: 'pointer' }}
+                    >{pollCopied ? '✓ 복사됨' : '📋 공유'}</button>
+                    <button
+                      onClick={handleTwitterShare}
+                      style={{ padding: '5px 8px', borderRadius: 8, background: 'rgba(29,161,242,0.1)', border: '1px solid rgba(29,161,242,0.25)', color: '#38bdf8', fontSize: 11, cursor: 'pointer' }}
+                    >𝕏</button>
+                  </>
+                ) : (
+                  <button
+                    onClick={onStartPoll}
+                    style={{ flex: 1, padding: '7px 0', borderRadius: 8, background: 'linear-gradient(135deg,rgba(124,58,237,0.2),rgba(168,85,247,0.2))', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  >🗳️ 지금 투표하기 →</button>
+                )}
+              </div>
+            </>
+          )
+        })()}
       </div>
 
       {/* 우클릭 컨텍스트 메뉴 */}
@@ -804,8 +1046,8 @@ export default function WorldMap() {
       {debtCountry && <DebtModal code={debtCountry.code} name={debtCountry.name} onClose={() => setDebtCountry(null)} />}
       {infoCountry && <CountryInfoModal code={infoCountry.code} name={infoCountry.name} onClose={() => setInfoCountry(null)} />}
 
-      {/* 범례 — 좌하단 */}
-      <div style={{ ...glass, position: 'absolute', bottom: 32, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 14px' }}>
+      {/* 범례 — 좌하단 · pollMode 시 숨김 */}
+      <div style={{ ...glass, position: 'absolute', bottom: 32, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 14px', display: pollMode ? 'none' : undefined }}>
         <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
           클릭 수 티어
         </div>

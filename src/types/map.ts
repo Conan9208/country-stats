@@ -16,4 +16,5 @@ export type TooltipState = {
   count: number
   x: number
   y: number
+  alpha2: string
 }

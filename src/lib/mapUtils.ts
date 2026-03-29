@@ -33,6 +33,32 @@ export function topNToday(data: ClickData, n = 20) {
     .slice(0, n)
 }
 
+// 투표 수 → 색상 (파랑→보라→핑크→금색 그라디언트)
+export function pollVoteColor(votes: number, maxVotes: number): string {
+  if (votes <= 0 || maxVotes <= 0) return 'transparent'
+  const ratio = Math.min(votes / maxVotes, 1)
+  // 0→blue, 0.33→purple, 0.66→pink, 1→gold
+  if (ratio < 0.33) {
+    const t = ratio / 0.33
+    const r = Math.round(96 + t * (168 - 96))
+    const g = Math.round(165 + t * (85 - 165))
+    const b = Math.round(250 + t * (247 - 250))
+    return `rgb(${r},${g},${b})`
+  } else if (ratio < 0.66) {
+    const t = (ratio - 0.33) / 0.33
+    const r = Math.round(168 + t * (236 - 168))
+    const g = Math.round(85 + t * (72 - 85))
+    const b = Math.round(247 + t * (153 - 247))
+    return `rgb(${r},${g},${b})`
+  } else {
+    const t = (ratio - 0.66) / 0.34
+    const r = Math.round(236 + t * (250 - 236))
+    const g = Math.round(72 + t * (204 - 72))
+    const b = Math.round(153 + t * (21 - 153))
+    return `rgb(${r},${g},${b})`
+  }
+}
+
 export function getLocale(): string {
   if (typeof navigator === 'undefined') return 'en'
   const lang = navigator.language.split('-')[0]
