@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo, startTransition } from 'react'
 import * as topojson from 'topojson-client'
 import type { Topology } from 'topojson-specification'
 import type { Feature, FeatureCollection, Geometry, GeoJsonProperties } from 'geojson'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
 import localeEn from 'i18n-iso-countries/langs/en.json'
-import { geoOrthographic, geoPath, geoGraticule } from 'd3-geo'
+import { geoOrthographic, geoPath, geoGraticule, geoCentroid } from 'd3-geo'
 import StarField from '@/components/StarField'
 import CommentPanel from '@/components/CommentPanel'
 import DebtModal from '@/components/DebtModal'
@@ -53,6 +53,14 @@ for (const f of worldGeo.features) {
   const numericId = String((f as Feature & { id?: string | number }).id ?? '')
   const a2 = alpha2Map.get(numericId)
   if (a2) featureByAlpha2.set(a2, f)
+}
+
+// alpha2 → geographic centroid (스핀 룰렛 + 뷰어 점 렌더링용)
+const centroidByAlpha2 = new Map<string, [number, number]>()
+for (const f of worldGeo.features) {
+  const numericId = String((f as Feature & { id?: string | number }).id ?? '')
+  const a2 = alpha2Map.get(numericId)
+  if (a2) centroidByAlpha2.set(a2, geoCentroid(f) as [number, number])
 }
 
 // alpha2 → IANA 타임존 (대표 도시 기준, 외부 API 없이 즉시 계산)
@@ -182,6 +190,27 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   // 자동 회전
   const autoRotateRef = useRef(true)
 
+  // 랜덤 스핀 룰렛
+  const spinningRef = useRef(false)
+  const spinStartRef = useRef<[number, number]>([0, 0])
+  const spinTargetRef = useRef<[number, number]>([0, 0])
+  const spinProgressRef = useRef(0)
+  const spinTargetCountryRef = useRef<{ code: string; name: string } | null>(null)
+  const spinCompleteRef = useRef<{ code: string; name: string } | null>(null)
+  const [isSpinning, setIsSpinning] = useState(false)
+  const spinJourneyRef = useRef(0)  // 총 회전 각도 (두 단계 이징용)
+  type FireworkParticle = { x: number; y: number; vx: number; vy: number; t: number; size: number; color: string }
+  const fireworkParticlesRef = useRef<FireworkParticle[]>([])
+  type RouletteSlot = { current: { alpha2: string; name: string }; phase: 'cycling' | 'landing' }
+  const [rouletteSlot, setRouletteSlot] = useState<RouletteSlot | null>(null)
+
+  // 실시간 뷰어 (Supabase Broadcast)
+  const viewersByCountryRef = useRef<Record<string, number>>({})
+  const viewersMapRef = useRef(new Map<string, { code: string; ts: number }>())
+  const mySessionId = useRef('')
+  const lastBroadcastCountryRef = useRef<string | null>(null)
+  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+
   // 이펙트
   type Shockwave = { x: number; y: number; t: number }
   type Particle  = { x: number; y: number; vx: number; vy: number; t: number; size: number }
@@ -270,6 +299,161 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
+  }, [])
+
+  // 스핀 완료 시: 폭죽 3웨이브 → 슬롯 랜딩 → 1.3초 후 모달
+  useEffect(() => {
+    if (!isSpinning && spinCompleteRef.current) {
+      const country = spinCompleteRef.current
+      spinCompleteRef.current = null
+
+      // 폭죽 3웨이브 (0ms / 220ms / 440ms)
+      for (let wave = 0; wave < 3; wave++) {
+        setTimeout(() => {
+          // getProjection을 직접 인라인 (forward-declaration 방지)
+          const canvas = canvasRef.current
+          if (!canvas) return
+          const size = Math.min(canvas.width, canvas.height)
+          const proj = geoOrthographic()
+            .scale(size * 1.6 * Math.pow(1.3, scaleRef.current))
+            .translate([canvas.width / 2 - 128, canvas.height / 2])
+            .rotate([rotationRef.current[0], rotationRef.current[1], 0])
+            .clipAngle(90)
+          const geo = centroidByAlpha2.get(country.code)
+          const projected = geo ? proj(geo) : null
+          if (!projected || !isFinite(projected[0]) || !isFinite(projected[1])) return
+          const [px, py] = projected
+          const now = performance.now()
+          const COLORS = [
+            'rgba(250,204,21', 'rgba(167,139,250', 'rgba(96,165,250',
+            'rgba(244,114,182', 'rgba(52,211,153', 'rgba(251,146,60', 'rgba(255,255,255',
+          ]
+          const count = [35, 25, 18][wave]
+          const baseSpeed = [70, 55, 40][wave]
+          for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2
+            const speed = baseSpeed + Math.random() * 100
+            fireworkParticlesRef.current.push({
+              x: px, y: py,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              t: now,
+              size: 2.5 + Math.random() * 4,
+              color: COLORS[Math.floor(Math.random() * COLORS.length)],
+            })
+          }
+        }, wave * 220)
+      }
+
+      // 슬롯 → 랜딩 표시
+      setRouletteSlot(prev =>
+        prev ? { ...prev, phase: 'landing' } : { current: { alpha2: country.code, name: country.name }, phase: 'landing' }
+      )
+
+      // 1.3초 후 모달 오픈 + 슬롯 제거
+      setTimeout(() => {
+        setInfoCountry(country)
+        setRouletteSlot(null)
+      }, 1300)
+    }
+  }, [isSpinning])
+
+  // 슬롯머신 나라 cycling (isSpinning 동안)
+  useEffect(() => {
+    if (!isSpinning) return
+    const final = spinTargetCountryRef.current
+    if (!final) return
+    const allAlpha2 = [...alpha2Map.values()]
+    // 총 ~2600ms: 300ms 시작 딜레이 포함 → 2900ms에 final (spin 3000ms보다 100ms 앞)
+    const schedule = [
+      ...Array(8).fill(75),   // 600ms 빠름
+      ...Array(6).fill(120),  // 720ms 중간
+      ...Array(4).fill(180),  // 720ms 느림
+      ...Array(2).fill(280),  // 560ms 매우 느림
+    ]
+    let step = 0
+    let timer: ReturnType<typeof setTimeout>
+    const tick = () => {
+      if (step >= schedule.length) {
+        setRouletteSlot({ current: { alpha2: final.code, name: final.name }, phase: 'landing' })
+        return
+      }
+      const a2 = allAlpha2[Math.floor(Math.random() * allAlpha2.length)]
+      const name = isoCountries.getName(a2, LOCALE) ?? a2
+      startTransition(() => {
+        setRouletteSlot({ current: { alpha2: a2, name }, phase: 'cycling' })
+      })
+      timer = setTimeout(tick, schedule[step++])
+    }
+    timer = setTimeout(tick, 300)
+    return () => clearTimeout(timer)
+  }, [isSpinning])
+
+  // 실시간 뷰어 Broadcast 채널
+  useEffect(() => {
+    const sid = (() => {
+      try {
+        let id = sessionStorage.getItem('wstats-sid')
+        if (!id) {
+          id = Math.random().toString(36).slice(2, 9) + Date.now().toString(36)
+          sessionStorage.setItem('wstats-sid', id)
+        }
+        return id
+      } catch { return Math.random().toString(36).slice(2, 9) }
+    })()
+    mySessionId.current = sid
+
+    const recomputeViewers = () => {
+      const now = Date.now()
+      const counts: Record<string, number> = {}
+      for (const [, { code, ts }] of viewersMapRef.current) {
+        if (now - ts > 60000) continue
+        counts[code] = (counts[code] ?? 0) + 1
+      }
+      viewersByCountryRef.current = counts
+    }
+
+    const presenceChannel = supabase
+      .channel('globe-presence')
+      .on('broadcast', { event: 'hover' }, ({ payload }) => {
+        const { sessionId, countryCode, ts } = payload as { sessionId: string; countryCode: string | null; ts: number }
+        if (sessionId === sid) return
+        if (countryCode) {
+          viewersMapRef.current.set(sessionId, { code: countryCode, ts })
+        } else {
+          viewersMapRef.current.delete(sessionId)
+        }
+        recomputeViewers()
+      })
+      .subscribe()
+
+    presenceChannelRef.current = presenceChannel
+
+    const staleCleanup = setInterval(() => {
+      const now = Date.now()
+      let changed = false
+      for (const [id, { ts }] of viewersMapRef.current) {
+        if (now - ts > 60000) { viewersMapRef.current.delete(id); changed = true }
+      }
+      if (changed) recomputeViewers()
+    }, 15000)
+
+    const heartbeat = setInterval(() => {
+      const code = lastBroadcastCountryRef.current
+      if (code) {
+        presenceChannelRef.current?.send({
+          type: 'broadcast', event: 'hover',
+          payload: { sessionId: sid, countryCode: code, ts: Date.now() },
+        })
+      }
+    }, 30000)
+
+    return () => {
+      supabase.removeChannel(presenceChannel)
+      presenceChannelRef.current = null
+      clearInterval(staleCleanup)
+      clearInterval(heartbeat)
+    }
   }, [])
 
   const getProjection = useCallback(() => {
@@ -467,15 +651,100 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       ctx.fillStyle = onCountry ? '#facc15' : 'rgba(255,255,255,0.9)'
       ctx.fill()
     }
+
+    // 실시간 뷰어 점 — 다른 사람이 보고 있는 나라 표시
+    const viewerCounts = viewersByCountryRef.current
+    const cLng0 = -rotationRef.current[0] * Math.PI / 180
+    const cLat0 = -rotationRef.current[1] * Math.PI / 180
+    for (const [alpha2, count] of Object.entries(viewerCounts)) {
+      if (count === 0) continue
+      const geo = centroidByAlpha2.get(alpha2)
+      if (!geo) continue
+      const pLng = geo[0] * Math.PI / 180
+      const pLat = geo[1] * Math.PI / 180
+      // 가시 반구 체크 (dot product > 0)
+      const dot = Math.cos(pLat) * Math.cos(cLat0) * Math.cos(pLng - cLng0)
+                + Math.sin(pLat) * Math.sin(cLat0)
+      if (dot <= 0.05) continue
+      const projected = proj(geo)
+      if (!projected) continue
+      const [px, py] = projected
+      if (!isFinite(px) || !isFinite(py)) continue
+      const pulse = (Math.sin(now * 0.005 + px * 0.01) + 1) / 2
+      const dotR = 2.5 + pulse * 1.5
+      // 글로우
+      const vGlow = ctx.createRadialGradient(px, py, 0, px, py, dotR * 4)
+      vGlow.addColorStop(0, `rgba(192,132,252,${0.25 + pulse * 0.15})`)
+      vGlow.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.beginPath()
+      ctx.arc(px, py, dotR * 4, 0, Math.PI * 2)
+      ctx.fillStyle = vGlow
+      ctx.fill()
+      // 점
+      ctx.beginPath()
+      ctx.arc(px, py, dotR, 0, Math.PI * 2)
+      ctx.fillStyle = `rgba(192,132,252,${0.85 + pulse * 0.15})`
+      ctx.fill()
+      // 2명 이상이면 숫자
+      if (count > 1) {
+        ctx.fillStyle = 'rgba(255,255,255,0.9)'
+        ctx.font = 'bold 8px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillText(String(count), px + 6, py - 3)
+        ctx.textAlign = 'left'
+      }
+    }
+
+    // 폭죽 이펙트 (3웨이브 컬러 파티클)
+    fireworkParticlesRef.current = fireworkParticlesRef.current.filter(p => now - p.t < 1600)
+    for (const p of fireworkParticlesRef.current) {
+      const ageSec = (now - p.t) / 1000
+      const alpha = Math.max(0, ageSec < 0.65 ? 1 : 1 - (ageSec - 0.65) / 0.95)
+      if (alpha <= 0) continue
+      const px2 = p.x + p.vx * ageSec
+      const py2 = p.y + p.vy * ageSec + 200 * ageSec * ageSec  // 중력
+      const r = Math.max(0, p.size * (1 - ageSec * 0.5))
+      if (r <= 0) continue
+      ctx.beginPath()
+      ctx.arc(px2, py2, r, 0, Math.PI * 2)
+      ctx.fillStyle = `${p.color},${alpha.toFixed(2)})`
+      ctx.fill()
+    }
   }, [getProjection])
 
-  // 자동 회전 + 관성 루프
+  // 자동 회전 + 관성 + 스핀 루프
   useEffect(() => {
     let last = performance.now()
     const loop = (now: number) => {
       const dt = now - last
       last = now
-      if (!dragStartRef.current) {
+      if (spinningRef.current) {
+        // 스핀 애니메이션: 고속 선형(55%) → ease-out cubic 감속(45%), 총 3000ms
+        spinProgressRef.current = Math.min(1, spinProgressRef.current + dt / 3000)
+        const p = spinProgressRef.current
+        const FAST_T = 0.55   // 55%까지 선형 고속
+        const FAST_D = 0.65   // 선형 구간이 전체 거리의 65% 소화
+        let lambda: number
+        if (p <= FAST_T) {
+          lambda = spinStartRef.current[0] + (p / FAST_T) * FAST_D * spinJourneyRef.current
+        } else {
+          const t2 = (p - FAST_T) / (1 - FAST_T)
+          const eased = 1 - Math.pow(1 - t2, 3)
+          lambda = spinStartRef.current[0] + (FAST_D + eased * (1 - FAST_D)) * spinJourneyRef.current
+        }
+        const phiEased = 1 - Math.pow(1 - p, 3)
+        rotationRef.current = [
+          lambda,
+          spinStartRef.current[1] + (spinTargetRef.current[1] - spinStartRef.current[1]) * phiEased,
+        ]
+        if (spinProgressRef.current >= 1) {
+          spinningRef.current = false
+          spinCompleteRef.current = spinTargetCountryRef.current
+          autoRotateRef.current = true
+          // eslint-disable-next-line react-hooks/exhaustive-deps
+          setIsSpinning(false)
+        }
+      } else if (!dragStartRef.current) {
         const [vx, vy] = velocityRef.current
         if (Math.abs(vx) > 0.0001 || Math.abs(vy) > 0.0001) {
           rotationRef.current = [
@@ -543,6 +812,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
   // 드래그
   const onMouseDown = useCallback((e: React.MouseEvent) => {
+    if (spinningRef.current) return
     autoRotateRef.current = false
     hasDraggedRef.current = false
     dragStartRef.current = {
@@ -598,10 +868,25 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       hoveredAlpha2Ref.current = hit.alpha2
       hoveredNameRef.current   = name
       setTooltip({ name, count, x: e.clientX - rect.left, y: e.clientY - rect.top, alpha2: hit.alpha2 })
+      // 뷰어 broadcast — 나라가 바뀔 때만 전송
+      if (hit.alpha2 !== lastBroadcastCountryRef.current) {
+        lastBroadcastCountryRef.current = hit.alpha2
+        presenceChannelRef.current?.send({
+          type: 'broadcast', event: 'hover',
+          payload: { sessionId: mySessionId.current, countryCode: hit.alpha2, ts: Date.now() },
+        })
+      }
     } else {
       hoveredAlpha2Ref.current = null
       hoveredNameRef.current   = null
       setTooltip(null)
+      if (lastBroadcastCountryRef.current !== null) {
+        lastBroadcastCountryRef.current = null
+        presenceChannelRef.current?.send({
+          type: 'broadcast', event: 'hover',
+          payload: { sessionId: mySessionId.current, countryCode: null, ts: Date.now() },
+        })
+      }
     }
   }, [getAlpha2AtPoint, getProjection])
 
@@ -617,6 +902,13 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     hoveredAlpha2Ref.current = null
     setTooltip(null)
     autoRotateRef.current = true
+    if (lastBroadcastCountryRef.current !== null) {
+      lastBroadcastCountryRef.current = null
+      presenceChannelRef.current?.send({
+        type: 'broadcast', event: 'hover',
+        payload: { sessionId: mySessionId.current, countryCode: null, ts: Date.now() },
+      })
+    }
   }, [])
 
   const onPollVoteRef = useRef(onPollVote)
@@ -726,10 +1018,16 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     setCommentCountry({ code: alpha2, name })
   }, [closeContextMenu])
 
-  // 스크롤 줌
-  const onWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault()
-    scaleRef.current = Math.max(-3, Math.min(5, scaleRef.current - e.deltaY * 0.003))
+  // 스크롤 줌 — passive: false로 직접 등록 (React onWheel은 passive라 preventDefault 불가)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      scaleRef.current = Math.max(-3, Math.min(5, scaleRef.current - e.deltaY * 0.003))
+    }
+    canvas.addEventListener('wheel', handler, { passive: false })
+    return () => canvas.removeEventListener('wheel', handler)
   }, [])
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
@@ -743,6 +1041,36 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     setContextMenu(menu)
   }, [])
 
+  const handleRandomSpin = useCallback(() => {
+    if (spinningRef.current) return
+    const valid = worldGeo.features.filter(f => {
+      const id = String((f as Feature & { id?: string | number }).id ?? '')
+      return alpha2Map.has(id)
+    })
+    const f = valid[Math.floor(Math.random() * valid.length)]
+    const numericId = String((f as Feature & { id?: string | number }).id ?? '')
+    const alpha2 = alpha2Map.get(numericId)!
+    const name = isoCountries.getName(alpha2, LOCALE) ?? alpha2
+    const centroid = centroidByAlpha2.get(alpha2) ?? (geoCentroid(f) as [number, number])
+    const targetLambda = -centroid[0]
+    const targetPhi = Math.max(-75, Math.min(75, -centroid[1]))
+    const currentLambda = rotationRef.current[0]
+    const currentPhi = rotationRef.current[1]
+    // 2바퀴 추가 고속 회전 후 정확한 목표 나라에 안착
+    const delta = ((targetLambda - currentLambda) % 360 + 360) % 360
+    const journey = 720 + delta  // 2바퀴 + 목표까지 나머지
+    spinJourneyRef.current = journey
+    spinStartRef.current = [currentLambda, currentPhi]
+    spinTargetRef.current = [currentLambda + journey, targetPhi]
+    spinProgressRef.current = 0
+    spinTargetCountryRef.current = { code: alpha2, name }
+    spinCompleteRef.current = null
+    spinningRef.current = true
+    autoRotateRef.current = false
+    velocityRef.current = [0, 0]
+    setIsSpinning(true)
+  }, [])
+
   const handleMenuSelect = useCallback((action: 'info' | 'debt' | 'comment', alpha2: string, name: string) => {
     closeContextMenu()
     if (action === 'info')    setInfoCountry({ code: alpha2, name })
@@ -750,10 +1078,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     if (action === 'comment') setCommentCountry({ code: alpha2, name })
   }, [closeContextMenu])
 
-  const allTimeTop = topN(clickData)
-  const todayTop = topNToday(clickData)
-  const totalClicks = Object.values(clickData).reduce((s, e) => s + (Number(e.total) || 0), 0)
-  const countryCount = Object.keys(clickData).length
+  const allTimeTop = useMemo(() => topN(clickData), [clickData])
+  const todayTop = useMemo(() => topNToday(clickData), [clickData])
+  const totalClicks = useMemo(() => Object.values(clickData).reduce((s, e) => s + (Number(e.total) || 0), 0), [clickData])
+  const countryCount = useMemo(() => Object.keys(clickData).length, [clickData])
 
   return (
     <div ref={containerRef} style={{ position: 'relative', height: '100%', width: '100%', background: '#050a10', overflow: 'hidden' }}>
@@ -767,8 +1095,57 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         onMouseLeave={onMouseLeave}
         onClick={onClick}
         onContextMenu={onContextMenu}
-        onWheel={onWheel}
       />
+
+      {/* 룰렛 슬롯 오버레이 */}
+      {rouletteSlot && (
+        <div style={{
+          position: 'absolute',
+          top: '38%',
+          left: 'calc(50% - 128px)',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 1500,
+          pointerEvents: 'none',
+          textAlign: 'center',
+        }}>
+          <div style={{
+            ...glass,
+            borderRadius: 24,
+            padding: '22px 44px',
+            border: `1px solid ${rouletteSlot.phase === 'landing' ? 'rgba(167,139,250,0.65)' : 'rgba(255,255,255,0.1)'}`,
+            boxShadow: rouletteSlot.phase === 'landing'
+              ? '0 0 56px rgba(167,139,250,0.28), 0 8px 40px rgba(0,0,0,0.7)'
+              : '0 8px 40px rgba(0,0,0,0.6)',
+            transition: 'border 0.4s ease, box-shadow 0.4s ease',
+            minWidth: 200,
+          }}>
+            <div style={{ fontSize: 10, color: '#334155', fontWeight: 700, letterSpacing: '0.14em', marginBottom: 14 }}>
+              {rouletteSlot.phase === 'landing' ? '🎯 결정!' : '🎰 SPINNING...'}
+            </div>
+            <div
+              style={{ animation: rouletteSlot.phase === 'landing' ? 'rouletteLand 0.35s cubic-bezier(0.22,1,0.36,1)' : undefined }}
+            >
+              <div style={{ fontSize: 48, lineHeight: 1.1, marginBottom: 10 }}>
+                {flagEmoji(rouletteSlot.current.alpha2)}
+              </div>
+              <div style={{
+                fontSize: 17,
+                fontWeight: 700,
+                color: rouletteSlot.phase === 'landing' ? '#a78bfa' : '#f1f5f9',
+                transition: 'color 0.4s ease',
+                letterSpacing: '-0.01em',
+              }}>
+                {rouletteSlot.current.name}
+              </div>
+            </div>
+            {rouletteSlot.phase === 'landing' && (
+              <div style={{ fontSize: 26, marginTop: 12, animation: 'bounceIn 0.5s cubic-bezier(0.22,1,0.36,1)' }}>
+                🎉
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 플로팅 피드백 */}
       {floatNums.map(n => (
@@ -814,6 +1191,11 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
               </>
             : <div style={{ fontSize: 11, color: '#475569', marginTop: 3 }}>클릭해서 기록하기</div>
           }
+          {(viewersByCountryRef.current[tooltip.alpha2] ?? 0) > 0 && (
+            <div style={{ fontSize: 11, color: '#c084fc', marginTop: 3 }}>
+              👁 {viewersByCountryRef.current[tooltip.alpha2]}명 보는 중
+            </div>
+          )}
         </div>
       )}
 
@@ -1074,19 +1456,41 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         📊 방문자 통계
       </Link>
 
-      {/* 범례 — 좌하단 · pollMode 시 숨김 */}
-      <div style={{ ...glass, position: 'absolute', bottom: 32, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 14px', display: pollMode ? 'none' : undefined }}>
-        <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
-          클릭 수 티어
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {TIERS.map(t => (
-            <div key={t.tag} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 3, background: t.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72 }}>{t.label}</span>
-              <span style={{ fontSize: 10, color: t.color, fontWeight: 600 }}>{t.tag}</span>
-            </div>
-          ))}
+      {/* 좌하단: 랜덤 스핀 버튼 + 범례 */}
+      <div style={{ position: 'absolute', bottom: 32, left: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+        {!pollMode && (
+          <button
+            onClick={handleRandomSpin}
+            disabled={isSpinning}
+            style={{
+              ...glass,
+              borderRadius: 12,
+              padding: '8px 16px',
+              border: `1px solid ${isSpinning ? 'rgba(255,255,255,0.07)' : 'rgba(167,139,250,0.35)'}`,
+              color: isSpinning ? '#475569' : '#a78bfa',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: isSpinning ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s ease',
+              background: isSpinning ? 'rgba(15,15,25,0.55)' : 'rgba(167,139,250,0.08)',
+            }}
+          >
+            {isSpinning ? '🌀 스핀 중...' : '🎲 랜덤 스핀'}
+          </button>
+        )}
+        <div style={{ ...glass, borderRadius: 12, padding: '10px 14px', display: pollMode ? 'none' : undefined }}>
+          <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
+            클릭 수 티어
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {TIERS.map(t => (
+              <div key={t.tag} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 3, background: t.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72 }}>{t.label}</span>
+                <span style={{ fontSize: 10, color: t.color, fontWeight: 600 }}>{t.tag}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

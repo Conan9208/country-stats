@@ -195,6 +195,19 @@
   animation-duration: 1.4s;
 }
 
+/* 룰렛 슬롯 카드 애니메이션 */
+@keyframes rouletteLand {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.85); }
+  60%  { transform: translateY(-4px) scale(1.06); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes bounceIn {
+  0%   { transform: scale(0);   opacity: 0; }
+  55%  { transform: scale(1.35); opacity: 1; }
+  80%  { transform: scale(0.92); }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
