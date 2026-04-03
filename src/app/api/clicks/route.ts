@@ -56,24 +56,38 @@ export async function GET() {
 
 // --- POST: 클릭 수 atomic increment ---
 export async function POST(request: NextRequest) {
-  const ip = getIp(request)
-  if (isRateLimited(ip)) {
-    return Response.json({ error: 'rate limit exceeded' }, { status: 429 })
+  try {
+    const ip = getIp(request)
+    if (isRateLimited(ip)) {
+      return Response.json({ error: 'rate limit exceeded' }, { status: 429 })
+    }
+
+    const { alpha2, name } = await request.json()
+    if (!alpha2 || typeof alpha2 !== 'string') {
+      return Response.json({ error: 'invalid alpha2' }, { status: 400 })
+    }
+
+    // Atomic upsert: DB 함수 1번 호출로 race condition 없이 증가
+    const { data, error } = await supabase.rpc('increment_view_count', {
+      p_country_code: alpha2,
+      p_name: name ?? null,
+    })
+
+    if (error) {
+      console.error('[POST /api/clicks] RPC error:', JSON.stringify(error))
+      return Response.json({ error: error.message }, { status: 500 })
+    }
+
+    if (!data) {
+      return Response.json({ total: 0, today: 0 })
+    }
+
+    const row = Array.isArray(data) ? data[0] : data
+    const total = Number((row as { total?: number }).total) || 0
+    const today = Number((row as { today?: number }).today) || 0
+    return Response.json({ total, today })
+  } catch (err) {
+    console.error('[POST /api/clicks] Unexpected error:', err)
+    return Response.json({ error: 'internal server error' }, { status: 500 })
   }
-
-  const { alpha2, name } = await request.json()
-  if (!alpha2 || typeof alpha2 !== 'string') {
-    return Response.json({ error: 'invalid alpha2' }, { status: 400 })
-  }
-
-  // Atomic upsert: DB 함수 1번 호출로 race condition 없이 증가
-  const { data, error } = await supabase.rpc('increment_view_count', {
-    p_country_code: alpha2,
-    p_name: name ?? null,
-  })
-
-  if (error) return Response.json({ error: error.message }, { status: 500 })
-
-  const { total, today } = data as { total: number; today: number }
-  return Response.json({ total, today })
 }

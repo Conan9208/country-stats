@@ -4,10 +4,13 @@ const WB = 'https://api.worldbank.org/v2'
 
 async function wbFetch(country: string, indicator: string) {
   try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
     const res = await fetch(
       `${WB}/country/${country}/indicator/${indicator}?format=json&mrv=5&per_page=5`,
-      { next: { revalidate: 86400 } }
+      { next: { revalidate: 86400 }, signal: controller.signal }
     )
+    clearTimeout(timeout)
     const json = await res.json()
     const entries: { value: number | null; date: string }[] = json?.[1] ?? []
     for (const e of entries) {
@@ -61,7 +64,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cod
   if (!gdp || !debtRatio) {
     return Response.json(
       { error: '이 나라의 부채 데이터를 찾을 수 없어요', name: countryName, flag: flagUrl },
-      { status: 404 }
+      { status: 404, headers: { 'Cache-Control': 'public, s-maxage=3600' } }
     )
   }
 
@@ -98,5 +101,5 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cod
     localDebt,
     perSecondLocal,
     exchangeRate,
-  })
+  }, { headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' } })
 }

@@ -1,21 +1,24 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, useMemo, startTransition } from 'react'
-import * as topojson from 'topojson-client'
-import type { Topology } from 'topojson-specification'
-import type { Feature, FeatureCollection, Geometry, GeoJsonProperties } from 'geojson'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import type { Feature, Geometry, GeoJsonProperties } from 'geojson'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
 import localeEn from 'i18n-iso-countries/langs/en.json'
-import { geoOrthographic, geoPath, geoGraticule, geoCentroid } from 'd3-geo'
+import { geoOrthographic, geoPath } from 'd3-geo'
 import StarField from '@/components/StarField'
 import CommentPanel from '@/components/CommentPanel'
 import DebtModal from '@/components/DebtModal'
 import CountryInfoModal from '@/components/CountryInfoModal'
+import RankList from '@/components/RankList'
 import type { ClickData, ClickEntry, CountryProps, TooltipState } from '@/types/map'
 import { TIERS, glass } from '@/lib/mapConstants'
 import { formatCount, countryColor, pollVoteColor, getTier, topN, topNToday, getLocale } from '@/lib/mapUtils'
 import { supabase } from '@/lib/supabase'
+import { worldGeo, landGeo, bordersMesh, graticuleData, alpha2Map, featureByAlpha2, centroidByAlpha2, flagEmoji } from '@/lib/geoData'
+import { getLocalTime } from '@/lib/timezoneData'
+import { useRealtimeViewers } from '@/hooks/useRealtimeViewers'
+import { useSpinRoulette } from '@/hooks/useSpinRoulette'
 import Link from 'next/link'
 import AdminPanel from '@/components/AdminPanel'
 
@@ -23,103 +26,6 @@ isoCountries.registerLocale(localeKo)
 isoCountries.registerLocale(localeEn)
 
 const LOCALE = getLocale()
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const worldTopo = require('world-atlas/countries-110m.json') as Topology
-
-const worldGeo = topojson.feature(
-  worldTopo,
-  worldTopo.objects.countries
-) as FeatureCollection<Geometry, CountryProps>
-
-const landGeo = topojson.feature(worldTopo, worldTopo.objects.land) as FeatureCollection
-
-// 모듈 레벨 1회 계산 — 매 프레임 재계산 방지
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const bordersMesh = topojson.mesh(worldTopo as any, (worldTopo as any).objects.countries, (a: unknown, b: unknown) => a !== b) as unknown as Feature<Geometry, GeoJsonProperties>
-const graticuleData = geoGraticule()()
-
-// numericId → alpha2 lookup map
-const alpha2Map = new Map<string, string>()
-for (const f of worldGeo.features) {
-  const numericId = String((f as Feature & { id?: string | number }).id ?? '')
-  const a2 = isoCountries.numericToAlpha2(numericId)
-  if (a2) alpha2Map.set(numericId, a2)
-}
-
-// alpha2 → feature lookup map (플래시 효과용)
-const featureByAlpha2 = new Map<string, Feature<Geometry, CountryProps>>()
-for (const f of worldGeo.features) {
-  const numericId = String((f as Feature & { id?: string | number }).id ?? '')
-  const a2 = alpha2Map.get(numericId)
-  if (a2) featureByAlpha2.set(a2, f)
-}
-
-// alpha2 → geographic centroid (스핀 룰렛 + 뷰어 점 렌더링용)
-const centroidByAlpha2 = new Map<string, [number, number]>()
-for (const f of worldGeo.features) {
-  const numericId = String((f as Feature & { id?: string | number }).id ?? '')
-  const a2 = alpha2Map.get(numericId)
-  if (a2) centroidByAlpha2.set(a2, geoCentroid(f) as [number, number])
-}
-
-// alpha2 → IANA 타임존 (대표 도시 기준, 외부 API 없이 즉시 계산)
-const TIMEZONE_MAP: Record<string, string> = {
-  AF: 'Asia/Kabul',         AL: 'Europe/Tirane',      DZ: 'Africa/Algiers',
-  AO: 'Africa/Luanda',      AR: 'America/Argentina/Buenos_Aires',
-  AM: 'Asia/Yerevan',       AU: 'Australia/Sydney',   AT: 'Europe/Vienna',
-  AZ: 'Asia/Baku',          BH: 'Asia/Bahrain',       BD: 'Asia/Dhaka',
-  BY: 'Europe/Minsk',       BE: 'Europe/Brussels',    BO: 'America/La_Paz',
-  BA: 'Europe/Sarajevo',    BR: 'America/Sao_Paulo',  BG: 'Europe/Sofia',
-  KH: 'Asia/Phnom_Penh',    CM: 'Africa/Douala',      CA: 'America/Toronto',
-  CL: 'America/Santiago',   CN: 'Asia/Shanghai',      CO: 'America/Bogota',
-  HR: 'Europe/Zagreb',      CU: 'America/Havana',     CZ: 'Europe/Prague',
-  DK: 'Europe/Copenhagen',  EC: 'America/Guayaquil',  EG: 'Africa/Cairo',
-  ET: 'Africa/Addis_Ababa', FI: 'Europe/Helsinki',    FR: 'Europe/Paris',
-  GE: 'Asia/Tbilisi',       DE: 'Europe/Berlin',      GH: 'Africa/Accra',
-  GR: 'Europe/Athens',      GT: 'America/Guatemala',  HN: 'America/Tegucigalpa',
-  HK: 'Asia/Hong_Kong',     HU: 'Europe/Budapest',    IS: 'Atlantic/Reykjavik',
-  IN: 'Asia/Kolkata',       ID: 'Asia/Jakarta',       IR: 'Asia/Tehran',
-  IQ: 'Asia/Baghdad',       IE: 'Europe/Dublin',      IL: 'Asia/Jerusalem',
-  IT: 'Europe/Rome',        JM: 'America/Jamaica',    JP: 'Asia/Tokyo',
-  JO: 'Asia/Amman',         KZ: 'Asia/Almaty',        KE: 'Africa/Nairobi',
-  KP: 'Asia/Pyongyang',     KR: 'Asia/Seoul',         KW: 'Asia/Kuwait',
-  LB: 'Asia/Beirut',        LY: 'Africa/Tripoli',     LT: 'Europe/Vilnius',
-  LU: 'Europe/Luxembourg',  MY: 'Asia/Kuala_Lumpur',  MX: 'America/Mexico_City',
-  MA: 'Africa/Casablanca',  NP: 'Asia/Kathmandu',     NL: 'Europe/Amsterdam',
-  NZ: 'Pacific/Auckland',   NG: 'Africa/Lagos',       NO: 'Europe/Oslo',
-  PK: 'Asia/Karachi',       PA: 'America/Panama',     PE: 'America/Lima',
-  PH: 'Asia/Manila',        PL: 'Europe/Warsaw',      PT: 'Europe/Lisbon',
-  QA: 'Asia/Qatar',         RO: 'Europe/Bucharest',   RU: 'Europe/Moscow',
-  SA: 'Asia/Riyadh',        SN: 'Africa/Dakar',       RS: 'Europe/Belgrade',
-  SG: 'Asia/Singapore',     ZA: 'Africa/Johannesburg',ES: 'Europe/Madrid',
-  LK: 'Asia/Colombo',       SE: 'Europe/Stockholm',   CH: 'Europe/Zurich',
-  SY: 'Asia/Damascus',      TW: 'Asia/Taipei',        TZ: 'Africa/Dar_es_Salaam',
-  TH: 'Asia/Bangkok',       TN: 'Africa/Tunis',       TR: 'Europe/Istanbul',
-  UA: 'Europe/Kyiv',        AE: 'Asia/Dubai',         GB: 'Europe/London',
-  US: 'America/New_York',   UY: 'America/Montevideo', UZ: 'Asia/Tashkent',
-  VE: 'America/Caracas',    VN: 'Asia/Ho_Chi_Minh',   YE: 'Asia/Aden',
-  ZM: 'Africa/Lusaka',      ZW: 'Africa/Harare',
-}
-
-// 여러 시간대 나라 → 대표 도시명 명시
-const CITY_LABEL: Record<string, string> = {
-  US: '뉴욕', RU: '모스크바', CA: '토론토', AU: '시드니',
-  BR: '상파울루', MX: '멕시코시티', ID: '자카르타', CN: '베이징',
-}
-
-function getLocalTime(alpha2: string): { time: string; city: string | null } | null {
-  const key = alpha2.toUpperCase()
-  const tz = TIMEZONE_MAP[key]
-  if (!tz) return null
-  const time = new Intl.DateTimeFormat('ko-KR', {
-    timeZone: tz,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(new Date())
-  return { time, city: CITY_LABEL[key] ?? null }
-}
 
 type WorldMapProps = {
   pollMode?: boolean
@@ -131,10 +37,6 @@ type WorldMapProps = {
   pollMyVote?: string | null
   onCancelPollVote?: () => void
   onStartPoll?: () => void
-}
-
-function flagEmoji(alpha2: string): string {
-  return alpha2.toUpperCase().split('').map(c => String.fromCodePoint(0x1f1e6 - 65 + c.charCodeAt(0))).join('')
 }
 
 export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollData, pollQuestion, pollTotalVotes, pollMyVote, onCancelPollVote, onStartPoll }: WorldMapProps = {}) {
@@ -190,26 +92,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   // 자동 회전
   const autoRotateRef = useRef(true)
 
-  // 랜덤 스핀 룰렛
-  const spinningRef = useRef(false)
-  const spinStartRef = useRef<[number, number]>([0, 0])
-  const spinTargetRef = useRef<[number, number]>([0, 0])
-  const spinProgressRef = useRef(0)
-  const spinTargetCountryRef = useRef<{ code: string; name: string } | null>(null)
-  const spinCompleteRef = useRef<{ code: string; name: string } | null>(null)
-  const [isSpinning, setIsSpinning] = useState(false)
-  const spinJourneyRef = useRef(0)  // 총 회전 각도 (두 단계 이징용)
-  type FireworkParticle = { x: number; y: number; vx: number; vy: number; t: number; size: number; color: string }
-  const fireworkParticlesRef = useRef<FireworkParticle[]>([])
-  type RouletteSlot = { current: { alpha2: string; name: string }; phase: 'cycling' | 'landing' }
-  const [rouletteSlot, setRouletteSlot] = useState<RouletteSlot | null>(null)
-
-  // 실시간 뷰어 (Supabase Broadcast)
-  const viewersByCountryRef = useRef<Record<string, number>>({})
-  const viewersMapRef = useRef(new Map<string, { code: string; ts: number }>())
-  const mySessionId = useRef('')
-  const lastBroadcastCountryRef = useRef<string | null>(null)
-  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const { isSpinning, rouletteSlot, spinningRef, spinStartRef, spinTargetRef, spinProgressRef, spinJourneyRef, fireworkParticlesRef, handleRandomSpin } = useSpinRoulette({ setInfoCountry, canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef })
+  const { viewersByCountryRef, lastBroadcastCountryRef, presenceChannelRef, mySessionId } = useRealtimeViewers()
 
   // 이펙트
   type Shockwave = { x: number; y: number; t: number }
@@ -299,161 +183,6 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [])
-
-  // 스핀 완료 시: 폭죽 3웨이브 → 슬롯 랜딩 → 1.3초 후 모달
-  useEffect(() => {
-    if (!isSpinning && spinCompleteRef.current) {
-      const country = spinCompleteRef.current
-      spinCompleteRef.current = null
-
-      // 폭죽 3웨이브 (0ms / 220ms / 440ms)
-      for (let wave = 0; wave < 3; wave++) {
-        setTimeout(() => {
-          // getProjection을 직접 인라인 (forward-declaration 방지)
-          const canvas = canvasRef.current
-          if (!canvas) return
-          const size = Math.min(canvas.width, canvas.height)
-          const proj = geoOrthographic()
-            .scale(size * 1.6 * Math.pow(1.3, scaleRef.current))
-            .translate([canvas.width / 2 - 128, canvas.height / 2])
-            .rotate([rotationRef.current[0], rotationRef.current[1], 0])
-            .clipAngle(90)
-          const geo = centroidByAlpha2.get(country.code)
-          const projected = geo ? proj(geo) : null
-          if (!projected || !isFinite(projected[0]) || !isFinite(projected[1])) return
-          const [px, py] = projected
-          const now = performance.now()
-          const COLORS = [
-            'rgba(250,204,21', 'rgba(167,139,250', 'rgba(96,165,250',
-            'rgba(244,114,182', 'rgba(52,211,153', 'rgba(251,146,60', 'rgba(255,255,255',
-          ]
-          const count = [35, 25, 18][wave]
-          const baseSpeed = [70, 55, 40][wave]
-          for (let i = 0; i < count; i++) {
-            const angle = Math.random() * Math.PI * 2
-            const speed = baseSpeed + Math.random() * 100
-            fireworkParticlesRef.current.push({
-              x: px, y: py,
-              vx: Math.cos(angle) * speed,
-              vy: Math.sin(angle) * speed,
-              t: now,
-              size: 2.5 + Math.random() * 4,
-              color: COLORS[Math.floor(Math.random() * COLORS.length)],
-            })
-          }
-        }, wave * 220)
-      }
-
-      // 슬롯 → 랜딩 표시
-      setRouletteSlot(prev =>
-        prev ? { ...prev, phase: 'landing' } : { current: { alpha2: country.code, name: country.name }, phase: 'landing' }
-      )
-
-      // 1.3초 후 모달 오픈 + 슬롯 제거
-      setTimeout(() => {
-        setInfoCountry(country)
-        setRouletteSlot(null)
-      }, 1300)
-    }
-  }, [isSpinning])
-
-  // 슬롯머신 나라 cycling (isSpinning 동안)
-  useEffect(() => {
-    if (!isSpinning) return
-    const final = spinTargetCountryRef.current
-    if (!final) return
-    const allAlpha2 = [...alpha2Map.values()]
-    // 총 ~2600ms: 300ms 시작 딜레이 포함 → 2900ms에 final (spin 3000ms보다 100ms 앞)
-    const schedule = [
-      ...Array(8).fill(75),   // 600ms 빠름
-      ...Array(6).fill(120),  // 720ms 중간
-      ...Array(4).fill(180),  // 720ms 느림
-      ...Array(2).fill(280),  // 560ms 매우 느림
-    ]
-    let step = 0
-    let timer: ReturnType<typeof setTimeout>
-    const tick = () => {
-      if (step >= schedule.length) {
-        setRouletteSlot({ current: { alpha2: final.code, name: final.name }, phase: 'landing' })
-        return
-      }
-      const a2 = allAlpha2[Math.floor(Math.random() * allAlpha2.length)]
-      const name = isoCountries.getName(a2, LOCALE) ?? a2
-      startTransition(() => {
-        setRouletteSlot({ current: { alpha2: a2, name }, phase: 'cycling' })
-      })
-      timer = setTimeout(tick, schedule[step++])
-    }
-    timer = setTimeout(tick, 300)
-    return () => clearTimeout(timer)
-  }, [isSpinning])
-
-  // 실시간 뷰어 Broadcast 채널
-  useEffect(() => {
-    const sid = (() => {
-      try {
-        let id = sessionStorage.getItem('wstats-sid')
-        if (!id) {
-          id = Math.random().toString(36).slice(2, 9) + Date.now().toString(36)
-          sessionStorage.setItem('wstats-sid', id)
-        }
-        return id
-      } catch { return Math.random().toString(36).slice(2, 9) }
-    })()
-    mySessionId.current = sid
-
-    const recomputeViewers = () => {
-      const now = Date.now()
-      const counts: Record<string, number> = {}
-      for (const [, { code, ts }] of viewersMapRef.current) {
-        if (now - ts > 60000) continue
-        counts[code] = (counts[code] ?? 0) + 1
-      }
-      viewersByCountryRef.current = counts
-    }
-
-    const presenceChannel = supabase
-      .channel('globe-presence')
-      .on('broadcast', { event: 'hover' }, ({ payload }) => {
-        const { sessionId, countryCode, ts } = payload as { sessionId: string; countryCode: string | null; ts: number }
-        if (sessionId === sid) return
-        if (countryCode) {
-          viewersMapRef.current.set(sessionId, { code: countryCode, ts })
-        } else {
-          viewersMapRef.current.delete(sessionId)
-        }
-        recomputeViewers()
-      })
-      .subscribe()
-
-    presenceChannelRef.current = presenceChannel
-
-    const staleCleanup = setInterval(() => {
-      const now = Date.now()
-      let changed = false
-      for (const [id, { ts }] of viewersMapRef.current) {
-        if (now - ts > 60000) { viewersMapRef.current.delete(id); changed = true }
-      }
-      if (changed) recomputeViewers()
-    }, 15000)
-
-    const heartbeat = setInterval(() => {
-      const code = lastBroadcastCountryRef.current
-      if (code) {
-        presenceChannelRef.current?.send({
-          type: 'broadcast', event: 'hover',
-          payload: { sessionId: sid, countryCode: code, ts: Date.now() },
-        })
-      }
-    }, 30000)
-
-    return () => {
-      supabase.removeChannel(presenceChannel)
-      presenceChannelRef.current = null
-      clearInterval(staleCleanup)
-      clearInterval(heartbeat)
-    }
   }, [])
 
   const getProjection = useCallback(() => {
@@ -739,10 +468,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         ]
         if (spinProgressRef.current >= 1) {
           spinningRef.current = false
-          spinCompleteRef.current = spinTargetCountryRef.current
           autoRotateRef.current = true
-          // eslint-disable-next-line react-hooks/exhaustive-deps
-          setIsSpinning(false)
+          // setIsSpinning(false)은 cycling effect가 완주한 뒤 landingCountry effect에서 호출
+          // draw loop에서 호출하면 cycling 마지막 tick을 clearTimeout으로 취소하는 race condition 발생
         }
       } else if (!dragStartRef.current) {
         const [vx, vy] = velocityRef.current
@@ -867,7 +595,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         ?? hit.alpha2
       hoveredAlpha2Ref.current = hit.alpha2
       hoveredNameRef.current   = name
-      setTooltip({ name, count, x: e.clientX - rect.left, y: e.clientY - rect.top, alpha2: hit.alpha2 })
+      setTooltip({ name, count, x: e.clientX - rect.left, y: e.clientY - rect.top, alpha2: hit.alpha2, viewers: viewersByCountryRef.current[hit.alpha2] ?? 0 })
       // 뷰어 broadcast — 나라가 바뀔 때만 전송
       if (hit.alpha2 !== lastBroadcastCountryRef.current) {
         lastBroadcastCountryRef.current = hit.alpha2
@@ -998,6 +726,15 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       return
     }
 
+    if (!res.ok) {
+      clickDataRef.current = {
+        ...clickDataRef.current,
+        [alpha2]: { ...clickDataRef.current[alpha2], total: prevTotal },
+      }
+      setClickData({ ...clickDataRef.current })
+      return
+    }
+
     const updated: { total: number; today: number } = await res.json()
     // confirmedCountRef: 서버 확정값만, Math.max로 순서 뒤바뀐 응답도 안전하게
     const confirmedTotal = Math.max(confirmedCountRef.current[alpha2] ?? 0, updated.total)
@@ -1039,36 +776,6 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     const menu = { x: e.clientX, y: e.clientY, alpha2, name }
     contextMenuRef.current = menu
     setContextMenu(menu)
-  }, [])
-
-  const handleRandomSpin = useCallback(() => {
-    if (spinningRef.current) return
-    const valid = worldGeo.features.filter(f => {
-      const id = String((f as Feature & { id?: string | number }).id ?? '')
-      return alpha2Map.has(id)
-    })
-    const f = valid[Math.floor(Math.random() * valid.length)]
-    const numericId = String((f as Feature & { id?: string | number }).id ?? '')
-    const alpha2 = alpha2Map.get(numericId)!
-    const name = isoCountries.getName(alpha2, LOCALE) ?? alpha2
-    const centroid = centroidByAlpha2.get(alpha2) ?? (geoCentroid(f) as [number, number])
-    const targetLambda = -centroid[0]
-    const targetPhi = Math.max(-75, Math.min(75, -centroid[1]))
-    const currentLambda = rotationRef.current[0]
-    const currentPhi = rotationRef.current[1]
-    // 2바퀴 추가 고속 회전 후 정확한 목표 나라에 안착
-    const delta = ((targetLambda - currentLambda) % 360 + 360) % 360
-    const journey = 720 + delta  // 2바퀴 + 목표까지 나머지
-    spinJourneyRef.current = journey
-    spinStartRef.current = [currentLambda, currentPhi]
-    spinTargetRef.current = [currentLambda + journey, targetPhi]
-    spinProgressRef.current = 0
-    spinTargetCountryRef.current = { code: alpha2, name }
-    spinCompleteRef.current = null
-    spinningRef.current = true
-    autoRotateRef.current = false
-    velocityRef.current = [0, 0]
-    setIsSpinning(true)
   }, [])
 
   const handleMenuSelect = useCallback((action: 'info' | 'debt' | 'comment', alpha2: string, name: string) => {
@@ -1191,9 +898,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
               </>
             : <div style={{ fontSize: 11, color: '#475569', marginTop: 3 }}>클릭해서 기록하기</div>
           }
-          {(viewersByCountryRef.current[tooltip.alpha2] ?? 0) > 0 && (
+          {tooltip.viewers > 0 && (
             <div style={{ fontSize: 11, color: '#c084fc', marginTop: 3 }}>
-              👁 {viewersByCountryRef.current[tooltip.alpha2]}명 보는 중
+              👁 {tooltip.viewers}명 보는 중
             </div>
           )}
         </div>
@@ -1493,63 +1200,6 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-type RankEntry = { alpha2: string; name: string; count: number }
-
-function RankList({ title, entries, emptyMsg, live, onSelect }: {
-  title: string
-  entries: RankEntry[]
-  emptyMsg: string
-  live?: boolean
-  onSelect: (c: { code: string; name: string }) => void
-}) {
-  const max = entries[0]?.count ?? 1
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.07em', textTransform: 'uppercase' }}>{title}</span>
-        {live && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#22c55e', fontWeight: 600 }}>
-            <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-            LIVE
-          </span>
-        )}
-      </div>
-      {entries.length === 0 ? (
-        <p style={{ color: '#334155', fontSize: 12, margin: 0 }}>{emptyMsg}</p>
-      ) : (
-        <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto', paddingRight: 14, marginRight: -4, scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,0.3) transparent' }}>
-          {entries.map((e, i) => {
-            const tier = TIERS.find(t => e.count >= t.min && e.count <= t.max)
-            return (
-              <li key={e.alpha2} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 20, textAlign: 'center', fontSize: i < 3 ? 13 : 11, color: '#475569', flexShrink: 0 }}>
-                  {i < 3 ? ['🥇','🥈','🥉'][i] : i + 1}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
-                    <span
-                      onClick={() => onSelect({ code: e.alpha2, name: e.name })}
-                      style={{ fontSize: 12, color: '#e2e8f0', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,0.2)', textUnderlineOffset: 3 }}
-                    >
-                      {e.name}
-                    </span>
-                    <span style={{ fontSize: 11, color: tier?.color ?? '#a78bfa', flexShrink: 0, marginLeft: 6, fontWeight: 600 }}>
-                      {formatCount(e.count)}
-                    </span>
-                  </div>
-                  <div style={{ height: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${(e.count / max) * 100}%`, background: `linear-gradient(90deg, ${tier?.color ?? '#818cf8'}, #c084fc)`, borderRadius: 2 }} />
-                  </div>
-                </div>
-              </li>
-            )
-          })}
-        </ol>
-      )}
     </div>
   )
 }

@@ -17,4 +17,5 @@ export type TooltipState = {
   x: number
   y: number
   alpha2: string
+  viewers: number
 }
