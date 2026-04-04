@@ -27,6 +27,17 @@ isoCountries.registerLocale(localeEn)
 
 const LOCALE = getLocale()
 
+function formatPopulation(n: number) {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B명`
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M명`
+  if (n >= 1e4) return `${Math.round(n / 1e4)}만명`
+  return `${n.toLocaleString()}명`
+}
+function formatArea(n: number) {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M km²`
+  return `${n.toLocaleString()} km²`
+}
+
 type WorldMapProps = {
   pollMode?: boolean
   onPollVote?: (alpha2: string, name: string) => void
@@ -92,7 +103,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   // 자동 회전
   const autoRotateRef = useRef(true)
 
-  const { isSpinning, rouletteSlot, spinningRef, spinStartRef, spinTargetRef, spinProgressRef, spinJourneyRef, fireworkParticlesRef, handleRandomSpin } = useSpinRoulette({ setInfoCountry, canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef })
+  const { isSpinning, rouletteSlot, landingFacts, landingMarkerRef, spinningRef, spinStartRef, spinTargetRef, spinProgressRef, spinJourneyRef, fireworkParticlesRef, handleRandomSpin } = useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef })
   const { viewersByCountryRef, lastBroadcastCountryRef, presenceChannelRef, mySessionId } = useRealtimeViewers()
 
   // 이펙트
@@ -439,7 +450,47 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       ctx.fillStyle = `${p.color},${alpha.toFixed(2)})`
       ctx.fill()
     }
-  }, [getProjection])
+
+    // 스핀 랜딩 위치 마커 — 3개의 펄스 링이 나라 중심에서 확산
+    const lm = landingMarkerRef.current
+    if (lm) {
+      const elapsed = now - lm.startTime
+      const DURATION = 4000
+      if (elapsed < DURATION) {
+        const geo = centroidByAlpha2.get(lm.alpha2)
+        if (geo) {
+          const cLng0 = -rotationRef.current[0] * Math.PI / 180
+          const cLat0 = -rotationRef.current[1] * Math.PI / 180
+          const pLng  = geo[0] * Math.PI / 180
+          const pLat  = geo[1] * Math.PI / 180
+          const dot   = Math.cos(pLat) * Math.cos(cLat0) * Math.cos(pLng - cLng0)
+                      + Math.sin(pLat) * Math.sin(cLat0)
+          if (dot > 0.05) {
+            const projected = proj(geo)
+            if (projected && isFinite(projected[0]) && isFinite(projected[1])) {
+              const [mx, my] = projected
+              for (let i = 0; i < 3; i++) {
+                const ringPhase = ((elapsed / 900) + i * 0.333) % 1
+                const ringR = ringPhase * 40
+                const ringA = (1 - ringPhase) * 0.75
+                ctx.beginPath()
+                ctx.arc(mx, my, ringR, 0, Math.PI * 2)
+                ctx.strokeStyle = `rgba(167,139,250,${ringA.toFixed(2)})`
+                ctx.lineWidth = 2
+                ctx.stroke()
+              }
+              ctx.beginPath()
+              ctx.arc(mx, my, 5, 0, Math.PI * 2)
+              ctx.fillStyle = 'rgba(167,139,250,0.9)'
+              ctx.fill()
+            }
+          }
+        }
+      } else {
+        landingMarkerRef.current = null
+      }
+    }
+  }, [getProjection, landingMarkerRef])
 
   // 자동 회전 + 관성 + 스핀 루프
   useEffect(() => {
@@ -804,8 +855,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         onContextMenu={onContextMenu}
       />
 
-      {/* 룰렛 슬롯 오버레이 */}
-      {rouletteSlot && (
+      {/* 슬롯머신 오버레이 — cycling 중에만 표시 */}
+      {rouletteSlot?.phase === 'cycling' && (
         <div style={{
           position: 'absolute',
           top: '38%',
@@ -819,36 +870,73 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
             ...glass,
             borderRadius: 24,
             padding: '22px 44px',
-            border: `1px solid ${rouletteSlot.phase === 'landing' ? 'rgba(167,139,250,0.65)' : 'rgba(255,255,255,0.1)'}`,
-            boxShadow: rouletteSlot.phase === 'landing'
-              ? '0 0 56px rgba(167,139,250,0.28), 0 8px 40px rgba(0,0,0,0.7)'
-              : '0 8px 40px rgba(0,0,0,0.6)',
-            transition: 'border 0.4s ease, box-shadow 0.4s ease',
+            border: '1px solid rgba(255,255,255,0.1)',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
             minWidth: 200,
           }}>
             <div style={{ fontSize: 10, color: '#334155', fontWeight: 700, letterSpacing: '0.14em', marginBottom: 14 }}>
-              {rouletteSlot.phase === 'landing' ? '🎯 결정!' : '🎰 SPINNING...'}
+              🎰 SPINNING...
             </div>
-            <div
-              style={{ animation: rouletteSlot.phase === 'landing' ? 'rouletteLand 0.35s cubic-bezier(0.22,1,0.36,1)' : undefined }}
-            >
-              <div style={{ fontSize: 48, lineHeight: 1.1, marginBottom: 10 }}>
-                {flagEmoji(rouletteSlot.current.alpha2)}
-              </div>
-              <div style={{
-                fontSize: 17,
-                fontWeight: 700,
-                color: rouletteSlot.phase === 'landing' ? '#a78bfa' : '#f1f5f9',
-                transition: 'color 0.4s ease',
-                letterSpacing: '-0.01em',
-              }}>
-                {rouletteSlot.current.name}
-              </div>
+            <div style={{ fontSize: 48, lineHeight: 1.1, marginBottom: 10 }}>
+              {flagEmoji(rouletteSlot.current.alpha2)}
             </div>
-            {rouletteSlot.phase === 'landing' && (
-              <div style={{ fontSize: 26, marginTop: 12, animation: 'bounceIn 0.5s cubic-bezier(0.22,1,0.36,1)' }}>
-                🎉
+            <div style={{ fontSize: 17, fontWeight: 700, color: '#f1f5f9', letterSpacing: '-0.01em' }}>
+              {rouletteSlot.current.name}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 팩트 카드 — landing 시 전체화면 오버레이로 표시 (overflow:hidden 영향 없음) */}
+      {rouletteSlot?.phase === 'landing' && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          background: 'rgba(0,0,0,0.55)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
+          pointerEvents: 'none',
+        }}>
+          <div style={{
+            ...glass,
+            borderRadius: 28,
+            padding: '36px 52px',
+            textAlign: 'center',
+            border: '1px solid rgba(167,139,250,0.55)',
+            boxShadow: '0 0 80px rgba(167,139,250,0.18), 0 16px 60px rgba(0,0,0,0.7)',
+            animation: 'rouletteLand 0.4s cubic-bezier(0.22,1,0.36,1)',
+            minWidth: 280,
+          }}>
+            <div style={{ fontSize: 11, color: '#a78bfa', fontWeight: 700, letterSpacing: '0.16em', marginBottom: 16 }}>
+              🎯 스핀 결과
+            </div>
+            <div style={{ fontSize: 64, lineHeight: 1, marginBottom: 12 }}>
+              {flagEmoji(rouletteSlot.current.alpha2)}
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', marginBottom: 20, letterSpacing: '-0.01em' }}>
+              {rouletteSlot.current.name}
+            </div>
+            {landingFacts ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, animation: 'rouletteLand 0.4s 0.15s cubic-bezier(0.22,1,0.36,1) both' }}>
+                {landingFacts.capital && (
+                  <div style={{ fontSize: 13, color: '#cbd5e1' }}>🏛️ 수도 &nbsp;<strong>{landingFacts.capital}</strong></div>
+                )}
+                <div style={{ fontSize: 13, color: '#94a3b8' }}>
+                  👥 인구 세계 <strong style={{ color: '#a78bfa' }}>{landingFacts.popRank}위</strong>
+                  <span style={{ fontSize: 11, color: '#64748b' }}> ({formatPopulation(landingFacts.population)})</span>
+                </div>
+                <div style={{ fontSize: 13, color: '#94a3b8' }}>
+                  🗺️ 면적 세계 <strong style={{ color: '#a78bfa' }}>{landingFacts.areaRank}위</strong>
+                  <span style={{ fontSize: 11, color: '#64748b' }}> ({formatArea(landingFacts.area)})</span>
+                </div>
+                <div style={{ fontSize: 12, color: '#475569' }}>🌍 {landingFacts.region}</div>
               </div>
+            ) : (
+              <div style={{ fontSize: 12, color: '#475569' }}>로딩 중...</div>
             )}
           </div>
         </div>
@@ -1116,8 +1204,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
             {contextMenu.name}
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '4px 0' }} />
-          {(['info', 'debt', 'comment'] as const).map((action) => {
-            const labels = { info: '📊 기본 정보', debt: '💸 부채 정보', comment: '💬 댓글 보기' }
+          {(['info', 'comment'] as const).map((action) => {
+            const labels = { info: '📊 기본 정보', comment: '💬 댓글 보기' }
             return (
               <button
                 key={action}

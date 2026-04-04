@@ -10,11 +10,33 @@ import { getLocale } from '@/lib/mapUtils'
 
 const LOCALE = getLocale()
 
+// 전체 국가 인구·면적 순위 캐시 (앱 내 1회만 fetch)
+let rankCache: Map<string, { popRank: number; areaRank: number }> | null = null
+let rankCachePromise: Promise<Map<string, { popRank: number; areaRank: number }>> | null = null
+
+function getRankCache(): Promise<Map<string, { popRank: number; areaRank: number }>> {
+  if (rankCache) return Promise.resolve(rankCache)
+  if (!rankCachePromise) {
+    rankCachePromise = fetch('https://restcountries.com/v3.1/all?fields=cca2,population,area')
+      .then(r => r.json())
+      .then((all: { cca2: string; population: number; area: number }[]) => {
+        const byPop  = [...all].sort((a, b) => (b.population ?? 0) - (a.population ?? 0))
+        const byArea = [...all].sort((a, b) => (b.area ?? 0) - (a.area ?? 0))
+        const map = new Map<string, { popRank: number; areaRank: number }>()
+        byPop.forEach((c, i) => map.set(c.cca2, { popRank: i + 1, areaRank: 0 }))
+        byArea.forEach((c, i) => { const e = map.get(c.cca2); if (e) e.areaRank = i + 1 })
+        rankCache = map
+        return map
+      })
+      .catch(() => new Map<string, { popRank: number; areaRank: number }>())
+  }
+  return rankCachePromise
+}
+
 export type FireworkParticle = { x: number; y: number; vx: number; vy: number; t: number; size: number; color: string }
 export type RouletteSlot = { current: { alpha2: string; name: string }; phase: 'cycling' | 'landing' }
 
 type Deps = {
-  setInfoCountry: (c: { code: string; name: string }) => void
   canvasRef: RefObject<HTMLCanvasElement | null>
   rotationRef: MutableRefObject<[number, number]>
   scaleRef: MutableRefObject<number>
@@ -22,7 +44,7 @@ type Deps = {
   velocityRef: MutableRefObject<[number, number]>
 }
 
-export function useSpinRoulette({ setInfoCountry, canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef }: Deps) {
+export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef }: Deps) {
   const spinningRef = useRef(false)
   const spinStartRef = useRef<[number, number]>([0, 0])
   const spinTargetRef = useRef<[number, number]>([0, 0])
@@ -35,6 +57,11 @@ export function useSpinRoulette({ setInfoCountry, canvasRef, rotationRef, scaleR
   const [isSpinning, setIsSpinning] = useState(false)
   const [rouletteSlot, setRouletteSlot] = useState<RouletteSlot | null>(null)
   const [landingCountry, setLandingCountry] = useState<{ code: string; name: string } | null>(null)
+  const [landingFacts, setLandingFacts] = useState<{
+    population: number; area: number; region: string
+    capital: string; popRank: number; areaRank: number
+  } | null>(null)
+  const landingMarkerRef = useRef<{ alpha2: string; startTime: number } | null>(null)
 
   // 스핀 완료 시: 폭죽 3웨이브
   useEffect(() => {
@@ -98,6 +125,7 @@ export function useSpinRoulette({ setInfoCountry, canvasRef, rotationRef, scaleR
         slotFinalCountryRef.current = final
         setRouletteSlot({ current: { alpha2: final.code, name: final.name }, phase: 'landing' })
         setLandingCountry(final)
+        landingMarkerRef.current = { alpha2: final.code, startTime: performance.now() }
         return
       }
       const a2 = allAlpha2[Math.floor(Math.random() * allAlpha2.length)]
@@ -109,20 +137,40 @@ export function useSpinRoulette({ setInfoCountry, canvasRef, rotationRef, scaleR
     }
     timer = setTimeout(tick, 300)
     return () => clearTimeout(timer)
-  }, [isSpinning, setInfoCountry])
+  }, [isSpinning])
 
-  // 슬롯 랜딩 완료 → 1.4초 후 모달 오픈 + 오버레이 제거
-  // isSpinning 타이밍과 완전히 독립적으로 동작
+  // 슬롯 랜딩 완료 → 팩트 + 순위 fetch + 3초 후 팩트카드 닫기
   useEffect(() => {
     if (!landingCountry) return
+    let active = true
+    Promise.all([
+      fetch(`https://restcountries.com/v3.1/alpha/${landingCountry.code}?fields=population,area,region,capital`)
+        .then(r => r.json()),
+      getRankCache(),
+    ]).then(([raw, ranks]) => {
+      if (!active) return
+      const data = Array.isArray(raw) ? raw[0] : raw
+      const rank = ranks.get(landingCountry.code) ?? { popRank: 0, areaRank: 0 }
+      setLandingFacts({
+        population: data.population ?? 0,
+        area: data.area ?? 0,
+        region: data.region ?? '',
+        capital: Array.isArray(data.capital) ? (data.capital[0] ?? '') : (data.capital ?? ''),
+        popRank: rank.popRank,
+        areaRank: rank.areaRank,
+      })
+    }).catch(() => {})
     const timer = setTimeout(() => {
-      setInfoCountry(landingCountry)
       setRouletteSlot(null)
       setLandingCountry(null)
+      setLandingFacts(null)
       setIsSpinning(false)
-    }, 1400)
-    return () => clearTimeout(timer)
-  }, [landingCountry, setInfoCountry])
+    }, 3000)
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [landingCountry])
 
   const handleRandomSpin = useCallback(() => {
     if (spinningRef.current) return
@@ -147,6 +195,7 @@ export function useSpinRoulette({ setInfoCountry, canvasRef, rotationRef, scaleR
     spinProgressRef.current = 0
     spinTargetCountryRef.current = { code: alpha2, name }
     spinCompleteRef.current = null
+    getRankCache()  // 스핀 중 순위 캐시 미리 준비
     spinningRef.current = true
     autoRotateRef.current = false
     velocityRef.current = [0, 0]
@@ -157,6 +206,8 @@ export function useSpinRoulette({ setInfoCountry, canvasRef, rotationRef, scaleR
     isSpinning,
     setIsSpinning,
     rouletteSlot,
+    landingFacts,
+    landingMarkerRef,
     spinningRef,
     spinStartRef,
     spinTargetRef,

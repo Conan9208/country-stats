@@ -8,7 +8,8 @@
 ## 📌 프로젝트 개요
 
 - **프로젝트명**: WorldStats
-- **설명**: 글로벌 국가 비교 및 통계 정보 사이트 (3D 지구본, 실시간 투표, 국가 댓글, 경제 계산기)
+- **설명**: 3D 지구본으로 세계를 탐험하고 가볍게 즐기는 인터랙티브 국가 정보 사이트
+- **방향성**: 가볍고 재미있게 즐기고 가는 경험 — 퀴즈, 배틀, 히트맵, 스핀 등 지구본과의 놀이
 - **목적**: 연습용 + 실제 배포 (Vercel에서 운영 중)
 - **GitHub**: https://github.com/Conan9208/country-stats
 
@@ -36,50 +37,7 @@
 | restcountries.com/v3.1 | 국가 목록, 국기, 기본 정보 | 없음 (클라이언트) / 24h (서버) |
 | api.worldbank.org/v2 | GDP, 부채비율, 금리 | 24h |
 | open.er-api.com/v6 | 실시간 환율 | 1h |
-| IMF API | (미구현 — Phase 4 예정) | — |
-
----
-
-## 🗂️ 프로젝트 구조
-
-```
-src/
-├── app/
-│   ├── page.tsx                    # 메인 허브 (3탭: 국가목록 / 지구본 / 계산기)
-│   ├── about/page.tsx              # 서비스 소개
-│   ├── contact/page.tsx            # 문의
-│   ├── donate/page.tsx             # 후원 (Buy Me a Coffee)
-│   ├── privacy/page.tsx            # 개인정보처리방침
-│   ├── countries/[code]/page.tsx   # 국가 부채 상세 페이지
-│   ├── api/
-│   │   ├── clicks/route.ts         # GET(전체 클릭수) / POST(클릭 기록)
-│   │   ├── comments/route.ts       # GET(댓글 목록) / POST(댓글 작성)
-│   │   ├── comments/report/route.ts # POST(댓글 신고)
-│   │   ├── country/[code]/route.ts  # GET(World Bank + 환율 집계)
-│   │   ├── polls/today/route.ts    # GET(오늘 질문 + 결과 + 내 투표)
-│   │   └── polls/vote/route.ts     # POST(투표) / PATCH(이유 저장) / DELETE(취소)
-│   ├── layout.tsx                  # 글로벌 레이아웃, 폰트, AdSense 메타
-│   └── globals.css
-├── components/
-│   ├── WorldMap.tsx                # 3D 지구본 (D3 canvas 렌더링, 드래그/줌/이펙트)
-│   ├── PollPanel.tsx               # 투표 결과 패널 (Top5, 공유)
-│   ├── VoteReasonModal.tsx         # 투표 이유 입력 + 축하 화면
-│   ├── CommentPanel.tsx            # 국가별 댓글 목록/작성/신고
-│   ├── Calculator.tsx              # 환율 계산기 + 국가 비교 + 세계 랭킹
-│   ├── DebtModal.tsx               # 국가 부채 실시간 시각화 (애니메이션 ticker)
-│   ├── CountryInfoModal.tsx        # 국가 기본 정보 모달
-│   ├── StarField.tsx               # 배경 별빛 애니메이션
-│   └── ui/                         # shadcn/ui 컴포넌트
-├── lib/
-│   ├── supabase.ts                 # Supabase 클라이언트
-│   ├── pollQuestions.ts            # 55개 일별 투표 질문 (UTC 날짜 기반 로테이션)
-│   ├── mapConstants.ts             # 클릭 티어 정의(8단계), 글래스 스타일
-│   ├── mapUtils.ts                 # 포맷팅, 색상, 티어 유틸
-│   └── utils.ts
-└── types/
-    ├── poll.ts                     # 투표 관련 인터페이스
-    └── map.ts                      # 지도 관련 인터페이스
-```
+| IMF API | (미구현 — 낮은 우선순위) | — |
 
 ---
 
@@ -98,14 +56,14 @@ src/
 - [x] 나라별 클릭수 카운트 (Supabase 실시간 구독 + 낙관적 업데이트)
 - [x] 클릭 티어 시스템 (8단계: 입문 → 👑레전드, 색상 그라데이션)
 - [x] 쇼크파동·파티클·플래시 클릭 이펙트
-- [x] 국가 컨텍스트 메뉴 (우클릭 → 정보/댓글/부채 조회)
+- [x] 국가 컨텍스트 메뉴 (우클릭 → 기본 정보 / 댓글 보기)
 - [x] 오늘의 나라 투표 (55개 질문 매일 자정 갱신, IP 기반 1일 1회)
 - [x] 투표 이유 입력 + 축하 모달 (자동 닫힘 카운트다운)
 - [x] 실시간 투표 결과 + 트위터/클립보드 공유
 - [x] 투표 취소 기능
 - [x] 국가별 댓글 시스템 (신고 3회 자동 숨김, URL 스팸 필터, 1일 1회 제한)
 - [x] 국가 상세 정보 모달 (수도·인구·면적·언어·통화·시간대 등)
-- [x] 국가 부채 시각화 (World Bank API — GDP·부채비율·금리 + 초당 부채 ticker)
+- [x] 국가 부채 시각화 코드 (World Bank API — 메뉴 미노출, 코드 보존)
 
 ### ✅ Phase 3 — 부가 기능 (완료)
 - [x] 환율 계산기 (open.er-api.com 실시간)
@@ -113,13 +71,21 @@ src/
 - [x] 세계 랭킹 (인구/면적 Top 20, 지역 필터)
 - [x] 애드센스 필수 페이지 (About, Privacy, Contact, Donate)
 - [x] Google AdSense 연동
-- [ ] IMF API 데이터 추가 (미구현 — 우선순위 낮음)
+- [x] 랜덤 스핀 (슬롯머신 스타일 국가 선택 + 폭죽 이펙트)
 
-### 🔜 Phase 4 — 추후 논의
+### 🔜 Phase 4 — 재미 기능 강화 (다음 목표)
+- [ ] **스핀 후 팩트 카드** — 스핀 착륙 시 해당 국가의 흥미로운 한 줄 팩트 표시 (인구/면적 세계 순위, 독특한 기록 등)
+- [ ] **클릭 히트맵** — 전체 유저 클릭 집계를 지구본 위에 펄스 애니메이션으로 시각화 (TOP10 강조)
+- [ ] **국가 1:1 배틀** — 지구본에서 두 나라 선택 → 인구/면적/GDP 승패 비교 카드
+
+### 🔜 Phase 5 — 소셜/공유 강화
+- [ ] 배틀 결과 / 스핀 팩트 카드 이미지 공유
+- [ ] "내가 탐험한 나라 수" 개인 트래킹 + 공유
+
+### 🔜 Phase 6 — 품질/인프라
 - [ ] 클릭 rate limit → Upstash Redis 전환 (현재 in-memory, 다중 인스턴스 간 공유 안 됨)
 - [ ] Buy Me a Coffee 링크 실제 연결 (현재 placeholder)
-- [ ] 로그인 기능 (미정)
-- [ ] 결제 기능 (미정)
+- [ ] IMF API 데이터 추가 (우선순위 낮음)
 
 ---
 
@@ -132,80 +98,6 @@ src/
 - **인터랙션**: hover 시 scale + border 변화
 - **레이아웃**: 반응형 그리드 (1→2→3→4 컬럼)
 - **글래스 모피즘**: 지구본 위 오버레이 카드 — `mapConstants.ts`의 `glass` 상수 재사용
-
----
-
-## 🔌 외부 API 상세
-
-### REST Countries API
-- **URL**: `https://restcountries.com/v3.1/all?fields=name,flags,population,region,subregion,capital,languages,cca2`
-- **용도**: 국가 목록 카드, 계산기 국가 선택
-- **문서**: https://restcountries.com
-
-### World Bank API
-- **URL**: `https://api.worldbank.org/v2/country/{code}/indicator/{indicator}?format=json&mrv=5`
-- **사용 지표**:
-  - `NY.GDP.MKTP.CD` — GDP (USD)
-  - `GC.DOD.TOTL.GD.ZS` — 국가 부채 (% of GDP)
-  - `FR.INR.RINR` — 실질 금리
-- **캐싱**: 24시간
-
-### Open Exchange Rates API
-- **URL**: `https://open.er-api.com/v6/latest/USD`
-- **용도**: 환율 계산기, 국가 부채 현지 통화 환산
-- **캐싱**: 1시간
-
----
-
-## 🗄️ Supabase 실제 스키마
-
-### `country_views` — 전체 클릭수
-```sql
-country_code  text primary key     -- cca2 코드 (예: KR)
-view_count    integer default 0
-name          text                 -- 국가 한국어/영어명 캐시
-updated_at    timestamp
-```
-
-### `country_daily_views` — 일별 클릭수
-```sql
-country_code  text not null
-view_date     date not null
-view_count    integer default 0
-updated_at    timestamp
-primary key (country_code, view_date)
-```
-
-### `country_comments` — 국가별 댓글
-```sql
-id            uuid primary key
-country_code  text not null
-content       text not null        -- 최대 50자, URL 금지
-ip_hash       text not null        -- SHA-256 해시 (평문 저장 안 함)
-created_at    timestamp
-report_count  integer default 0
-reported_by   text[]               -- 신고한 ip_hash 배열
-is_hidden     boolean default false -- report_count >= 3 시 자동 숨김
-```
-
-### `poll_votes` — 오늘의 나라 투표
-```sql
-id            uuid primary key
-poll_date     date not null
-question_idx  integer not null
-country_code  text not null        -- 투표한 나라
-ip_hash       text not null        -- SHA-256 해시
-reason        text                 -- 선택 이유 (최대 200자, 선택 입력)
-created_at    timestamp
-unique (poll_date, ip_hash)        -- 1일 1회 제한
-```
-
-### RPC 함수
-| 함수명 | 파라미터 | 반환값 | 용도 |
-|---|---|---|---|
-| `increment_view_count` | `p_country_code, p_name` | `{total, today}` | 원자적 클릭 카운트 증가 |
-| `get_poll_results` | `p_date` | `[{country_code, vote_count}]` | 일별 투표 집계 조회 |
-| `cast_poll_vote` | `p_date, p_question_idx, p_country_code, p_ip_hash` | `{ok, reason?}` | 투표 원자적 삽입 (중복 방지) |
 
 ---
 
@@ -239,5 +131,27 @@ unique (poll_date, ip_hash)        -- 1일 1회 제한
   - `IP_SALT` — 댓글 IP 해싱용 salt
 - `.env.local`은 `.gitignore`에 포함 확인
 - 이미지 최적화: Next.js `<Image>` 컴포넌트 사용 권장 (국기 SVG는 `<img>` 그대로 사용 중)
-- 클릭 rate limit은 현재 **in-memory 저장** → Vercel 다중 인스턴스 환경에서 불안정, Upstash Redis 전환 예정 (Phase 4)
+- 클릭 rate limit은 현재 **in-memory 저장** → Vercel 다중 인스턴스 환경에서 불안정, Upstash Redis 전환 예정 (Phase 6)
 - 지구본 `draw()` 루프는 매 프레임 실행 — 불필요한 React 상태 업데이트 금지, ref 사용
+- DebtModal / `/api/country/[code]/route.ts` 는 코드 보존 중 (우클릭 메뉴에서 제거된 상태)
+
+ ## ✅ 구현 완료 기준 (Definition of Done)
+
+### 기본 검증
+1. `npm run build` 성공
+2. `npx tsc --noEmit` TypeScript 오류 0개
+3. 변경 파일 및 연관 컴포넌트 목록 명시
+
+### 기능 동작 검증 (필수)
+4. **시나리오 추적**: 요청한 기능의 핵심 유저 플로우를
+   코드에서 함수 단위로 직접 추적하고 결과 보고
+5. **충돌 체크**: 같은 이벤트/조건에서 트리거되는 
+   다른 UI/함수가 있는지 확인 (특히 모달, 팝업, 상태값)
+6. **상태 간섭**: 관련 useState/useRef/전역 상태가 
+   기존 기능과 겹치는지 확인
+
+### 보고 형식
+- ✅ 확인된 것 (근거 파일명 포함)
+- ❌ 확인 못한 것 (브라우저 실행 필요한 것)
+- ⚠️ 잠재적 충돌 가능성
+ 
