@@ -7,6 +7,7 @@ import type { Feature, Geometry } from 'geojson'
 import isoCountries from 'i18n-iso-countries'
 import { worldGeo, alpha2Map, centroidByAlpha2 } from '@/lib/geoData'
 import { getLocale } from '@/lib/mapUtils'
+import { CURATED_FACTS } from '@/data/countryFacts'
 
 const LOCALE = getLocale()
 
@@ -36,6 +37,72 @@ function getRankCache(): Promise<Map<string, { popRank: number; areaRank: number
 export type FireworkParticle = { x: number; y: number; vx: number; vy: number; t: number; size: number; color: string }
 export type RouletteSlot = { current: { alpha2: string; name: string }; phase: 'cycling' | 'landing' }
 
+type CountryApiData = {
+  population?: number
+  area?: number
+  landlocked?: boolean
+  borders?: string[]
+  languages?: Record<string, string>
+  timezones?: string[]
+  car?: { side?: string }
+  tld?: string[]
+}
+
+function pickFunFact(
+  alpha2: string,
+  data: CountryApiData,
+  rank: { popRank: number; areaRank: number },
+): string {
+  // 1순위: curated
+  if (CURATED_FACTS[alpha2.toUpperCase()]) return CURATED_FACTS[alpha2.toUpperCase()]
+
+  const candidates: string[] = []
+
+  // 내륙국
+  if (data.landlocked) candidates.push('바다와 접하지 않는 내륙국이에요')
+
+  // 섬나라 (육지 국경 0개)
+  if (Array.isArray(data.borders) && data.borders.length === 0 && !data.landlocked)
+    candidates.push('어떤 나라와도 육지 국경을 공유하지 않는 섬나라예요')
+
+  // 국경 많음
+  if (Array.isArray(data.borders) && data.borders.length >= 8)
+    candidates.push(`무려 ${data.borders.length}개 나라와 국경을 접해요`)
+
+  // 언어 많음
+  const langCount = data.languages ? Object.keys(data.languages).length : 0
+  if (langCount >= 4) candidates.push(`공식 언어가 ${langCount}개인 다언어 국가예요`)
+
+  // 시간대 많음
+  const tzCount = data.timezones?.length ?? 0
+  if (tzCount >= 5) candidates.push(`${tzCount}개의 시간대를 가진 나라예요`)
+
+  // 좌측통행
+  if (data.car?.side === 'left') candidates.push('영국처럼 좌측통행을 하는 나라예요')
+
+  // 인구 극단
+  if (rank.popRank === 1) candidates.push('세계에서 인구가 가장 많은 나라예요')
+  else if (rank.popRank <= 5) candidates.push(`세계 인구 ${rank.popRank}위 대국이에요`)
+  else if (rank.popRank >= 190) candidates.push('세계에서 인구가 가장 적은 나라 중 하나예요')
+
+  // 면적 극단
+  if (rank.areaRank === 1) candidates.push('지구에서 가장 넓은 나라예요')
+  else if (rank.areaRank <= 5) candidates.push(`세계 면적 ${rank.areaRank}위 대국이에요`)
+  else if (rank.areaRank >= 190) candidates.push('세계에서 가장 작은 나라 중 하나예요')
+
+  // 인구밀도 극단 (면적·인구 모두 있을 때)
+  const pop = data.population ?? 0
+  const area = data.area ?? 0
+  if (pop > 0 && area > 0) {
+    const density = pop / area
+    if (density > 1000) candidates.push(`인구밀도가 km²당 약 ${Math.round(density).toLocaleString()}명으로 매우 높아요`)
+    else if (density < 5 && pop > 100000) candidates.push(`인구밀도가 km²당 약 ${density.toFixed(1)}명으로 매우 낮아요`)
+  }
+
+  if (candidates.length > 0) return candidates[Math.floor(Math.random() * candidates.length)]
+  return '세계 곳곳을 탐험해보세요!'
+}
+
 type Deps = {
   canvasRef: RefObject<HTMLCanvasElement | null>
   rotationRef: MutableRefObject<[number, number]>
@@ -60,6 +127,7 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
   const [landingFacts, setLandingFacts] = useState<{
     population: number; area: number; region: string
     capital: string; popRank: number; areaRank: number
+    funFact: string
   } | null>(null)
   const landingMarkerRef = useRef<{ alpha2: string; startTime: number } | null>(null)
 
@@ -144,13 +212,14 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
     if (!landingCountry) return
     let active = true
     Promise.all([
-      fetch(`https://restcountries.com/v3.1/alpha/${landingCountry.code}?fields=population,area,region,capital`)
+      fetch(`https://restcountries.com/v3.1/alpha/${landingCountry.code}?fields=population,area,region,capital,landlocked,borders,languages,timezones,car,tld`)
         .then(r => r.json()),
       getRankCache(),
     ]).then(([raw, ranks]) => {
       if (!active) return
       const data = Array.isArray(raw) ? raw[0] : raw
       const rank = ranks.get(landingCountry.code) ?? { popRank: 0, areaRank: 0 }
+      const funFact = pickFunFact(landingCountry.code, data, rank)
       setLandingFacts({
         population: data.population ?? 0,
         area: data.area ?? 0,
@@ -158,6 +227,7 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
         capital: Array.isArray(data.capital) ? (data.capital[0] ?? '') : (data.capital ?? ''),
         popRank: rank.popRank,
         areaRank: rank.areaRank,
+        funFact,
       })
     }).catch(() => {})
     const timer = setTimeout(() => {

@@ -64,3 +64,15 @@ export function getLocale(): string {
   const lang = navigator.language.split('-')[0]
   return SUPPORTED_LOCALES.includes(lang) ? lang : 'en'
 }
+
+export function formatPopulation(n: number): string {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B명`
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M명`
+  if (n >= 1e4) return `${Math.round(n / 1e4)}만명`
+  return `${n.toLocaleString()}명`
+}
+
+export function formatArea(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M km²`
+  return `${n.toLocaleString()} km²`
+}

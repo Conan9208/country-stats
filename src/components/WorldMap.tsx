@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable react-hooks/preserve-manual-memoization */
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import type { Feature, Geometry, GeoJsonProperties } from 'geojson'
@@ -10,10 +11,10 @@ import StarField from '@/components/StarField'
 import CommentPanel from '@/components/CommentPanel'
 import DebtModal from '@/components/DebtModal'
 import CountryInfoModal from '@/components/CountryInfoModal'
-import RankList from '@/components/RankList'
+import StatsPanelOverlay from '@/components/StatsPanelOverlay'
 import type { ClickData, ClickEntry, CountryProps, TooltipState } from '@/types/map'
 import { TIERS, glass } from '@/lib/mapConstants'
-import { formatCount, countryColor, pollVoteColor, getTier, topN, topNToday, getLocale } from '@/lib/mapUtils'
+import { formatCount, countryColor, pollVoteColor, getTier, topN, topNToday, getLocale, formatPopulation, formatArea } from '@/lib/mapUtils'
 import { supabase } from '@/lib/supabase'
 import { worldGeo, landGeo, bordersMesh, graticuleData, alpha2Map, featureByAlpha2, centroidByAlpha2, flagEmoji } from '@/lib/geoData'
 import { getLocalTime } from '@/lib/timezoneData'
@@ -27,16 +28,6 @@ isoCountries.registerLocale(localeEn)
 
 const LOCALE = getLocale()
 
-function formatPopulation(n: number) {
-  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B명`
-  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M명`
-  if (n >= 1e4) return `${Math.round(n / 1e4)}만명`
-  return `${n.toLocaleString()}명`
-}
-function formatArea(n: number) {
-  if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M km²`
-  return `${n.toLocaleString()} km²`
-}
 
 type WorldMapProps = {
   pollMode?: boolean
@@ -94,7 +85,6 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const [debtCountry, setDebtCountry]   = useState<{ code: string; name: string } | null>(null)
   const [infoCountry, setInfoCountry]   = useState<{ code: string; name: string } | null>(null)
   const [toast, setToast] = useState<{ message: string; sub: string } | null>(null)
-  const [pollCopied, setPollCopied] = useState(false)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 내 클릭 기록 (localStorage)
   const myClicksRef = useRef<Set<string>>(new Set())
@@ -490,7 +480,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         landingMarkerRef.current = null
       }
     }
-  }, [getProjection, landingMarkerRef])
+  }, [getProjection, landingMarkerRef, viewersByCountryRef])
 
   // 자동 회전 + 관성 + 스핀 루프
   useEffect(() => {
@@ -922,18 +912,28 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
             </div>
             {landingFacts ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, animation: 'rouletteLand 0.4s 0.15s cubic-bezier(0.22,1,0.36,1) both' }}>
-                {landingFacts.capital && (
-                  <div style={{ fontSize: 13, color: '#cbd5e1' }}>🏛️ 수도 &nbsp;<strong>{landingFacts.capital}</strong></div>
-                )}
-                <div style={{ fontSize: 13, color: '#94a3b8' }}>
-                  👥 인구 세계 <strong style={{ color: '#a78bfa' }}>{landingFacts.popRank}위</strong>
-                  <span style={{ fontSize: 11, color: '#64748b' }}> ({formatPopulation(landingFacts.population)})</span>
+                {/* 흥미로운 사실 강조 박스 */}
+                <div style={{
+                  background: 'rgba(167,139,250,0.08)',
+                  border: '1px solid rgba(167,139,250,0.25)',
+                  borderRadius: 12,
+                  padding: '10px 14px',
+                  fontSize: 13,
+                  color: '#e2e8f0',
+                  lineHeight: 1.55,
+                  textAlign: 'left',
+                }}>
+                  ✨ {landingFacts.funFact}
                 </div>
-                <div style={{ fontSize: 13, color: '#94a3b8' }}>
-                  🗺️ 면적 세계 <strong style={{ color: '#a78bfa' }}>{landingFacts.areaRank}위</strong>
-                  <span style={{ fontSize: 11, color: '#64748b' }}> ({formatArea(landingFacts.area)})</span>
+                {/* 기본 정보 */}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
+                  {landingFacts.capital && (
+                    <span style={{ fontSize: 12, color: '#94a3b8' }}>🏛️ <strong style={{ color: '#cbd5e1' }}>{landingFacts.capital}</strong></span>
+                  )}
+                  <span style={{ fontSize: 12, color: '#94a3b8' }}>👥 인구 <strong style={{ color: '#a78bfa' }}>{landingFacts.popRank}위</strong></span>
+                  <span style={{ fontSize: 12, color: '#94a3b8' }}>🗺️ 면적 <strong style={{ color: '#a78bfa' }}>{landingFacts.areaRank}위</strong></span>
                 </div>
-                <div style={{ fontSize: 12, color: '#475569' }}>🌍 {landingFacts.region}</div>
+                <div style={{ fontSize: 11, color: '#475569' }}>🌍 {landingFacts.region}</div>
               </div>
             ) : (
               <div style={{ fontSize: 12, color: '#475569' }}>로딩 중...</div>
@@ -1062,127 +1062,20 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       )}
 
       {/* 통계 패널 — 우상단 · 항상 표시 */}
-      <div style={{ ...glass, position: 'absolute', top: 16, right: commentCountry ? 324 : 16, zIndex: 1000, borderRadius: 16, padding: 16, width: 240, transition: 'right 0.35s cubic-bezier(0.4,0,0.2,1)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', scrollbarWidth: 'none' }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-          <div style={{ flex: 1, background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#a78bfa', lineHeight: 1 }}>{formatCount(totalClicks)}</div>
-            <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>총 클릭</div>
-          </div>
-          <div style={{ flex: 1, background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', lineHeight: 1 }}>{myClickCount}</div>
-            <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>내 클릭 국가</div>
-          </div>
-        </div>
-
-        <RankList title="🏆 전체클릭 순위" entries={allTimeTop} emptyMsg="아직 클릭 데이터가 없어요" onSelect={setCommentCountry} />
-        <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '12px 0' }} />
-        <RankList title="📅 오늘클릭 순위" entries={todayTop} emptyMsg="오늘 아직 클릭 없어요" live onSelect={setCommentCountry} />
-
-        {/* 오늘의 투표 랭킹 섹션 */}
-        {(pollTotalVotes ?? 0) > 0 && pollQuestion && (() => {
-          const top5Poll = Object.entries(pollData ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 5)
-          const MEDAL = ['🥇', '🥈', '🥉', '4위', '5위']
-          const POLL_COLORS = ['#facc15', '#a78bfa', '#60a5fa', '#94a3b8', '#94a3b8']
-          const myVoteInTop5 = top5Poll.some(([a]) => a === pollMyVote)
-
-          const handlePollShare = async () => {
-            const topLines = top5Poll.map(([a2, count], i) => {
-              const pct = (pollTotalVotes ?? 0) > 0 ? Math.round(count / (pollTotalVotes ?? 1) * 100) : 0
-              const name = isoCountries.getName(a2.toUpperCase(), LOCALE) ?? a2
-              return `${MEDAL[i]} ${flagEmoji(a2)} ${name} (${pct}%)`
-            }).join('\n')
-            const myLine = pollMyVote ? `\n나는 ${flagEmoji(pollMyVote)} ${isoCountries.getName(pollMyVote.toUpperCase(), LOCALE) ?? pollMyVote}에 투표했어!` : ''
-            const text = [`🗳️ ${pollQuestion.emoji} ${pollQuestion.text}`, `전 세계 ${(pollTotalVotes ?? 0).toLocaleString()}명 참여${myLine}`, '', topLines, '', '너도 투표해봐 👉 worldstats.vercel.app'].join('\n')
-            try {
-              await navigator.clipboard.writeText(text)
-              setPollCopied(true)
-              setTimeout(() => setPollCopied(false), 2000)
-            } catch {
-              window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
-            }
-          }
-
-          const handleTwitterShare = () => {
-            const topLines = top5Poll.map(([a2, count], i) => {
-              const pct = (pollTotalVotes ?? 0) > 0 ? Math.round(count / (pollTotalVotes ?? 1) * 100) : 0
-              const name = isoCountries.getName(a2.toUpperCase(), LOCALE) ?? a2
-              return `${MEDAL[i]} ${flagEmoji(a2)} ${name} (${pct}%)`
-            }).join('\n')
-            const myLine = pollMyVote ? `\n나는 ${flagEmoji(pollMyVote)} ${isoCountries.getName(pollMyVote.toUpperCase(), LOCALE) ?? pollMyVote}에 투표했어!` : ''
-            const text = [`🗳️ ${pollQuestion.emoji} ${pollQuestion.text}`, `전 세계 ${(pollTotalVotes ?? 0).toLocaleString()}명 참여${myLine}`, '', topLines, '', '너도 투표해봐 👉 worldstats.vercel.app'].join('\n')
-            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
-          }
-
-          return (
-            <>
-              <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '12px 0' }} />
-              {/* 헤더 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: '50%', background: '#a78bfa', display: 'inline-block', flexShrink: 0 }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.07em' }}>오늘의 투표</span>
-                <span style={{ fontSize: 10, color: '#334155', marginLeft: 'auto' }}>{(pollTotalVotes ?? 0).toLocaleString()}명</span>
-              </div>
-              {/* 질문 */}
-              <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10, lineHeight: 1.45 }}>
-                {pollQuestion.emoji} {pollQuestion.text}
-              </div>
-              {/* TOP5 랭킹 */}
-              {top5Poll.map(([alpha2, count], i) => {
-                const pct = (pollTotalVotes ?? 0) > 0 ? Math.round(count / (pollTotalVotes ?? 1) * 100) : 0
-                const isMyVote = pollMyVote === alpha2
-                const name = isoCountries.getName(alpha2.toUpperCase(), LOCALE) ?? alpha2
-                return (
-                  <div key={alpha2} style={{ marginBottom: 6, padding: '5px 7px', borderRadius: 8, border: isMyVote ? '1px solid rgba(167,139,250,0.5)' : '1px solid transparent', background: isMyVote ? 'rgba(167,139,250,0.08)' : 'transparent' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, minWidth: 20, color: POLL_COLORS[i] }}>{MEDAL[i]}</span>
-                      <span style={{ fontSize: 13 }}>{flagEmoji(alpha2)}</span>
-                      <span style={{ fontSize: 11, color: '#cbd5e1', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
-                      <span style={{ fontSize: 11, color: POLL_COLORS[i], fontWeight: 600, flexShrink: 0 }}>{pct}%</span>
-                    </div>
-                    <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: isMyVote ? '#a78bfa' : POLL_COLORS[i], borderRadius: 2, transition: 'width 0.4s ease' }} />
-                    </div>
-                  </div>
-                )
-              })}
-              {/* 내 투표가 TOP5 밖일 때 */}
-              {pollMyVote && !myVoteInTop5 && (
-                <div style={{ marginBottom: 6, padding: '5px 7px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.5)', background: 'rgba(167,139,250,0.08)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ fontSize: 11, color: '#a78bfa', minWidth: 20 }}>내</span>
-                    <span style={{ fontSize: 13 }}>{flagEmoji(pollMyVote)}</span>
-                    <span style={{ fontSize: 11, color: '#a78bfa', flex: 1 }}>{isoCountries.getName(pollMyVote.toUpperCase(), LOCALE) ?? pollMyVote}</span>
-                  </div>
-                </div>
-              )}
-              {/* 하단 버튼 영역 */}
-              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                {pollMyVote ? (
-                  <>
-                    <button
-                      onClick={onCancelPollVote}
-                      style={{ flex: 1, padding: '5px 0', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#64748b', fontSize: 11, cursor: 'pointer' }}
-                    >취소</button>
-                    <button
-                      onClick={handlePollShare}
-                      style={{ flex: 1, padding: '5px 0', borderRadius: 8, background: pollCopied ? 'rgba(34,197,94,0.15)' : 'rgba(167,139,250,0.12)', border: `1px solid ${pollCopied ? 'rgba(34,197,94,0.3)' : 'rgba(167,139,250,0.25)'}`, color: pollCopied ? '#4ade80' : '#a78bfa', fontSize: 11, cursor: 'pointer' }}
-                    >{pollCopied ? '✓ 복사됨' : '📋 공유'}</button>
-                    <button
-                      onClick={handleTwitterShare}
-                      style={{ padding: '5px 8px', borderRadius: 8, background: 'rgba(29,161,242,0.1)', border: '1px solid rgba(29,161,242,0.25)', color: '#38bdf8', fontSize: 11, cursor: 'pointer' }}
-                    >𝕏</button>
-                  </>
-                ) : (
-                  <button
-                    onClick={onStartPoll}
-                    style={{ flex: 1, padding: '7px 0', borderRadius: 8, background: 'linear-gradient(135deg,rgba(124,58,237,0.2),rgba(168,85,247,0.2))', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                  >🗳️ 지금 투표하기 →</button>
-                )}
-              </div>
-            </>
-          )
-        })()}
-      </div>
+      <StatsPanelOverlay
+        commentCountry={commentCountry}
+        totalClicks={totalClicks}
+        myClickCount={myClickCount}
+        allTimeTop={allTimeTop}
+        todayTop={todayTop}
+        onSelectCountry={setCommentCountry}
+        pollTotalVotes={pollTotalVotes}
+        pollQuestion={pollQuestion}
+        pollData={pollData}
+        pollMyVote={pollMyVote}
+        onCancelPollVote={onCancelPollVote}
+        onStartPoll={onStartPoll}
+      />
 
       {/* 우클릭 컨텍스트 메뉴 */}
       {contextMenu && (
