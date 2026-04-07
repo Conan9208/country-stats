@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { glass } from '@/lib/mapConstants'
+import { useTranslations } from 'next-intl'
 
 type Comment = {
   id: number
@@ -30,6 +31,7 @@ function timeAgo(iso: string): string {
 }
 
 export default function CommentPanel({ countryCode, countryName, onClose }: Props) {
+  const t = useTranslations('CommentPanel')
   const [comments, setComments]   = useState<Comment[]>([])
   const [total, setTotal]         = useState(0)
   const [page, setPage]           = useState(1)
@@ -80,9 +82,9 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
     setSubmitting(false)
     if (!res.ok) { showNotice(data.error, false); return }
     setComments(prev => [data, ...prev])
-    setTotal(t => t + 1)
+    setTotal(tot => tot + 1)
     setText('')
-    showNotice('등록됐어요!', true)
+    showNotice(t('posted'), true)
   }
 
   const handleReport = async (id: number) => {
@@ -119,7 +121,7 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>{countryName}</div>
-            <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>댓글 {total.toLocaleString()}개</div>
+            <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{t('commentCount', { count: total })}</div>
           </div>
           <button onClick={onClose} style={{
             background: 'rgba(255,255,255,0.06)', border: 'none', color: '#64748b',
@@ -136,7 +138,7 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
           value={text}
           onChange={e => setText(e.target.value.slice(0, MAX_CHARS))}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit() } }}
-          placeholder={`${countryName}에 대해 한마디...`}
+          placeholder={t('placeholder', { country: countryName })}
           rows={2}
           style={{
             width: '100%', boxSizing: 'border-box',
@@ -179,10 +181,10 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
       {/* 댓글 목록 */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px', scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,0.3) transparent' }}>
         {loading && comments.length === 0 ? (
-          <div style={{ color: '#334155', fontSize: 12, marginTop: 12, textAlign: 'center' }}>불러오는 중...</div>
+          <div style={{ color: '#334155', fontSize: 12, marginTop: 12, textAlign: 'center' }}>{t('loading')}</div>
         ) : comments.length === 0 ? (
-          <div style={{ color: '#334155', fontSize: 12, marginTop: 20, textAlign: 'center', lineHeight: 1.7 }}>
-            아직 댓글이 없어요<br />첫 번째로 남겨보세요 ✍️
+          <div style={{ color: '#334155', fontSize: 12, marginTop: 20, textAlign: 'center', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+            {t('noComments')}
           </div>
         ) : (
           <>
@@ -198,14 +200,14 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
                   <span style={{ fontSize: 11, color: '#334155' }}>{timeAgo(c.created_at)}</span>
                   <button
                     onClick={() => handleReport(c.id)}
-                    title="신고"
+                    title="Report"
                     style={{
                       background: 'none', border: 'none', cursor: reported.has(c.id) ? 'default' : 'pointer',
                       fontSize: 11, color: reported.has(c.id) ? '#475569' : '#334155',
                       padding: '2px 4px', borderRadius: 4, transition: 'color 0.15s',
                     }}
                   >
-                    {reported.has(c.id) ? '신고됨' : '🚩'}
+                    {reported.has(c.id) ? t('reported') : t('report')}
                   </button>
                 </div>
               </div>
@@ -222,7 +224,7 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
                   cursor: 'pointer',
                 }}
               >
-                {loading ? '...' : '더 보기'}
+                {loading ? t('loading') : t('loadMore')}
               </button>
             )}
           </>

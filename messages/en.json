@@ -1,0 +1,74 @@
+{
+  "Nav": {
+    "globe": "🌍 Globe",
+    "feed": "💬 Live Feed",
+    "donate": "on a good day",
+    "about": "About",
+    "privacy": "Privacy",
+    "contact": "Contact"
+  },
+  "Poll": {
+    "badge": "TODAY'S VOTE",
+    "participating": "{count} participating worldwide",
+    "beFirst": "Be the first to vote!",
+    "selectOnGlobe": "🌍 Select a country on the globe",
+    "join": "🗳️ Join today's vote",
+    "voteOnGlobe": "🌐 Click a country on the globe to vote",
+    "noVotesYet": "No votes yet — be the first!",
+    "dailyInfo": "1 vote per day · New question at midnight (UTC)",
+    "todayVote": "Today's Vote",
+    "myVote": "My vote ✓",
+    "cancel": "Cancel",
+    "cancelling": "Cancelling…",
+    "share": "📋 Share",
+    "copied": "✓ Copied!",
+    "twitterShare": "🐦 X Share",
+    "shareOnX": "𝕏",
+    "voteNow": "🗳️ Vote Now →",
+    "cancelVote": "Cancel vote"
+  },
+  "Stats": {
+    "totalClicks": "Total Clicks",
+    "myVisited": "My Visited",
+    "allTimeRank": "🏆 All-Time Rank",
+    "todayRank": "📅 Today's Rank",
+    "noClickData": "No click data yet",
+    "noClicksToday": "No clicks today yet"
+  },
+  "Feed": {
+    "title": "💬 Live Feed",
+    "loading": "Loading...",
+    "noComments": "No comments yet",
+    "noCommentsDesc": "Right-click a country on the globe\nto leave the first comment!",
+    "commentCount": "{count} comments"
+  },
+  "CommentPanel": {
+    "commentCount": "{count} comments",
+    "placeholder": "Say something about {country}...",
+    "loading": "Loading...",
+    "noComments": "No comments yet\nBe the first to leave one ✍️",
+    "submit": "Post ↵",
+    "submitting": "...",
+    "posted": "Posted!",
+    "loadMore": "Load more",
+    "reported": "Reported",
+    "report": "🚩"
+  },
+  "VoteModal": {
+    "votedFor": "Voted for {country}!",
+    "leaveReason": "Tell us why you chose this country (optional)",
+    "reasonPlaceholder": "Why did you pick this country?",
+    "charCount": "{current} / 200 chars",
+    "skip": "Skip",
+    "saving": "Saving…",
+    "saveAndDone": "💬 Save reason & done!",
+    "voteDone": "🎉 Vote Complete!",
+    "voteComplete": "Vote Complete! 🎉",
+    "participated": "You participated in today's vote ✓",
+    "confirm": "OK ({countdown})",
+    "backToGlobe": "Closes and returns to the globe"
+  },
+  "HomePage": {
+    "pollIntroTitle": "TODAY'S COUNTRY VOTE"
+  }
+}

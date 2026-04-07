@@ -1,0 +1,74 @@
+{
+  "Nav": {
+    "globe": "🌍 지구본",
+    "feed": "💬 실시간 피드",
+    "donate": "on a good day",
+    "about": "About",
+    "privacy": "Privacy",
+    "contact": "Contact"
+  },
+  "Poll": {
+    "badge": "오늘의 나라 투표",
+    "participating": "전 세계 {count}명이 참여 중",
+    "beFirst": "첫 번째로 투표해보세요!",
+    "selectOnGlobe": "🌍 지구본에서 나라 선택하기",
+    "join": "🗳️ 오늘의 투표 참여하기",
+    "voteOnGlobe": "🌐 지구본에서 나라를 클릭해 투표하세요",
+    "noVotesYet": "아직 투표가 없어요 — 첫 번째로 투표해보세요!",
+    "dailyInfo": "하루 1회 투표 · 매일 자정 새 질문",
+    "todayVote": "오늘의 투표",
+    "myVote": "내 투표 ✓",
+    "cancel": "취소",
+    "cancelling": "취소 중…",
+    "share": "📋 공유",
+    "copied": "✓ 복사됨!",
+    "twitterShare": "🐦 X 공유",
+    "shareOnX": "𝕏",
+    "voteNow": "🗳️ 지금 투표하기 →",
+    "cancelVote": "투표 취소"
+  },
+  "Stats": {
+    "totalClicks": "총 클릭",
+    "myVisited": "내 클릭 국가",
+    "allTimeRank": "🏆 전체클릭 순위",
+    "todayRank": "📅 오늘클릭 순위",
+    "noClickData": "아직 클릭 데이터가 없어요",
+    "noClicksToday": "오늘 아직 클릭 없어요"
+  },
+  "Feed": {
+    "title": "💬 실시간 피드",
+    "loading": "불러오는 중...",
+    "noComments": "아직 댓글이 없어요",
+    "noCommentsDesc": "지구본 탭에서 나라를 우클릭하면\n첫 댓글을 남길 수 있어요!",
+    "commentCount": "{count}개"
+  },
+  "CommentPanel": {
+    "commentCount": "댓글 {count}개",
+    "placeholder": "{country}에 대해 한마디...",
+    "loading": "불러오는 중...",
+    "noComments": "아직 댓글이 없어요\n첫 번째로 남겨보세요 ✍️",
+    "submit": "등록 ↵",
+    "submitting": "...",
+    "posted": "등록됐어요!",
+    "loadMore": "더 보기",
+    "reported": "신고됨",
+    "report": "🚩"
+  },
+  "VoteModal": {
+    "votedFor": "{country}에 투표했어요!",
+    "leaveReason": "선택한 이유를 남겨보세요 (선택)",
+    "reasonPlaceholder": "이 나라를 선택한 이유를 적어보세요...",
+    "charCount": "{current} / 200자",
+    "skip": "건너뛰기",
+    "saving": "저장 중…",
+    "saveAndDone": "💬 이유 저장하고 완료!",
+    "voteDone": "🎉 투표 완료!",
+    "voteComplete": "투표 완료! 🎉",
+    "participated": "오늘의 투표에 참여했어요 ✓",
+    "confirm": "확인 ({countdown})",
+    "backToGlobe": "닫히면 일반 지구본으로 돌아가요"
+  },
+  "HomePage": {
+    "pollIntroTitle": "오늘의 나라 투표"
+  }
+}

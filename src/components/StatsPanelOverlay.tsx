@@ -8,6 +8,7 @@ import { glass } from '@/lib/mapConstants'
 import { formatCount, getLocale } from '@/lib/mapUtils'
 import { flagEmoji } from '@/lib/geoData'
 import RankList from '@/components/RankList'
+import { useTranslations } from 'next-intl'
 
 isoCountries.registerLocale(localeKo)
 isoCountries.registerLocale(localeEn)
@@ -49,6 +50,8 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
   onCancelPollVote,
   onStartPoll,
 }: StatsPanelOverlayProps) {
+  const tStats = useTranslations('Stats')
+  const tPoll = useTranslations('Poll')
   const [pollCopied, setPollCopied] = useState(false)
 
   const top5Poll = Object.entries(pollData ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 5)
@@ -62,15 +65,15 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
       return `${MEDAL[i]} ${flagEmoji(a2)} ${name} (${pct}%)`
     }).join('\n')
     const myLine = pollMyVote
-      ? `\n나는 ${flagEmoji(pollMyVote)} ${isoCountries.getName(pollMyVote.toUpperCase(), LOCALE) ?? pollMyVote}에 투표했어!`
+      ? `\n${tPoll('myVote')} ${flagEmoji(pollMyVote)} ${isoCountries.getName(pollMyVote.toUpperCase(), LOCALE) ?? pollMyVote}!`
       : ''
     return [
       `🗳️ ${pollQuestion!.emoji} ${pollQuestion!.text}`,
-      `전 세계 ${(pollTotalVotes ?? 0).toLocaleString()}명 참여${myLine}`,
+      `${pollTotalVotes} participating worldwide${myLine}`,
       '',
       topLines,
       '',
-      '너도 투표해봐 👉 worldstats.vercel.app',
+      'worldstats.vercel.app',
     ].join('\n')
   }
 
@@ -95,17 +98,17 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <div style={{ flex: 1, background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#a78bfa', lineHeight: 1 }}>{formatCount(totalClicks)}</div>
-          <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>총 클릭</div>
+          <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>{tStats('totalClicks')}</div>
         </div>
         <div style={{ flex: 1, background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', lineHeight: 1 }}>{myClickCount}</div>
-          <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>내 클릭 국가</div>
+          <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>{tStats('myVisited')}</div>
         </div>
       </div>
 
-      <RankList title="🏆 전체클릭 순위" entries={allTimeTop} emptyMsg="아직 클릭 데이터가 없어요" onSelect={onSelectCountry} />
+      <RankList title={tStats('allTimeRank')} entries={allTimeTop} emptyMsg={tStats('noClickData')} onSelect={onSelectCountry} />
       <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '12px 0' }} />
-      <RankList title="📅 오늘클릭 순위" entries={todayTop} emptyMsg="오늘 아직 클릭 없어요" live onSelect={onSelectCountry} />
+      <RankList title={tStats('todayRank')} entries={todayTop} emptyMsg={tStats('noClicksToday')} live onSelect={onSelectCountry} />
 
       {showPollSection && (
         <>
@@ -113,7 +116,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
           {/* 헤더 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: '50%', background: '#a78bfa', display: 'inline-block', flexShrink: 0 }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.07em' }}>오늘의 투표</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.07em' }}>{tPoll('todayVote')}</span>
             <span style={{ fontSize: 10, color: '#334155', marginLeft: 'auto' }}>{(pollTotalVotes ?? 0).toLocaleString()}명</span>
           </div>
           {/* 질문 */}
@@ -156,21 +159,21 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
                 <button
                   onClick={onCancelPollVote}
                   style={{ flex: 1, padding: '5px 0', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#64748b', fontSize: 11, cursor: 'pointer' }}
-                >취소</button>
+                >{tPoll('cancel')}</button>
                 <button
                   onClick={handlePollShare}
                   style={{ flex: 1, padding: '5px 0', borderRadius: 8, background: pollCopied ? 'rgba(34,197,94,0.15)' : 'rgba(167,139,250,0.12)', border: `1px solid ${pollCopied ? 'rgba(34,197,94,0.3)' : 'rgba(167,139,250,0.25)'}`, color: pollCopied ? '#4ade80' : '#a78bfa', fontSize: 11, cursor: 'pointer' }}
-                >{pollCopied ? '✓ 복사됨' : '📋 공유'}</button>
+                >{pollCopied ? tPoll('copied') : tPoll('share')}</button>
                 <button
                   onClick={handleTwitterShare}
                   style={{ padding: '5px 8px', borderRadius: 8, background: 'rgba(29,161,242,0.1)', border: '1px solid rgba(29,161,242,0.25)', color: '#38bdf8', fontSize: 11, cursor: 'pointer' }}
-                >𝕏</button>
+                >{tPoll('shareOnX')}</button>
               </>
             ) : (
               <button
                 onClick={onStartPoll}
                 style={{ flex: 1, padding: '7px 0', borderRadius: 8, background: 'linear-gradient(135deg,rgba(124,58,237,0.2),rgba(168,85,247,0.2))', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-              >🗳️ 지금 투표하기 →</button>
+              >{tPoll('voteNow')}</button>
             )}
           </div>
         </>

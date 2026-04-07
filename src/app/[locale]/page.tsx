@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import VoteReasonModal from '@/components/VoteReasonModal'
 import CommentFeed from '@/components/CommentFeed'
 import { supabase } from '@/lib/supabase'
@@ -11,8 +12,8 @@ import { supabase } from '@/lib/supabase'
 const WorldMap = dynamic(() => import('@/components/WorldMap'), { ssr: false })
 
 const tabs = [
-  { id: 'map', label: '🌍 지구본' },
-  { id: 'feed', label: '💬 실시간 피드' },
+  { id: 'map', labelKey: 'globe' },
+  { id: 'feed', labelKey: 'feed' },
 ]
 
 type TabId = 'map' | 'feed'
@@ -22,6 +23,7 @@ function HomeContent() {
   const rawTab = searchParams.get('tab')
   const initialTab: TabId = rawTab === 'feed' ? 'feed' : 'map'
   const [activeTab, setActiveTab] = useState<TabId>(initialTab)
+  const t = useTranslations('Nav')
 
   const [pollMode, setPollMode] = useState(false)
   const [showPollIntro, setShowPollIntro] = useState(false)
@@ -95,7 +97,7 @@ function HomeContent() {
                     : 'border-transparent text-zinc-500 hover:text-zinc-300'
                 }`}
               >
-                {tab.label}
+                {t(tab.labelKey as any)}
               </button>
             ))}
           </div>
@@ -103,10 +105,10 @@ function HomeContent() {
           <div className="flex-1" />
 
           <div className="hidden sm:flex items-center gap-4 text-xs text-zinc-600">
-            <Link href="/donate" className="px-2.5 py-1 rounded-md text-amber-300/80 bg-amber-400/10 border border-amber-400/20 hover:bg-amber-400/20 hover:text-amber-200 transition-all font-medium">on a good day</Link>
-            <Link href="/about" className="hover:text-zinc-400 transition-colors">About</Link>
-            <Link href="/privacy" className="hover:text-zinc-400 transition-colors">Privacy</Link>
-            <Link href="/contact" className="hover:text-zinc-400 transition-colors">Contact</Link>
+            <Link href="/donate" className="px-2.5 py-1 rounded-md text-amber-300/80 bg-amber-400/10 border border-amber-400/20 hover:bg-amber-400/20 hover:text-amber-200 transition-all font-medium">{t('donate')}</Link>
+            <Link href="/about" className="hover:text-zinc-400 transition-colors">{t('about')}</Link>
+            <Link href="/privacy" className="hover:text-zinc-400 transition-colors">{t('privacy')}</Link>
+            <Link href="/contact" className="hover:text-zinc-400 transition-colors">{t('contact')}</Link>
           </div>
         </div>
       </div>

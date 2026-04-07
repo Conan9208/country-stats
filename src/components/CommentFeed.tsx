@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
+import { useTranslations } from 'next-intl'
 
 isoCountries.registerLocale(localeKo as Parameters<typeof isoCountries.registerLocale>[0])
 
@@ -28,6 +29,7 @@ function timeAgo(iso: string): string {
 }
 
 export default function CommentFeed() {
+  const t = useTranslations('Feed')
   const [comments, setComments] = useState<FeedComment[]>([])
   const [loading, setLoading] = useState(true)
   const newIdsRef = useRef<Set<string>>(new Set())
@@ -68,28 +70,28 @@ export default function CommentFeed() {
     <div className="flex-1 overflow-hidden flex flex-col bg-zinc-950" style={{ height: 'calc(100vh - 48px)' }}>
       {/* 헤더 */}
       <div className="border-b border-zinc-800 px-6 py-4 flex items-center gap-3 flex-shrink-0">
-        <span className="text-base font-bold text-white">💬 실시간 피드</span>
+        <span className="text-base font-bold text-white">{t('title')}</span>
         <div className="flex items-center gap-1.5">
           <span className="animate-pulse inline-block w-1.5 h-1.5 rounded-full bg-violet-400" />
           <span className="text-xs font-semibold text-violet-400 tracking-widest">LIVE</span>
         </div>
         {!loading && (
-          <span className="ml-auto text-xs text-zinc-500">{comments.length}개</span>
+          <span className="ml-auto text-xs text-zinc-500">{t('commentCount', { count: comments.length })}</span>
         )}
       </div>
 
       {/* 피드 목록 */}
       <div className="flex-1 overflow-y-auto">
         {loading && (
-          <div className="flex items-center justify-center h-40 text-zinc-600 text-sm">불러오는 중...</div>
+          <div className="flex items-center justify-center h-40 text-zinc-600 text-sm">{t('loading')}</div>
         )}
 
         {!loading && comments.length === 0 && (
           <div className="flex flex-col items-center justify-center h-64 gap-3 text-center px-6">
             <div className="text-4xl">🌍</div>
-            <p className="text-zinc-400 text-sm font-medium">아직 댓글이 없어요</p>
-            <p className="text-zinc-600 text-xs leading-relaxed">
-              지구본 탭에서 나라를 우클릭하면<br />첫 댓글을 남길 수 있어요!
+            <p className="text-zinc-400 text-sm font-medium">{t('noComments')}</p>
+            <p className="text-zinc-600 text-xs leading-relaxed whitespace-pre-wrap">
+              {t('noCommentsDesc')}
             </p>
           </div>
         )}
