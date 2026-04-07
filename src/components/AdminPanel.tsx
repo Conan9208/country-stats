@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface Stats {
@@ -38,7 +38,7 @@ const inputStyle: React.CSSProperties = {
   outline: 'none',
 }
 
-export default function AdminPanel({ right: rightProp = 20 }: { right?: number }) {
+const AdminPanel = memo(function AdminPanel({ right: rightProp = 20 }: { right?: number }) {
   const [panel, setPanel] = useState<Panel>('collapsed')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -289,4 +289,6 @@ export default function AdminPanel({ right: rightProp = 20 }: { right?: number }
       ) : null}
     </div>
   )
-}
+})
+
+export default AdminPanel

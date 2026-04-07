@@ -45,11 +45,13 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchPoll() }, [fetchPoll])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void fetchPoll() }, [fetchPoll])
 
   // 투표가 확정되면 결과 갱신
   useEffect(() => {
-    if (votedCountry) fetchPoll()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (votedCountry) void fetchPoll()
   }, [votedCountry, fetchPoll])
 
   // Realtime — 다른 사람 투표 즉시 반영

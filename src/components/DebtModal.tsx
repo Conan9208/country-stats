@@ -30,6 +30,7 @@ function formatUSD(n: number) {
 
 function TickerNumber({ base, perSecond, symbol }: { base: number; perSecond: number; symbol: string }) {
   const rafRef   = useRef<number>(0)
+  // eslint-disable-next-line react-hooks/purity
   const startRef = useRef(performance.now())
   const elRef    = useRef<HTMLSpanElement>(null)
 
@@ -66,6 +67,7 @@ export default function DebtModal({ code, name, onClose }: Props) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true); setError(null); setData(null)
     fetch(`/api/country/${code}`)
       .then(r => r.json())

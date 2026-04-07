@@ -38,6 +38,7 @@ export default function CountryInfoModal({ code, name, onClose }: Props) {
   const [error,   setError]   = useState(false)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true); setError(false); setInfo(null)
     fetch(`https://restcountries.com/v3.1/alpha/${code}?fields=name,flags,capital,population,area,languages,currencies,timezones,idd,tld,car,region,subregion`)
       .then(r => r.json())

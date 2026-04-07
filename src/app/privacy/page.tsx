@@ -26,7 +26,7 @@ export default function PrivacyPage() {
 
           <section>
             <p>
-              WorldStats(이하 "서비스")는 이용자의 개인정보를 소중히 여기며, 관련 법령을 준수합니다.
+              WorldStats(이하 &quot;서비스&quot;)는 이용자의 개인정보를 소중히 여기며, 관련 법령을 준수합니다.
               본 방침은 서비스가 수집하는 정보와 그 활용 방식을 설명합니다.
             </p>
           </section>

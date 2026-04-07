@@ -12,12 +12,12 @@ import CommentPanel from '@/components/CommentPanel'
 import DebtModal from '@/components/DebtModal'
 import CountryInfoModal from '@/components/CountryInfoModal'
 import StatsPanelOverlay from '@/components/StatsPanelOverlay'
-import type { ClickData, ClickEntry, CountryProps, TooltipState } from '@/types/map'
+import { WorldMapOverlay, type OverlayHandle } from '@/components/WorldMapOverlay'
+import type { ClickData, ClickEntry } from '@/types/map'
 import { TIERS, glass } from '@/lib/mapConstants'
-import { formatCount, countryColor, pollVoteColor, getTier, topN, topNToday, getLocale, formatPopulation, formatArea } from '@/lib/mapUtils'
+import { countryColor, pollVoteColor, topN, topNToday, getLocale } from '@/lib/mapUtils'
 import { supabase } from '@/lib/supabase'
-import { worldGeo, landGeo, bordersMesh, graticuleData, alpha2Map, featureByAlpha2, centroidByAlpha2, flagEmoji } from '@/lib/geoData'
-import { getLocalTime } from '@/lib/timezoneData'
+import { worldGeo, landGeo, bordersMesh, graticuleData, alpha2Map, featureByAlpha2, centroidByAlpha2 } from '@/lib/geoData'
 import { useRealtimeViewers } from '@/hooks/useRealtimeViewers'
 import { useSpinRoulette } from '@/hooks/useSpinRoulette'
 import Link from 'next/link'
@@ -68,7 +68,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   // hover된 나라 (ref로 관리 → React 리렌더 없음)
   const hoveredAlpha2Ref = useRef<string | null>(null)
   const hoveredNameRef   = useRef<string | null>(null)
-  const [tooltip, setTooltip] = useState<TooltipState | null>(null)
+  const overlayRef = useRef<OverlayHandle>(null)
   // 우클릭 컨텍스트 메뉴
   type ContextMenu = { x: number; y: number; alpha2: string; name: string }
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
@@ -84,7 +84,6 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   // 모달
   const [debtCountry, setDebtCountry]   = useState<{ code: string; name: string } | null>(null)
   const [infoCountry, setInfoCountry]   = useState<{ code: string; name: string } | null>(null)
-  const [toast, setToast] = useState<{ message: string; sub: string } | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 내 클릭 기록 (localStorage)
   const myClicksRef = useRef<Set<string>>(new Set())
@@ -93,19 +92,17 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   // 자동 회전
   const autoRotateRef = useRef(true)
 
-  const { isSpinning, rouletteSlot, landingFacts, landingMarkerRef, spinningRef, spinStartRef, spinTargetRef, spinProgressRef, spinJourneyRef, fireworkParticlesRef, handleRandomSpin } = useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef })
+  const { isSpinning, landingMarkerRef, spinningRef, spinStartRef, spinTargetRef, spinProgressRef, spinJourneyRef, fireworkParticlesRef, handleRandomSpin } = useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef, overlayRef })
   const { viewersByCountryRef, lastBroadcastCountryRef, presenceChannelRef, mySessionId } = useRealtimeViewers()
 
   // 이펙트
   type Shockwave = { x: number; y: number; t: number }
   type Particle  = { x: number; y: number; vx: number; vy: number; t: number; size: number }
   type Flash     = { alpha2: string; t: number }
-  type FloatNum  = { id: number; x: number; y: number; value: number; isRateLimit?: boolean }
   const shockwavesRef = useRef<Shockwave[]>([])
   const particlesRef  = useRef<Particle[]>([])
   const flashesRef    = useRef<Flash[]>([])
   const mousePosRef   = useRef<{ x: number; y: number } | null>(null)
-  const [floatNums, setFloatNums] = useState<FloatNum[]>([])
 
   useEffect(() => {
     fetch('/api/clicks')
@@ -480,7 +477,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         landingMarkerRef.current = null
       }
     }
-  }, [getProjection, landingMarkerRef, viewersByCountryRef])
+  }, [getProjection, landingMarkerRef, viewersByCountryRef, fireworkParticlesRef])
 
   // 자동 회전 + 관성 + 스핀 루프
   useEffect(() => {
@@ -510,8 +507,6 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         if (spinProgressRef.current >= 1) {
           spinningRef.current = false
           autoRotateRef.current = true
-          // setIsSpinning(false)은 cycling effect가 완주한 뒤 landingCountry effect에서 호출
-          // draw loop에서 호출하면 cycling 마지막 tick을 clearTimeout으로 취소하는 race condition 발생
         }
       } else if (!dragStartRef.current) {
         const [vx, vy] = velocityRef.current
@@ -531,7 +526,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     }
     animFrameRef.current = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(animFrameRef.current)
-  }, [draw])
+  }, [draw, spinJourneyRef, spinProgressRef, spinStartRef, spinTargetRef, spinningRef])
 
   // 캔버스 크기 맞추기
   useEffect(() => {
@@ -589,7 +584,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       y: e.clientY,
       rotation: [...rotationRef.current] as [number, number],
     }
-  }, [])
+  }, [spinningRef])
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     const canvas = canvasRef.current
@@ -622,7 +617,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       lastMouseRef.current = { x: e.clientX, y: e.clientY, t: now }
       hasDraggedRef.current = true
       hoveredAlpha2Ref.current = null
-      setTooltip(null)
+      overlayRef.current?.setTooltip(null)
       return
     }
 
@@ -636,7 +631,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         ?? hit.alpha2
       hoveredAlpha2Ref.current = hit.alpha2
       hoveredNameRef.current   = name
-      setTooltip({ name, count, x: e.clientX - rect.left, y: e.clientY - rect.top, alpha2: hit.alpha2, viewers: viewersByCountryRef.current[hit.alpha2] ?? 0 })
+      overlayRef.current?.setTooltip({ name, count, x: e.clientX - rect.left, y: e.clientY - rect.top, alpha2: hit.alpha2, viewers: viewersByCountryRef.current[hit.alpha2] ?? 0 })
       // 뷰어 broadcast — 나라가 바뀔 때만 전송
       if (hit.alpha2 !== lastBroadcastCountryRef.current) {
         lastBroadcastCountryRef.current = hit.alpha2
@@ -648,7 +643,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     } else {
       hoveredAlpha2Ref.current = null
       hoveredNameRef.current   = null
-      setTooltip(null)
+      overlayRef.current?.setTooltip(null)
       if (lastBroadcastCountryRef.current !== null) {
         lastBroadcastCountryRef.current = null
         presenceChannelRef.current?.send({
@@ -657,7 +652,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         })
       }
     }
-  }, [getAlpha2AtPoint, getProjection])
+  }, [getAlpha2AtPoint, getProjection, lastBroadcastCountryRef, mySessionId, presenceChannelRef, viewersByCountryRef])
 
   const onMouseUp = useCallback(() => {
     dragStartRef.current = null
@@ -669,7 +664,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     mousePosRef.current = null
     lastMouseRef.current = null
     hoveredAlpha2Ref.current = null
-    setTooltip(null)
+    overlayRef.current?.setTooltip(null)
     autoRotateRef.current = true
     if (lastBroadcastCountryRef.current !== null) {
       lastBroadcastCountryRef.current = null
@@ -678,7 +673,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         payload: { sessionId: mySessionId.current, countryCode: null, ts: Date.now() },
       })
     }
-  }, [])
+  }, [lastBroadcastCountryRef, mySessionId, presenceChannelRef])
 
   const onPollVoteRef = useRef(onPollVote)
   useEffect(() => { onPollVoteRef.current = onPollVote }, [onPollVote])
@@ -738,9 +733,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
     // +1 float 즉시 표시 → 429 오면 같은 float을 😤 로 교체 (double float 방지)
     const floatId = Date.now() + Math.random()
-    setFloatNums(prev => [...prev, { id: floatId, x: fx, y: fy, value: 1 }])
+    overlayRef.current?.addFloatNum(floatId, fx, fy, 1)
     const floatCleanup = setTimeout(
-      () => setFloatNums(prev => prev.filter(n => n.id !== floatId)), 1000
+      () => overlayRef.current?.removeFloatNum(floatId), 1000
     )
 
     // 백그라운드에서 실제 API 호출
@@ -759,11 +754,11 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       setClickData({ ...clickDataRef.current })
       // +1 float → 😤 로 in-place 교체 (새 float 추가 X → double float 없음)
       clearTimeout(floatCleanup)
-      setFloatNums(prev => prev.map(n => n.id === floatId ? { ...n, isRateLimit: true } : n))
-      setTimeout(() => setFloatNums(prev => prev.filter(n => n.id !== floatId)), 1400)
+      overlayRef.current?.rateLimitFloatNum(floatId)
+      setTimeout(() => overlayRef.current?.removeFloatNum(floatId), 1400)
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-      setToast({ message: '잠깐, 너무 빠르다! 🔥', sub: '1분에 10번까지만 클릭할 수 있어요.' })
-      toastTimerRef.current = setTimeout(() => setToast(null), 3000)
+      overlayRef.current?.setToast({ message: '잠깐, 너무 빠르다! 🔥', sub: '1분에 10번까지만 클릭할 수 있어요.' })
+      toastTimerRef.current = setTimeout(() => overlayRef.current?.setToast(null), 3000)
       return
     }
 
@@ -829,7 +824,6 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const allTimeTop = useMemo(() => topN(clickData), [clickData])
   const todayTop = useMemo(() => topNToday(clickData), [clickData])
   const totalClicks = useMemo(() => Object.values(clickData).reduce((s, e) => s + (Number(e.total) || 0), 0), [clickData])
-  const countryCount = useMemo(() => Object.keys(clickData).length, [clickData])
 
   return (
     <div ref={containerRef} style={{ position: 'relative', height: '100%', width: '100%', background: '#050a10', overflow: 'hidden' }}>
@@ -845,179 +839,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         onContextMenu={onContextMenu}
       />
 
-      {/* 슬롯머신 오버레이 — cycling 중에만 표시 */}
-      {rouletteSlot?.phase === 'cycling' && (
-        <div style={{
-          position: 'absolute',
-          top: '38%',
-          left: 'calc(50% - 128px)',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 1500,
-          pointerEvents: 'none',
-          textAlign: 'center',
-        }}>
-          <div style={{
-            ...glass,
-            borderRadius: 24,
-            padding: '22px 44px',
-            border: '1px solid rgba(255,255,255,0.1)',
-            boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
-            minWidth: 200,
-          }}>
-            <div style={{ fontSize: 10, color: '#334155', fontWeight: 700, letterSpacing: '0.14em', marginBottom: 14 }}>
-              🎰 SPINNING...
-            </div>
-            <div style={{ fontSize: 48, lineHeight: 1.1, marginBottom: 10 }}>
-              {flagEmoji(rouletteSlot.current.alpha2)}
-            </div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: '#f1f5f9', letterSpacing: '-0.01em' }}>
-              {rouletteSlot.current.name}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 팩트 카드 — landing 시 전체화면 오버레이로 표시 (overflow:hidden 영향 없음) */}
-      {rouletteSlot?.phase === 'landing' && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 2000,
-          background: 'rgba(0,0,0,0.55)',
-          backdropFilter: 'blur(6px)',
-          WebkitBackdropFilter: 'blur(6px)',
-          pointerEvents: 'none',
-        }}>
-          <div style={{
-            ...glass,
-            borderRadius: 28,
-            padding: '36px 52px',
-            textAlign: 'center',
-            border: '1px solid rgba(167,139,250,0.55)',
-            boxShadow: '0 0 80px rgba(167,139,250,0.18), 0 16px 60px rgba(0,0,0,0.7)',
-            animation: 'rouletteLand 0.4s cubic-bezier(0.22,1,0.36,1)',
-            minWidth: 280,
-          }}>
-            <div style={{ fontSize: 11, color: '#a78bfa', fontWeight: 700, letterSpacing: '0.16em', marginBottom: 16 }}>
-              🎯 스핀 결과
-            </div>
-            <div style={{ fontSize: 64, lineHeight: 1, marginBottom: 12 }}>
-              {flagEmoji(rouletteSlot.current.alpha2)}
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', marginBottom: 20, letterSpacing: '-0.01em' }}>
-              {rouletteSlot.current.name}
-            </div>
-            {landingFacts ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, animation: 'rouletteLand 0.4s 0.15s cubic-bezier(0.22,1,0.36,1) both' }}>
-                {/* 흥미로운 사실 강조 박스 */}
-                <div style={{
-                  background: 'rgba(167,139,250,0.08)',
-                  border: '1px solid rgba(167,139,250,0.25)',
-                  borderRadius: 12,
-                  padding: '10px 14px',
-                  fontSize: 13,
-                  color: '#e2e8f0',
-                  lineHeight: 1.55,
-                  textAlign: 'left',
-                }}>
-                  ✨ {landingFacts.funFact}
-                </div>
-                {/* 기본 정보 */}
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
-                  {landingFacts.capital && (
-                    <span style={{ fontSize: 12, color: '#94a3b8' }}>🏛️ <strong style={{ color: '#cbd5e1' }}>{landingFacts.capital}</strong></span>
-                  )}
-                  <span style={{ fontSize: 12, color: '#94a3b8' }}>👥 인구 <strong style={{ color: '#a78bfa' }}>{landingFacts.popRank}위</strong></span>
-                  <span style={{ fontSize: 12, color: '#94a3b8' }}>🗺️ 면적 <strong style={{ color: '#a78bfa' }}>{landingFacts.areaRank}위</strong></span>
-                </div>
-                <div style={{ fontSize: 11, color: '#475569' }}>🌍 {landingFacts.region}</div>
-              </div>
-            ) : (
-              <div style={{ fontSize: 12, color: '#475569' }}>로딩 중...</div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 플로팅 피드백 */}
-      {floatNums.map(n => (
-        <div
-          key={n.id}
-          className={n.isRateLimit ? 'float-num float-num--rate-limit' : 'float-num'}
-          style={{ left: n.x - 16, top: n.y - 24 }}
-        >
-          {n.isRateLimit ? '🚫' : `+${n.value.toLocaleString()}`}
-        </div>
-      ))}
-
-      {/* 툴팁 */}
-      {tooltip && (
-        <div style={{
-          ...glass,
-          position: 'absolute',
-          left: tooltip.x - 14,
-          top: tooltip.y - 10,
-          transform: 'translateX(-100%)',
-          borderRadius: 10,
-          padding: '9px 13px',
-          pointerEvents: 'none',
-          zIndex: 1000,
-          minWidth: 130,
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{tooltip.name}</div>
-          {(() => {
-            const lt = getLocalTime(tooltip.alpha2)
-            if (!lt) return null
-            return (
-              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>
-                🌐 {lt.city ? `${lt.city} 기준 ${lt.time}` : lt.time}
-              </div>
-            )
-          })()}
-          {tooltip.count > 0
-            ? <>
-                <div style={{ fontSize: 11, color: '#a78bfa', marginTop: 3 }}>👆 {formatCount(tooltip.count)}회 클릭</div>
-                <div style={{ fontSize: 11, marginTop: 2, color: getTier(tooltip.count)?.color ?? '#a78bfa' }}>
-                  {getTier(tooltip.count)?.tag}
-                </div>
-              </>
-            : <div style={{ fontSize: 11, color: '#475569', marginTop: 3 }}>클릭해서 기록하기</div>
-          }
-          {tooltip.viewers > 0 && (
-            <div style={{ fontSize: 11, color: '#c084fc', marginTop: 3 }}>
-              👁 {tooltip.viewers}명 보는 중
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 토스트 알림 */}
-      <div style={{
-        position: 'absolute',
-        bottom: 40,
-        left: '50%',
-        transform: `translateX(-50%) translateY(${toast ? 0 : 20}px)`,
-        opacity: toast ? 1 : 0,
-        transition: 'opacity 0.25s ease, transform 0.25s ease',
-        pointerEvents: 'none',
-        zIndex: 2000,
-        ...glass,
-        borderRadius: 14,
-        padding: '12px 20px',
-        textAlign: 'center',
-        minWidth: 240,
-        border: '1px solid rgba(251,146,60,0.35)',
-      }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#fb923c' }}>
-          {toast?.message}
-        </div>
-        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
-          {toast?.sub}
-        </div>
-      </div>
+      <WorldMapOverlay ref={overlayRef} />
 
       {/* 안내 — 좌상단 */}
       <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 16px', lineHeight: 1.35 }}>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, startTransition } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import type { RefObject, MutableRefObject } from 'react'
 import { geoOrthographic, geoCentroid } from 'd3-geo'
 import type { Feature, Geometry } from 'geojson'
@@ -103,15 +103,18 @@ function pickFunFact(
   return '세계 곳곳을 탐험해보세요!'
 }
 
+import type { OverlayHandle } from '@/components/WorldMapOverlay'
+
 type Deps = {
   canvasRef: RefObject<HTMLCanvasElement | null>
   rotationRef: MutableRefObject<[number, number]>
   scaleRef: MutableRefObject<number>
   autoRotateRef: MutableRefObject<boolean>
   velocityRef: MutableRefObject<[number, number]>
+  overlayRef: RefObject<OverlayHandle | null>
 }
 
-export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef }: Deps) {
+export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef, overlayRef }: Deps) {
   const spinningRef = useRef(false)
   const spinStartRef = useRef<[number, number]>([0, 0])
   const spinTargetRef = useRef<[number, number]>([0, 0])
@@ -122,13 +125,7 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
   const spinJourneyRef = useRef(0)
   const fireworkParticlesRef = useRef<FireworkParticle[]>([])
   const [isSpinning, setIsSpinning] = useState(false)
-  const [rouletteSlot, setRouletteSlot] = useState<RouletteSlot | null>(null)
-  const [landingCountry, setLandingCountry] = useState<{ code: string; name: string } | null>(null)
-  const [landingFacts, setLandingFacts] = useState<{
-    population: number; area: number; region: string
-    capital: string; popRank: number; areaRank: number
-    funFact: string
-  } | null>(null)
+  
   const landingMarkerRef = useRef<{ alpha2: string; startTime: number } | null>(null)
 
   // 스핀 완료 시: 폭죽 3웨이브
@@ -188,59 +185,56 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
     ]
     let step = 0
     let timer: ReturnType<typeof setTimeout>
+    let active = true
+
     const tick = () => {
+      if (!active) return
       if (step >= schedule.length) {
         slotFinalCountryRef.current = final
-        setRouletteSlot({ current: { alpha2: final.code, name: final.name }, phase: 'landing' })
-        setLandingCountry(final)
+        overlayRef.current?.setRouletteSlot({ current: { alpha2: final.code, name: final.name }, phase: 'landing' })
         landingMarkerRef.current = { alpha2: final.code, startTime: performance.now() }
+        
+        Promise.all([
+          fetch(`https://restcountries.com/v3.1/alpha/${final.code}?fields=population,area,region,capital,landlocked,borders,languages,timezones,car,tld`)
+            .then(r => r.json()),
+          getRankCache(),
+        ]).then(([raw, ranks]) => {
+          if (!active) return
+          const data = Array.isArray(raw) ? raw[0] : raw
+          const rank = ranks.get(final.code) ?? { popRank: 0, areaRank: 0 }
+          const funFact = pickFunFact(final.code, data, rank)
+          overlayRef.current?.setLandingFacts({
+            population: data.population ?? 0,
+            area: data.area ?? 0,
+            region: data.region ?? '',
+            capital: Array.isArray(data.capital) ? (data.capital[0] ?? '') : (data.capital ?? ''),
+            popRank: rank.popRank,
+            areaRank: rank.areaRank,
+            funFact,
+          })
+        }).catch(() => {})
+
+        timer = setTimeout(() => {
+          if (!active) return
+          overlayRef.current?.setRouletteSlot(null)
+          overlayRef.current?.setLandingFacts(null)
+          setIsSpinning(false)
+        }, 3000)
+
         return
       }
       const a2 = allAlpha2[Math.floor(Math.random() * allAlpha2.length)]
       const name = isoCountries.getName(a2, LOCALE) ?? a2
-      startTransition(() => {
-        setRouletteSlot({ current: { alpha2: a2, name }, phase: 'cycling' })
-      })
+      overlayRef.current?.setRouletteSlot({ current: { alpha2: a2, name }, phase: 'cycling' })
+      
       timer = setTimeout(tick, schedule[step++])
     }
     timer = setTimeout(tick, 300)
-    return () => clearTimeout(timer)
-  }, [isSpinning])
-
-  // 슬롯 랜딩 완료 → 팩트 + 순위 fetch + 3초 후 팩트카드 닫기
-  useEffect(() => {
-    if (!landingCountry) return
-    let active = true
-    Promise.all([
-      fetch(`https://restcountries.com/v3.1/alpha/${landingCountry.code}?fields=population,area,region,capital,landlocked,borders,languages,timezones,car,tld`)
-        .then(r => r.json()),
-      getRankCache(),
-    ]).then(([raw, ranks]) => {
-      if (!active) return
-      const data = Array.isArray(raw) ? raw[0] : raw
-      const rank = ranks.get(landingCountry.code) ?? { popRank: 0, areaRank: 0 }
-      const funFact = pickFunFact(landingCountry.code, data, rank)
-      setLandingFacts({
-        population: data.population ?? 0,
-        area: data.area ?? 0,
-        region: data.region ?? '',
-        capital: Array.isArray(data.capital) ? (data.capital[0] ?? '') : (data.capital ?? ''),
-        popRank: rank.popRank,
-        areaRank: rank.areaRank,
-        funFact,
-      })
-    }).catch(() => {})
-    const timer = setTimeout(() => {
-      setRouletteSlot(null)
-      setLandingCountry(null)
-      setLandingFacts(null)
-      setIsSpinning(false)
-    }, 3000)
     return () => {
       active = false
       clearTimeout(timer)
     }
-  }, [landingCountry])
+  }, [isSpinning, overlayRef])
 
   const handleRandomSpin = useCallback(() => {
     if (spinningRef.current) return
@@ -275,8 +269,6 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
   return {
     isSpinning,
     setIsSpinning,
-    rouletteSlot,
-    landingFacts,
     landingMarkerRef,
     spinningRef,
     spinStartRef,

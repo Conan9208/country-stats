@@ -54,9 +54,11 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
   }, [countryCode])
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setComments([])
     setPage(1)
     setHasMore(false)
+    /* eslint-enable react-hooks/set-state-in-effect */
     fetchComments(1, true)
     inputRef.current?.focus()
   }, [countryCode, fetchComments])

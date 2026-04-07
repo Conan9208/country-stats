@@ -101,7 +101,7 @@ export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) 
               lineHeight: 1.6,
               fontStyle: 'italic',
             }}>
-              "{reason.trim()}"
+              &quot;{reason.trim()}&quot;
             </div>
           )}
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
 import localeEn from 'i18n-iso-countries/langs/en.json'
@@ -35,7 +35,7 @@ type StatsPanelOverlayProps = {
   onStartPoll?: () => void
 }
 
-export default function StatsPanelOverlay({
+const StatsPanelOverlay = memo(function StatsPanelOverlay({
   commentCountry,
   totalClicks,
   myClickCount,
@@ -177,4 +177,6 @@ export default function StatsPanelOverlay({
       )}
     </div>
   )
-}
+})
+
+export default StatsPanelOverlay
