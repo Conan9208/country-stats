@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.paypal.com)",
+      "WebSearch",
+      "WebFetch(domain:support.patreon.com)"
+    ]
+  }
+}

@@ -116,6 +116,24 @@
     "errorDefault": "An error occurred.",
     "errorNetwork": "A network error occurred."
   },
+  "Pin": {
+    "title": "📍 Drop a Globe Pin",
+    "emojiLabel": "Choose emoji",
+    "messageLabel": "Message",
+    "messagePlaceholder": "Say something about {country}...",
+    "notice": "1 pin per day · auto-deleted after 7 days · hidden after 3 reports",
+    "submit": "Drop Pin 📍",
+    "submitting": "Posting...",
+    "rateLimitError": "You already dropped a pin today. Come back tomorrow!",
+    "genericError": "Failed to post. Please try again.",
+    "successTitle": "Your pin is on the globe! 🌍",
+    "successDesc": "Your pin is now visible on {country}.",
+    "shareText": "I just dropped a pin on {country} on the globe! 🌍",
+    "shareBtn": "Share",
+    "close": "Close",
+    "report": "Report",
+    "reported": "Reported"
+  },
   "Map": {
     "randomSpin": "🎲 Random Spin",
     "spinning": "🌀 Spinning...",
@@ -133,6 +151,7 @@
     "toastRateLimitSub": "You can only click 10 times per minute.",
     "contextInfo": "📊 Basic Info",
     "contextComment": "💬 View Comments",
+    "contextPin": "📍 Drop a Pin",
     "visitorStats": "📊 Visitor Stats",
     "clickTier": "CLICK TIER"
   }

@@ -22,6 +22,9 @@ import { useRealtimeViewers } from '@/hooks/useRealtimeViewers'
 import { useSpinRoulette } from '@/hooks/useSpinRoulette'
 import Link from 'next/link'
 import AdminPanel from '@/components/AdminPanel'
+import PinSubmitModal from '@/components/PinSubmitModal'
+import PinPopup from '@/components/PinPopup'
+import type { GlobePin } from '@/types/pin'
 import { useLocale, useTranslations } from 'next-intl'
 
 isoCountries.registerLocale(localeKo)
@@ -83,6 +86,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   }, [])
   // 댓글 패널
   const [commentCountry, setCommentCountry] = useState<{ code: string; name: string } | null>(null)
+  // 핀
+  const pinsRef = useRef<GlobePin[]>([])
+  const [pinSubmitCountry, setPinSubmitCountry] = useState<{ code: string; name: string } | null>(null)
+  const [activePinPopup, setActivePinPopup] = useState<{ pin: GlobePin; x: number; y: number } | null>(null)
   // 모달
   const [debtCountry, setDebtCountry]   = useState<{ code: string; name: string } | null>(null)
   const [infoCountry, setInfoCountry]   = useState<{ code: string; name: string } | null>(null)
@@ -116,6 +123,18 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         }
         setClickData(data)
       })
+  }, [])
+
+  // 지구본 핀 로드 (1분마다 갱신)
+  useEffect(() => {
+    const load = () =>
+      fetch('/api/pins?all=1')
+        .then(r => r.json())
+        .then((data: GlobePin[]) => { if (Array.isArray(data)) pinsRef.current = data })
+        .catch(() => {})
+    load()
+    const iv = setInterval(load, 60_000)
+    return () => clearInterval(iv)
   }, [])
 
   // localStorage에서 내 클릭 기록 불러오기
@@ -424,6 +443,63 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       }
     }
 
+    // 지구본 핀 렌더링
+    const pinsByCountry = new Map<string, number>()
+    for (const pin of pinsRef.current) {
+      pinsByCountry.set(pin.country_alpha2, (pinsByCountry.get(pin.country_alpha2) ?? 0) + 1)
+    }
+    for (const [alpha2, count] of pinsByCountry) {
+      const geo = centroidByAlpha2.get(alpha2)
+      if (!geo) continue
+      const pLng = geo[0] * Math.PI / 180
+      const pLat = geo[1] * Math.PI / 180
+      const cLng1 = -rotationRef.current[0] * Math.PI / 180
+      const cLat1 = -rotationRef.current[1] * Math.PI / 180
+      const dot2 = Math.cos(pLat) * Math.cos(cLat1) * Math.cos(pLng - cLng1)
+                 + Math.sin(pLat) * Math.sin(cLat1)
+      if (dot2 <= 0.05) continue
+      const projected = proj(geo)
+      if (!projected) continue
+      const [px, py] = projected
+      if (!isFinite(px) || !isFinite(py)) continue
+      const pulse2 = (Math.sin(now * 0.004 + py * 0.02) + 1) / 2
+
+      // 핀 글로우
+      const pinGlow = ctx.createRadialGradient(px, py, 0, px, py, 14)
+      pinGlow.addColorStop(0, `rgba(250,204,21,${0.18 + pulse2 * 0.12})`)
+      pinGlow.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.beginPath()
+      ctx.arc(px, py, 14, 0, Math.PI * 2)
+      ctx.fillStyle = pinGlow
+      ctx.fill()
+
+      // 핀 이모지 (첫 번째 핀의 이모지)
+      const firstPin = pinsRef.current.find(p => p.country_alpha2 === alpha2)
+      const emojiChar = firstPin?.emoji ?? '📍'
+      ctx.font = `${11 + pulse2 * 1.5}px serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(emojiChar, px, py)
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+
+      // 개수 뱃지 (2개 이상)
+      if (count > 1) {
+        const bx = px + 8, by = py - 8
+        ctx.beginPath()
+        ctx.arc(bx, by, 7, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(250,204,21,0.9)'
+        ctx.fill()
+        ctx.font = 'bold 8px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillStyle = '#1a1a1a'
+        ctx.fillText(count > 9 ? '9+' : String(count), bx, by)
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'alphabetic'
+      }
+    }
+
     // 폭죽 이펙트 (3웨이브 컬러 파티클)
     fireworkParticlesRef.current = fireworkParticlesRef.current.filter(p => now - p.t < 1600)
     for (const p of fireworkParticlesRef.current) {
@@ -680,9 +756,47 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const onPollVoteRef = useRef(onPollVote)
   useEffect(() => { onPollVoteRef.current = onPollVote }, [onPollVote])
 
+  // 핀 히트 테스트 — 클릭 좌표 기준으로 가장 가까운 핀 반환
+  const getPinAtPoint = useCallback((cx: number, cy: number): GlobePin | null => {
+    const proj = getProjection()
+    if (!proj) return null
+    const cLng = -rotationRef.current[0] * Math.PI / 180
+    const cLat = -rotationRef.current[1] * Math.PI / 180
+    for (const pin of pinsRef.current) {
+      const geo = centroidByAlpha2.get(pin.country_alpha2)
+      if (!geo) continue
+      const pLng = geo[0] * Math.PI / 180
+      const pLat = geo[1] * Math.PI / 180
+      const dot = Math.cos(pLat) * Math.cos(cLat) * Math.cos(pLng - cLng)
+                + Math.sin(pLat) * Math.sin(cLat)
+      if (dot <= 0.05) continue
+      const projected = proj(geo)
+      if (!projected) continue
+      const [px, py] = projected
+      if (!isFinite(px) || !isFinite(py)) continue
+      const dist = Math.sqrt((cx - px) ** 2 + (cy - py) ** 2)
+      if (dist <= 16) return pin
+    }
+    return null
+  }, [getProjection])
+
   const onClick = useCallback(async (e: React.MouseEvent) => {
     if (contextMenuRef.current) { closeContextMenu(); return }
     if (hasDraggedRef.current) return
+
+    // 핀 클릭 감지 (나라 클릭보다 우선)
+    const canvas = canvasRef.current
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect()
+      const cx = e.clientX - rect.left
+      const cy = e.clientY - rect.top
+      const hitPin = getPinAtPoint(cx, cy)
+      if (hitPin) {
+        setActivePinPopup({ pin: hitPin, x: e.clientX, y: e.clientY })
+        return
+      }
+    }
+
     const alpha2 = hoveredAlpha2Ref.current
     if (!alpha2) return
     const name = hoveredNameRef.current ?? alpha2
@@ -698,9 +812,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       return
     }
 
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
+    const clickCanvas = canvasRef.current
+    if (!clickCanvas) return
+    const rect = clickCanvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
@@ -816,11 +930,12 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     setContextMenu(menu)
   }, [])
 
-  const handleMenuSelect = useCallback((action: 'info' | 'debt' | 'comment', alpha2: string, name: string) => {
+  const handleMenuSelect = useCallback((action: 'info' | 'debt' | 'comment' | 'pin', alpha2: string, name: string) => {
     closeContextMenu()
     if (action === 'info')    setInfoCountry({ code: alpha2, name })
     if (action === 'debt')    setDebtCountry({ code: alpha2, name })
     if (action === 'comment') setCommentCountry({ code: alpha2, name })
+    if (action === 'pin')     setPinSubmitCountry({ code: alpha2, name })
   }, [closeContextMenu])
 
   const allTimeTop = useMemo(() => topN(clickData, locale), [clickData, locale])
@@ -921,8 +1036,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
             {contextMenu.name}
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '4px 0' }} />
-          {(['info', 'comment'] as const).map((action) => {
-            const labels = { info: t('contextInfo'), comment: t('contextComment') }
+          {(['info', 'comment', 'pin'] as const).map((action) => {
+            const labels = { info: t('contextInfo'), comment: t('contextComment'), pin: t('contextPin') }
             return (
               <button
                 key={action}
@@ -941,6 +1056,33 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       {/* 모달 */}
       {debtCountry && <DebtModal code={debtCountry.code} name={debtCountry.name} onClose={() => setDebtCountry(null)} />}
       {infoCountry && <CountryInfoModal code={infoCountry.code} name={infoCountry.name} onClose={() => setInfoCountry(null)} />}
+
+      {/* 핀 등록 모달 */}
+      {pinSubmitCountry && (
+        <PinSubmitModal
+          countryName={pinSubmitCountry.name}
+          countryAlpha2={pinSubmitCountry.code}
+          onClose={() => setPinSubmitCountry(null)}
+          onSuccess={() => {
+            setPinSubmitCountry(null)
+            // 즉시 핀 목록 갱신
+            fetch('/api/pins?all=1')
+              .then(r => r.json())
+              .then((data: GlobePin[]) => { if (Array.isArray(data)) pinsRef.current = data })
+              .catch(() => {})
+          }}
+        />
+      )}
+
+      {/* 핀 팝업 */}
+      {activePinPopup && (
+        <PinPopup
+          pin={activePinPopup.pin}
+          x={activePinPopup.x}
+          y={activePinPopup.y}
+          onClose={() => setActivePinPopup(null)}
+        />
+      )}
 
       {/* AdminPanel — 랭킹 패널 왼쪽 */}
       <AdminPanel right={(commentCountry ? 324 : 16) + 240 + 8} />
