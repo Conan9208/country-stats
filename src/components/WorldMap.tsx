@@ -23,7 +23,7 @@ import { useSpinRoulette } from '@/hooks/useSpinRoulette'
 import Link from 'next/link'
 import AdminPanel from '@/components/AdminPanel'
 import PinSubmitModal from '@/components/PinSubmitModal'
-import PinPopup from '@/components/PinPopup'
+import PromoListPanel from '@/components/PromoListPanel'
 import type { GlobePin } from '@/types/pin'
 import { useLocale, useTranslations } from 'next-intl'
 
@@ -88,8 +88,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const [commentCountry, setCommentCountry] = useState<{ code: string; name: string } | null>(null)
   // 핀
   const pinsRef = useRef<GlobePin[]>([])
+  const pinImgCacheRef = useRef<Map<string, HTMLImageElement>>(new Map())
   const [pinSubmitCountry, setPinSubmitCountry] = useState<{ code: string; name: string } | null>(null)
-  const [activePinPopup, setActivePinPopup] = useState<{ pin: GlobePin; x: number; y: number } | null>(null)
+  const [activePinPopup, setActivePinPopup] = useState<{ alpha2: string; pins: GlobePin[]; countryName: string; x: number; y: number } | null>(null)
   // 모달
   const [debtCountry, setDebtCountry]   = useState<{ code: string; name: string } | null>(null)
   const [infoCountry, setInfoCountry]   = useState<{ code: string; name: string } | null>(null)
@@ -443,12 +444,14 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       }
     }
 
-    // 지구본 핀 렌더링
-    const pinsByCountry = new Map<string, number>()
+    // 지구본 홍보 핀 렌더링 (로고 이미지 기반)
+    const pinsByCountryMap = new Map<string, GlobePin[]>()
     for (const pin of pinsRef.current) {
-      pinsByCountry.set(pin.country_alpha2, (pinsByCountry.get(pin.country_alpha2) ?? 0) + 1)
+      const list = pinsByCountryMap.get(pin.country_alpha2) ?? []
+      list.push(pin)
+      pinsByCountryMap.set(pin.country_alpha2, list)
     }
-    for (const [alpha2, count] of pinsByCountry) {
+    for (const [alpha2, pins] of pinsByCountryMap) {
       const geo = centroidByAlpha2.get(alpha2)
       if (!geo) continue
       const pLng = geo[0] * Math.PI / 180
@@ -464,37 +467,87 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       if (!isFinite(px) || !isFinite(py)) continue
       const pulse2 = (Math.sin(now * 0.004 + py * 0.02) + 1) / 2
 
-      // 핀 글로우
-      const pinGlow = ctx.createRadialGradient(px, py, 0, px, py, 14)
-      pinGlow.addColorStop(0, `rgba(250,204,21,${0.18 + pulse2 * 0.12})`)
+      // 글로우
+      const pinGlow = ctx.createRadialGradient(px, py, 0, px, py, 18)
+      pinGlow.addColorStop(0, `rgba(167,139,250,${0.18 + pulse2 * 0.12})`)
       pinGlow.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.beginPath()
-      ctx.arc(px, py, 14, 0, Math.PI * 2)
+      ctx.arc(px, py, 18, 0, Math.PI * 2)
       ctx.fillStyle = pinGlow
       ctx.fill()
 
-      // 핀 이모지 (첫 번째 핀의 이모지)
-      const firstPin = pinsRef.current.find(p => p.country_alpha2 === alpha2)
-      const emojiChar = firstPin?.emoji ?? '📍'
-      ctx.font = `${11 + pulse2 * 1.5}px serif`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(emojiChar, px, py)
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'alphabetic'
+      // 최대 3개 원형 아이콘 가로 배치
+      const shown = pins.slice(0, 3)
+      const startX = px - (shown.length - 1) * 9
+      for (let i = 0; i < shown.length; i++) {
+        const pin = shown[i]
+        const ix = startX + i * 18
 
-      // 개수 뱃지 (2개 이상)
-      if (count > 1) {
-        const bx = px + 8, by = py - 8
+        if (pin.logo_url) {
+          let img = pinImgCacheRef.current.get(pin.logo_url)
+          if (!img) {
+            img = new window.Image()
+            img.src = pin.logo_url
+            img.crossOrigin = 'anonymous'
+            pinImgCacheRef.current.set(pin.logo_url, img)
+          }
+          if (img.complete && img.naturalWidth > 0) {
+            ctx.save()
+            ctx.beginPath()
+            ctx.arc(ix, py, 9, 0, Math.PI * 2)
+            ctx.clip()
+            ctx.drawImage(img, ix - 9, py - 9, 18, 18)
+            ctx.restore()
+            ctx.beginPath()
+            ctx.arc(ix, py, 9, 0, Math.PI * 2)
+            ctx.strokeStyle = 'rgba(255,255,255,0.75)'
+            ctx.lineWidth = 1.5
+            ctx.stroke()
+          } else {
+            // 로딩 중 fallback
+            ctx.beginPath()
+            ctx.arc(ix, py, 9, 0, Math.PI * 2)
+            ctx.fillStyle = 'rgba(167,139,250,0.5)'
+            ctx.fill()
+            ctx.font = '10px serif'
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText('📌', ix, py)
+          }
+        } else {
+          // 로고 없음: 이니셜 원형
+          ctx.beginPath()
+          ctx.arc(ix, py, 9, 0, Math.PI * 2)
+          ctx.fillStyle = 'rgba(167,139,250,0.8)'
+          ctx.fill()
+          ctx.beginPath()
+          ctx.arc(ix, py, 9, 0, Math.PI * 2)
+          ctx.strokeStyle = 'rgba(255,255,255,0.5)'
+          ctx.lineWidth = 1.5
+          ctx.stroke()
+          ctx.font = 'bold 8px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillStyle = '#fff'
+          ctx.fillText((pin.business_name.charAt(0) || '?').toUpperCase(), ix, py)
+        }
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'alphabetic'
+      }
+
+      // 4개 이상이면 "+N" 뱃지
+      if (pins.length > 3) {
+        const bx = startX + (shown.length - 1) * 18 + 14
+        const by2 = py - 7
         ctx.beginPath()
-        ctx.arc(bx, by, 7, 0, Math.PI * 2)
+        ctx.arc(bx, by2, 7, 0, Math.PI * 2)
         ctx.fillStyle = 'rgba(250,204,21,0.9)'
         ctx.fill()
-        ctx.font = 'bold 8px sans-serif'
+        ctx.font = 'bold 7px sans-serif'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillStyle = '#1a1a1a'
-        ctx.fillText(count > 9 ? '9+' : String(count), bx, by)
+        ctx.fillText(`+${pins.length - 3}`, bx, by2)
         ctx.textAlign = 'left'
         ctx.textBaseline = 'alphabetic'
       }
@@ -756,14 +809,23 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const onPollVoteRef = useRef(onPollVote)
   useEffect(() => { onPollVoteRef.current = onPollVote }, [onPollVote])
 
-  // 핀 히트 테스트 — 클릭 좌표 기준으로 가장 가까운 핀 반환
-  const getPinAtPoint = useCallback((cx: number, cy: number): GlobePin | null => {
+  // 핀 히트 테스트 — 클릭 좌표 근처에 핀이 있는 나라의 모든 핀 반환
+  const getPinsAtPoint = useCallback((cx: number, cy: number): { alpha2: string; pins: GlobePin[]; countryName: string } | null => {
     const proj = getProjection()
     if (!proj) return null
     const cLng = -rotationRef.current[0] * Math.PI / 180
     const cLat = -rotationRef.current[1] * Math.PI / 180
+
+    // 나라별로 그룹화
+    const pinsByCountry = new Map<string, GlobePin[]>()
     for (const pin of pinsRef.current) {
-      const geo = centroidByAlpha2.get(pin.country_alpha2)
+      const list = pinsByCountry.get(pin.country_alpha2) ?? []
+      list.push(pin)
+      pinsByCountry.set(pin.country_alpha2, list)
+    }
+
+    for (const [alpha2, pins] of pinsByCountry) {
+      const geo = centroidByAlpha2.get(alpha2)
       if (!geo) continue
       const pLng = geo[0] * Math.PI / 180
       const pLat = geo[1] * Math.PI / 180
@@ -774,8 +836,19 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       if (!projected) continue
       const [px, py] = projected
       if (!isFinite(px) || !isFinite(py)) continue
-      const dist = Math.sqrt((cx - px) ** 2 + (cy - py) ** 2)
-      if (dist <= 16) return pin
+
+      // 나라별 표시 위치 계산 (최대 3개 가로 배치)
+      const shown = pins.slice(0, 3)
+      const startX = px - (shown.length - 1) * 9
+      for (let i = 0; i < shown.length; i++) {
+        const ix = startX + i * 18
+        const dist = Math.sqrt((cx - ix) ** 2 + (cy - py) ** 2)
+        if (dist <= 16) {
+          const locale = 'ko'
+          const countryName = isoCountries.getName(alpha2, locale) ?? alpha2
+          return { alpha2, pins, countryName }
+        }
+      }
     }
     return null
   }, [getProjection])
@@ -790,9 +863,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       const rect = canvas.getBoundingClientRect()
       const cx = e.clientX - rect.left
       const cy = e.clientY - rect.top
-      const hitPin = getPinAtPoint(cx, cy)
-      if (hitPin) {
-        setActivePinPopup({ pin: hitPin, x: e.clientX, y: e.clientY })
+      const hit = getPinsAtPoint(cx, cy)
+      if (hit) {
+        setActivePinPopup({ alpha2: hit.alpha2, pins: hit.pins, countryName: hit.countryName, x: e.clientX, y: e.clientY })
         return
       }
     }
@@ -1074,13 +1147,18 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         />
       )}
 
-      {/* 핀 팝업 */}
+      {/* 홍보 핀 리스트 패널 */}
       {activePinPopup && (
-        <PinPopup
-          pin={activePinPopup.pin}
+        <PromoListPanel
+          countryName={activePinPopup.countryName}
+          pins={activePinPopup.pins}
           x={activePinPopup.x}
           y={activePinPopup.y}
           onClose={() => setActivePinPopup(null)}
+          onAddPin={() => {
+            setActivePinPopup(null)
+            setPinSubmitCountry({ code: activePinPopup.alpha2, name: activePinPopup.countryName })
+          }}
         />
       )}
 
