@@ -1,5 +1,6 @@
 import type { ClickData } from '@/types/map'
 import { TIERS, SUPPORTED_LOCALES } from '@/lib/mapConstants'
+import isoCountries from 'i18n-iso-countries'
 
 export function formatCount(n: number): string {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
@@ -17,17 +18,17 @@ export function getTier(count: number) {
   return TIERS.find(t => count >= t.min && count <= t.max) ?? null
 }
 
-export function topN(data: ClickData, n = 20) {
+export function topN(data: ClickData, locale: string, n = 20) {
   return Object.entries(data)
-    .map(([alpha2, entry]) => ({ alpha2, name: entry.name ?? alpha2, count: entry.total }))
+    .map(([alpha2, entry]) => ({ alpha2, name: isoCountries.getName(alpha2.toUpperCase(), locale) ?? entry.name ?? alpha2, count: entry.total }))
     .filter(e => e.count > 0)
     .sort((a, b) => b.count - a.count)
     .slice(0, n)
 }
 
-export function topNToday(data: ClickData, n = 20) {
+export function topNToday(data: ClickData, locale: string, n = 20) {
   return Object.entries(data)
-    .map(([alpha2, entry]) => ({ alpha2, name: entry.name ?? alpha2, count: entry.today ?? 0 }))
+    .map(([alpha2, entry]) => ({ alpha2, name: isoCountries.getName(alpha2.toUpperCase(), locale) ?? entry.name ?? alpha2, count: entry.today ?? 0 }))
     .filter(e => e.count > 0)
     .sort((a, b) => b.count - a.count)
     .slice(0, n)

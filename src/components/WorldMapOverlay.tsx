@@ -7,6 +7,7 @@ import { getLocalTime } from '@/lib/timezoneData'
 import { formatCount, getTier } from '@/lib/mapUtils'
 import { flagEmoji } from '@/lib/geoData'
 import { glass } from '@/lib/mapConstants'
+import { useTranslations } from 'next-intl'
 
 export interface RouletteSlotData {
   current: { alpha2: string; name: string }
@@ -47,6 +48,7 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((props, ref) => {
   const [rouletteSlot, setRouletteSlot] = useState<RouletteSlotData | null>(null)
   const [landingFacts, setLandingFacts] = useState<LandingFactsData | null>(null)
   const [toast, setToast] = useState<{ message: string; sub: string } | null>(null)
+  const t = useTranslations('Map')
 
   useImperativeHandle(ref, () => ({
     setTooltip,
@@ -80,7 +82,7 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((props, ref) => {
             minWidth: 200,
           }}>
             <div style={{ fontSize: 10, color: '#334155', fontWeight: 700, letterSpacing: '0.14em', marginBottom: 14 }}>
-              🎰 SPINNING...
+              {t('spinTitle')}
             </div>
             <div style={{ fontSize: 48, lineHeight: 1.1, marginBottom: 10 }}>
               {flagEmoji(rouletteSlot.current.alpha2)}
@@ -117,7 +119,7 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((props, ref) => {
             minWidth: 280,
           }}>
             <div style={{ fontSize: 11, color: '#a78bfa', fontWeight: 700, letterSpacing: '0.16em', marginBottom: 16 }}>
-              🎯 스핀 결과
+              {t('spinResult')}
             </div>
             <div style={{ fontSize: 64, lineHeight: 1, marginBottom: 12 }}>
               {flagEmoji(rouletteSlot.current.alpha2)}
@@ -143,13 +145,13 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((props, ref) => {
                   {landingFacts.capital && (
                     <span style={{ fontSize: 12, color: '#94a3b8' }}>🏛️ <strong style={{ color: '#cbd5e1' }}>{landingFacts.capital}</strong></span>
                   )}
-                  <span style={{ fontSize: 12, color: '#94a3b8' }}>👥 인구 <strong style={{ color: '#a78bfa' }}>{landingFacts.popRank}위</strong></span>
-                  <span style={{ fontSize: 12, color: '#94a3b8' }}>🗺️ 면적 <strong style={{ color: '#a78bfa' }}>{landingFacts.areaRank}위</strong></span>
+                  <span style={{ fontSize: 12, color: '#94a3b8' }}>{t('popRank', { rank: landingFacts.popRank })}</span>
+                  <span style={{ fontSize: 12, color: '#94a3b8' }}>{t('areaRank', { rank: landingFacts.areaRank })}</span>
                 </div>
                 <div style={{ fontSize: 11, color: '#475569' }}>🌍 {landingFacts.region}</div>
               </div>
             ) : (
-              <div style={{ fontSize: 12, color: '#475569' }}>로딩 중...</div>
+              <div style={{ fontSize: 12, color: '#475569' }}>{t('loadingFacts')}</div>
             )}
           </div>
         </div>
@@ -186,22 +188,22 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((props, ref) => {
             if (!lt) return null
             return (
               <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>
-                🌐 {lt.city ? `${lt.city} 기준 ${lt.time}` : lt.time}
+                {lt.city ? t('localTime', { city: lt.city, time: lt.time }) : t('localTimeNoCity', { time: lt.time })}
               </div>
             )
           })()}
           {tooltip.count > 0
             ? <>
-                <div style={{ fontSize: 11, color: '#a78bfa', marginTop: 3 }}>👆 {formatCount(tooltip.count)}회 클릭</div>
+                <div style={{ fontSize: 11, color: '#a78bfa', marginTop: 3 }}>{t('clicks', { count: formatCount(tooltip.count) })}</div>
                 <div style={{ fontSize: 11, marginTop: 2, color: getTier(tooltip.count)?.color ?? '#a78bfa' }}>
                   {getTier(tooltip.count)?.tag}
                 </div>
               </>
-            : <div style={{ fontSize: 11, color: '#475569', marginTop: 3 }}>클릭해서 기록하기</div>
+            : <div style={{ fontSize: 11, color: '#475569', marginTop: 3 }}>{t('clickToRecord')}</div>
           }
           {tooltip.viewers > 0 && (
             <div style={{ fontSize: 11, color: '#c084fc', marginTop: 3 }}>
-              👁 {tooltip.viewers}명 보는 중
+              {t('viewers', { count: tooltip.viewers })}
             </div>
           )}
         </div>

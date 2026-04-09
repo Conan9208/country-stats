@@ -15,18 +15,17 @@ import StatsPanelOverlay from '@/components/StatsPanelOverlay'
 import { WorldMapOverlay, type OverlayHandle } from '@/components/WorldMapOverlay'
 import type { ClickData, ClickEntry } from '@/types/map'
 import { TIERS, glass } from '@/lib/mapConstants'
-import { countryColor, pollVoteColor, topN, topNToday, getLocale } from '@/lib/mapUtils'
+import { countryColor, pollVoteColor, topN, topNToday } from '@/lib/mapUtils'
 import { supabase } from '@/lib/supabase'
 import { worldGeo, landGeo, bordersMesh, graticuleData, alpha2Map, featureByAlpha2, centroidByAlpha2 } from '@/lib/geoData'
 import { useRealtimeViewers } from '@/hooks/useRealtimeViewers'
 import { useSpinRoulette } from '@/hooks/useSpinRoulette'
 import Link from 'next/link'
 import AdminPanel from '@/components/AdminPanel'
+import { useLocale, useTranslations } from 'next-intl'
 
 isoCountries.registerLocale(localeKo)
 isoCountries.registerLocale(localeEn)
-
-const LOCALE = getLocale()
 
 
 type WorldMapProps = {
@@ -42,6 +41,9 @@ type WorldMapProps = {
 }
 
 export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollData, pollQuestion, pollTotalVotes, pollMyVote, onCancelPollVote, onStartPoll }: WorldMapProps = {}) {
+  const locale = useLocale()
+  const t = useTranslations('Map')
+
   // refs so draw() can read latest props without being a dependency
   const pollModeRef         = useRef(pollMode)
   const pollVotedCountryRef = useRef(pollVotedCountry)
@@ -626,8 +628,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     if (hit?.alpha2) {
       // confirmedCountRef: 서버 확정값만 — 낙관적 값 절대 안 들어옴
       const count = confirmedCountRef.current[hit.alpha2] ?? 0
-      const name = clickDataRef.current[hit.alpha2]?.name
-        ?? isoCountries.getName(hit.alpha2, LOCALE)
+      const name = isoCountries.getName(hit.alpha2.toUpperCase(), locale)
+        ?? clickDataRef.current[hit.alpha2]?.name
         ?? hit.alpha2
       hoveredAlpha2Ref.current = hit.alpha2
       hoveredNameRef.current   = name
@@ -652,7 +654,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         })
       }
     }
-  }, [getAlpha2AtPoint, getProjection, lastBroadcastCountryRef, mySessionId, presenceChannelRef, viewersByCountryRef])
+  }, [getAlpha2AtPoint, getProjection, lastBroadcastCountryRef, mySessionId, presenceChannelRef, viewersByCountryRef, locale])
 
   const onMouseUp = useCallback(() => {
     dragStartRef.current = null
@@ -703,9 +705,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     const y = e.clientY - rect.top
 
     // 즉시 이펙트
-    const t = performance.now()
-    shockwavesRef.current.push({ x, y, t })
-    flashesRef.current.push({ alpha2, t })
+    const perfT = performance.now()
+    shockwavesRef.current.push({ x, y, t: perfT })
+    flashesRef.current.push({ alpha2, t: perfT })
     for (let i = 0; i < 8; i++) {
       const angle = (i / 8) * Math.PI * 2
       const speed = 55 + Math.random() * 30
@@ -713,7 +715,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         x, y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        t,
+        t: perfT,
         size: 2.5 + Math.random() * 1.5,
       })
     }
@@ -757,7 +759,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       overlayRef.current?.rateLimitFloatNum(floatId)
       setTimeout(() => overlayRef.current?.removeFloatNum(floatId), 1400)
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-      overlayRef.current?.setToast({ message: '잠깐, 너무 빠르다! 🔥', sub: '1분에 10번까지만 클릭할 수 있어요.' })
+      overlayRef.current?.setToast({ message: t('toastRateLimitTitle'), sub: t('toastRateLimitSub') })
       toastTimerRef.current = setTimeout(() => overlayRef.current?.setToast(null), 3000)
       return
     }
@@ -789,7 +791,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
     // 댓글 패널 열기
     setCommentCountry({ code: alpha2, name })
-  }, [closeContextMenu])
+  }, [closeContextMenu, t])
 
   // 스크롤 줌 — passive: false로 직접 등록 (React onWheel은 passive라 preventDefault 불가)
   useEffect(() => {
@@ -821,8 +823,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     if (action === 'comment') setCommentCountry({ code: alpha2, name })
   }, [closeContextMenu])
 
-  const allTimeTop = useMemo(() => topN(clickData), [clickData])
-  const todayTop = useMemo(() => topNToday(clickData), [clickData])
+  const allTimeTop = useMemo(() => topN(clickData, locale), [clickData, locale])
+  const todayTop = useMemo(() => topNToday(clickData, locale), [clickData, locale])
   const totalClicks = useMemo(() => Object.values(clickData).reduce((s, e) => s + (Number(e.total) || 0), 0), [clickData])
 
   return (
@@ -920,7 +922,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '4px 0' }} />
           {(['info', 'comment'] as const).map((action) => {
-            const labels = { info: '📊 기본 정보', comment: '💬 댓글 보기' }
+            const labels = { info: t('contextInfo'), comment: t('contextComment') }
             return (
               <button
                 key={action}
@@ -963,7 +965,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           transition: 'right 0.35s cubic-bezier(0.4,0,0.2,1)',
         }}
       >
-        📊 방문자 통계
+        {t('visitorStats')}
       </Link>
 
       {/* 좌하단: 랜덤 스핀 버튼 + 범례 */}
@@ -985,12 +987,12 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
               background: isSpinning ? 'rgba(15,15,25,0.55)' : 'rgba(167,139,250,0.08)',
             }}
           >
-            {isSpinning ? '🌀 스핀 중...' : '🎲 랜덤 스핀'}
+            {isSpinning ? t('spinning') : t('randomSpin')}
           </button>
         )}
         <div style={{ ...glass, borderRadius: 12, padding: '10px 14px', display: pollMode ? 'none' : undefined }}>
           <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
-            클릭 수 티어
+            {t('clickTier')}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {TIERS.map(t => (

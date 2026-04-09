@@ -6,10 +6,8 @@ import { geoOrthographic, geoCentroid } from 'd3-geo'
 import type { Feature, Geometry } from 'geojson'
 import isoCountries from 'i18n-iso-countries'
 import { worldGeo, alpha2Map, centroidByAlpha2 } from '@/lib/geoData'
-import { getLocale } from '@/lib/mapUtils'
-import { CURATED_FACTS } from '@/data/countryFacts'
-
-const LOCALE = getLocale()
+import { CURATED_FACTS_KO, CURATED_FACTS_EN } from '@/data/countryFacts'
+import { useLocale } from 'next-intl'
 
 // 전체 국가 인구·면적 순위 캐시 (앱 내 1회만 fetch)
 let rankCache: Map<string, { popRank: number; areaRank: number }> | null = null
@@ -52,55 +50,50 @@ function pickFunFact(
   alpha2: string,
   data: CountryApiData,
   rank: { popRank: number; areaRank: number },
+  locale: string
 ): string {
-  // 1순위: curated
-  if (CURATED_FACTS[alpha2.toUpperCase()]) return CURATED_FACTS[alpha2.toUpperCase()]
+  const isEn = locale === 'en'
+  const curated = isEn ? CURATED_FACTS_EN : CURATED_FACTS_KO
+  if (curated[alpha2.toUpperCase()]) return curated[alpha2.toUpperCase()]
 
   const candidates: string[] = []
 
-  // 내륙국
-  if (data.landlocked) candidates.push('바다와 접하지 않는 내륙국이에요')
+  if (data.landlocked) {
+    candidates.push(isEn ? 'A landlocked country with no ocean access.' : '바다와 접하지 않는 내륙국이에요')
+  }
 
-  // 섬나라 (육지 국경 0개)
   if (Array.isArray(data.borders) && data.borders.length === 0 && !data.landlocked)
-    candidates.push('어떤 나라와도 육지 국경을 공유하지 않는 섬나라예요')
+    candidates.push(isEn ? 'An island nation with no land borders.' : '어떤 나라와도 육지 국경을 공유하지 않는 섬나라예요')
 
-  // 국경 많음
   if (Array.isArray(data.borders) && data.borders.length >= 8)
-    candidates.push(`무려 ${data.borders.length}개 나라와 국경을 접해요`)
+    candidates.push(isEn ? `Shares land borders with exactly ${data.borders.length} countries.` : `무려 ${data.borders.length}개 나라와 국경을 접해요`)
 
-  // 언어 많음
   const langCount = data.languages ? Object.keys(data.languages).length : 0
-  if (langCount >= 4) candidates.push(`공식 언어가 ${langCount}개인 다언어 국가예요`)
+  if (langCount >= 4) candidates.push(isEn ? `A multilingual country with ${langCount} official languages.` : `공식 언어가 ${langCount}개인 다언어 국가예요`)
 
-  // 시간대 많음
   const tzCount = data.timezones?.length ?? 0
-  if (tzCount >= 5) candidates.push(`${tzCount}개의 시간대를 가진 나라예요`)
+  if (tzCount >= 5) candidates.push(isEn ? `A vast nation spanning ${tzCount} timezones.` : `${tzCount}개의 시간대를 가진 나라예요`)
 
-  // 좌측통행
-  if (data.car?.side === 'left') candidates.push('영국처럼 좌측통행을 하는 나라예요')
+  if (data.car?.side === 'left') candidates.push(isEn ? 'Drives on the left side of the road like the UK.' : '영국처럼 좌측통행을 하는 나라예요')
 
-  // 인구 극단
-  if (rank.popRank === 1) candidates.push('세계에서 인구가 가장 많은 나라예요')
-  else if (rank.popRank <= 5) candidates.push(`세계 인구 ${rank.popRank}위 대국이에요`)
-  else if (rank.popRank >= 190) candidates.push('세계에서 인구가 가장 적은 나라 중 하나예요')
+  if (rank.popRank === 1) candidates.push(isEn ? 'The most populous country in the world.' : '세계에서 인구가 가장 많은 나라예요')
+  else if (rank.popRank <= 5) candidates.push(isEn ? `The #${rank.popRank} most populous nation globally.` : `세계 인구 ${rank.popRank}위 대국이에요`)
+  else if (rank.popRank >= 190) candidates.push(isEn ? 'One of the least populated countries on Earth.' : '세계에서 인구가 가장 적은 나라 중 하나예요')
 
-  // 면적 극단
-  if (rank.areaRank === 1) candidates.push('지구에서 가장 넓은 나라예요')
-  else if (rank.areaRank <= 5) candidates.push(`세계 면적 ${rank.areaRank}위 대국이에요`)
-  else if (rank.areaRank >= 190) candidates.push('세계에서 가장 작은 나라 중 하나예요')
+  if (rank.areaRank === 1) candidates.push(isEn ? 'The largest country in the world by area.' : '지구에서 가장 넓은 나라예요')
+  else if (rank.areaRank <= 5) candidates.push(isEn ? `The #${rank.areaRank} largest country globally.` : `세계 면적 ${rank.areaRank}위 대국이에요`)
+  else if (rank.areaRank >= 190) candidates.push(isEn ? 'One of the smallest countries on Earth.' : '세계에서 가장 작은 나라 중 하나예요')
 
-  // 인구밀도 극단 (면적·인구 모두 있을 때)
   const pop = data.population ?? 0
   const area = data.area ?? 0
   if (pop > 0 && area > 0) {
     const density = pop / area
-    if (density > 1000) candidates.push(`인구밀도가 km²당 약 ${Math.round(density).toLocaleString()}명으로 매우 높아요`)
-    else if (density < 5 && pop > 100000) candidates.push(`인구밀도가 km²당 약 ${density.toFixed(1)}명으로 매우 낮아요`)
+    if (density > 1000) candidates.push(isEn ? `Extremely high population density of ~${Math.round(density).toLocaleString()} people/km².` : `인구밀도가 km²당 약 ${Math.round(density).toLocaleString()}명으로 매우 높아요`)
+    else if (density < 5 && pop > 100000) candidates.push(isEn ? `Extremely low population density of ~${density.toFixed(1)} people/km².` : `인구밀도가 km²당 약 ${density.toFixed(1)}명으로 매우 낮아요`)
   }
 
   if (candidates.length > 0) return candidates[Math.floor(Math.random() * candidates.length)]
-  return '세계 곳곳을 탐험해보세요!'
+  return isEn ? 'Explore the world!' : '세계 곳곳을 탐험해보세요!'
 }
 
 import type { OverlayHandle } from '@/components/WorldMapOverlay'
@@ -115,6 +108,7 @@ type Deps = {
 }
 
 export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef, overlayRef }: Deps) {
+  const locale = useLocale()
   const spinningRef = useRef(false)
   const spinStartRef = useRef<[number, number]>([0, 0])
   const spinTargetRef = useRef<[number, number]>([0, 0])
@@ -202,7 +196,7 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
           if (!active) return
           const data = Array.isArray(raw) ? raw[0] : raw
           const rank = ranks.get(final.code) ?? { popRank: 0, areaRank: 0 }
-          const funFact = pickFunFact(final.code, data, rank)
+          const funFact = pickFunFact(final.code, data, rank, locale)
           overlayRef.current?.setLandingFacts({
             population: data.population ?? 0,
             area: data.area ?? 0,
@@ -224,7 +218,7 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
         return
       }
       const a2 = allAlpha2[Math.floor(Math.random() * allAlpha2.length)]
-      const name = isoCountries.getName(a2, LOCALE) ?? a2
+      const name = isoCountries.getName(a2, locale) ?? a2
       overlayRef.current?.setRouletteSlot({ current: { alpha2: a2, name }, phase: 'cycling' })
       
       timer = setTimeout(tick, schedule[step++])
@@ -234,7 +228,7 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
       active = false
       clearTimeout(timer)
     }
-  }, [isSpinning, overlayRef])
+  }, [isSpinning, overlayRef, locale])
 
   const handleRandomSpin = useCallback(() => {
     if (spinningRef.current) return
@@ -245,7 +239,7 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
     const f = valid[Math.floor(Math.random() * valid.length)]
     const numericId = String((f as Feature & { id?: string | number }).id ?? '')
     const alpha2 = alpha2Map.get(numericId)!
-    const name = isoCountries.getName(alpha2, LOCALE) ?? alpha2
+    const name = isoCountries.getName(alpha2, locale) ?? alpha2
     const centroid = centroidByAlpha2.get(alpha2) ?? (geoCentroid(f as Feature<Geometry>) as [number, number])
     const targetLambda = -centroid[0]
     const targetPhi = Math.max(-75, Math.min(75, -centroid[1]))
@@ -264,7 +258,7 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
     autoRotateRef.current = false
     velocityRef.current = [0, 0]
     setIsSpinning(true)
-  }, [rotationRef, autoRotateRef, velocityRef])
+  }, [rotationRef, autoRotateRef, velocityRef, locale])
 
   return {
     isSpinning,

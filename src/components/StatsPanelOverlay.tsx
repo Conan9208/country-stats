@@ -5,15 +5,13 @@ import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
 import localeEn from 'i18n-iso-countries/langs/en.json'
 import { glass } from '@/lib/mapConstants'
-import { formatCount, getLocale } from '@/lib/mapUtils'
+import { formatCount } from '@/lib/mapUtils'
 import { flagEmoji } from '@/lib/geoData'
 import RankList from '@/components/RankList'
-import { useTranslations } from 'next-intl'
+import { useTranslations, useLocale } from 'next-intl'
 
 isoCountries.registerLocale(localeKo)
 isoCountries.registerLocale(localeEn)
-
-const LOCALE = getLocale()
 const MEDAL = ['🥇', '🥈', '🥉', '4위', '5위']
 const POLL_COLORS = ['#facc15', '#a78bfa', '#60a5fa', '#94a3b8', '#94a3b8']
 
@@ -50,6 +48,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
   onCancelPollVote,
   onStartPoll,
 }: StatsPanelOverlayProps) {
+  const locale = useLocale()
   const tStats = useTranslations('Stats')
   const tPoll = useTranslations('Poll')
   const [pollCopied, setPollCopied] = useState(false)
@@ -61,11 +60,11 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
   const buildShareText = () => {
     const topLines = top5Poll.map(([a2, count], i) => {
       const pct = (pollTotalVotes ?? 0) > 0 ? Math.round(count / (pollTotalVotes ?? 1) * 100) : 0
-      const name = isoCountries.getName(a2.toUpperCase(), LOCALE) ?? a2
+      const name = isoCountries.getName(a2.toUpperCase(), locale) ?? a2
       return `${MEDAL[i]} ${flagEmoji(a2)} ${name} (${pct}%)`
     }).join('\n')
     const myLine = pollMyVote
-      ? `\n${tPoll('myVote')} ${flagEmoji(pollMyVote)} ${isoCountries.getName(pollMyVote.toUpperCase(), LOCALE) ?? pollMyVote}!`
+      ? `\n${tPoll('myVote')} ${flagEmoji(pollMyVote)} ${isoCountries.getName(pollMyVote.toUpperCase(), locale) ?? pollMyVote}!`
       : ''
     return [
       `🗳️ ${pollQuestion!.emoji} ${pollQuestion!.text}`,
@@ -127,7 +126,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
           {top5Poll.map(([alpha2, count], i) => {
             const pct = (pollTotalVotes ?? 0) > 0 ? Math.round(count / (pollTotalVotes ?? 1) * 100) : 0
             const isMyVote = pollMyVote === alpha2
-            const name = isoCountries.getName(alpha2.toUpperCase(), LOCALE) ?? alpha2
+            const name = isoCountries.getName(alpha2.toUpperCase(), locale) ?? alpha2
             return (
               <div key={alpha2} style={{ marginBottom: 6, padding: '5px 7px', borderRadius: 8, border: isMyVote ? '1px solid rgba(167,139,250,0.5)' : '1px solid transparent', background: isMyVote ? 'rgba(167,139,250,0.08)' : 'transparent' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
@@ -148,7 +147,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <span style={{ fontSize: 11, color: '#a78bfa', minWidth: 20 }}>내</span>
                 <span style={{ fontSize: 13 }}>{flagEmoji(pollMyVote)}</span>
-                <span style={{ fontSize: 11, color: '#a78bfa', flex: 1 }}>{isoCountries.getName(pollMyVote.toUpperCase(), LOCALE) ?? pollMyVote}</span>
+                <span style={{ fontSize: 11, color: '#a78bfa', flex: 1 }}>{isoCountries.getName(pollMyVote.toUpperCase(), locale) ?? pollMyVote}</span>
               </div>
             </div>
           )}
