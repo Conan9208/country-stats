@@ -14,6 +14,10 @@ type Props = {
   onAddPin: () => void
 }
 
+function getDaysLeft(expiresAt: string): number {
+  return Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+}
+
 export default function PromoListPanel({ countryName, pins, x, y, onClose, onAddPin }: Props) {
   const t = useTranslations('Pin')
   const [reportedIds, setReportedIds] = useState<Set<string>>(new Set())
@@ -79,7 +83,7 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
                 border: '1.5px solid rgba(167,139,250,0.3)',
               }}>
                 {pin.logo_url
-                  ? <img src={pin.logo_url} alt={pin.business_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ? <img src={pin.logo_url} alt={pin.business_name} crossOrigin="anonymous" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : <span style={{ fontSize: 14, fontWeight: 700, color: '#a78bfa' }}>
                       {pin.business_name.charAt(0).toUpperCase()}
                     </span>
@@ -88,8 +92,19 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
 
               {/* 사업명 + 소개 */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {pin.business_name}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                    {pin.business_name}
+                  </div>
+                  {pin.expires_at && (() => {
+                    const d = getDaysLeft(pin.expires_at)
+                    const color = d <= 1 ? '#f87171' : d <= 2 ? '#fb923c' : '#64748b'
+                    return (
+                      <span style={{ fontSize: 9, fontWeight: 700, color, background: `${color}22`, borderRadius: 4, padding: '1px 5px', flexShrink: 0, letterSpacing: '0.03em' }}>
+                        D-{d}
+                      </span>
+                    )
+                  })()}
                 </div>
                 {pin.description && (
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

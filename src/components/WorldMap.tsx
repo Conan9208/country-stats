@@ -89,6 +89,12 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   // 핀
   const pinsRef = useRef<GlobePin[]>([])
   const pinImgCacheRef = useRef<Map<string, HTMLImageElement>>(new Map())
+  const pinImgFailedRef = useRef<Set<string>>(new Set())
+  // 핀 hover 툴팁 상태 (HTML overlay)
+  const [pinHoverTooltip, setPinHoverTooltip] = useState<{ name: string; website?: string; x: number; y: number } | null>(null)
+  const pinHoverTooltipRef = useRef<{ name: string; website?: string; x: number; y: number } | null>(null)
+  // 핀 hover 중인지 (커서 변경용)
+  const isOverPinRef = useRef(false)
   const [pinSubmitCountry, setPinSubmitCountry] = useState<{ code: string; name: string } | null>(null)
   const [activePinPopup, setActivePinPopup] = useState<{ alpha2: string; pins: GlobePin[]; countryName: string; x: number; y: number } | null>(null)
   // 모달
@@ -447,7 +453,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     // 지구본 홍보 핀 렌더링 (로고 이미지 기반)
     // 줌 레벨에 따라 핀 크기 동적 조절
     const pinZoomFactor = Math.pow(1.3, scaleRef.current)
-    const pinRadius = Math.max(5, Math.min(22, Math.round(9 * Math.sqrt(pinZoomFactor))))
+    const pinRadius = Math.max(7, Math.min(32, Math.round(13 * Math.sqrt(pinZoomFactor))))
     const pinDiameter = pinRadius * 2
     // 50% 겹침: 이웃 핀 중심간 거리 = pinRadius (직경의 절반)
     const pinSpacing = pinRadius
@@ -491,13 +497,16 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         const pin = shown[i]
         const ix = startX + i * pinSpacing
 
-        if (pin.logo_url) {
+        if (pin.logo_url && !pinImgFailedRef.current.has(pin.logo_url)) {
           let img = pinImgCacheRef.current.get(pin.logo_url)
           if (!img) {
             img = new window.Image()
             img.crossOrigin = 'anonymous'  // crossOrigin은 반드시 src 전에 설정
             img.src = pin.logo_url
-            img.onerror = () => { pinImgCacheRef.current.delete(pin.logo_url!) }
+            img.onerror = () => {
+              pinImgCacheRef.current.delete(pin.logo_url!)
+              pinImgFailedRef.current.add(pin.logo_url!)  // 영구 실패 등록 → 무한 재시도 방지
+            }
             pinImgCacheRef.current.set(pin.logo_url, img)
           }
           if (img.complete && img.naturalWidth > 0) {
@@ -658,7 +667,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           ]
           velocityRef.current = [vx * 0.88, vy * 0.88]
         } else if (autoRotateRef.current && !contextMenuRef.current) {
-          rotationRef.current = [rotationRef.current[0] + dt * 0.004, rotationRef.current[1]]
+          rotationRef.current = [rotationRef.current[0] + dt * 0.00133, rotationRef.current[1]]
           velocityRef.current = [0, 0]
         }
       }
@@ -715,6 +724,51 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
   const hasDraggedRef = useRef(false)
 
+  // 핀 히트 테스트 — 클릭/hover 좌표 근처에 핀이 있는 나라의 모든 핀 반환
+  const getPinsAtPoint = useCallback((cx: number, cy: number): { alpha2: string; pins: GlobePin[]; countryName: string } | null => {
+    const proj = getProjection()
+    if (!proj) return null
+    const cLng = -rotationRef.current[0] * Math.PI / 180
+    const cLat = -rotationRef.current[1] * Math.PI / 180
+
+    const pinsByCountry = new Map<string, GlobePin[]>()
+    for (const pin of pinsRef.current) {
+      const list = pinsByCountry.get(pin.country_alpha2) ?? []
+      list.push(pin)
+      pinsByCountry.set(pin.country_alpha2, list)
+    }
+
+    for (const [alpha2, pins] of pinsByCountry) {
+      const geo = centroidByAlpha2.get(alpha2)
+      if (!geo) continue
+      const pLng = geo[0] * Math.PI / 180
+      const pLat = geo[1] * Math.PI / 180
+      const dot = Math.cos(pLat) * Math.cos(cLat) * Math.cos(pLng - cLng)
+                + Math.sin(pLat) * Math.sin(cLat)
+      if (dot <= 0.05) continue
+      const projected = proj(geo)
+      if (!projected) continue
+      const [px, py] = projected
+      if (!isFinite(px) || !isFinite(py)) continue
+
+      // draw loop와 동일한 pinRadius 계산 — 반드시 동기화 유지
+      const hitZoom = Math.pow(1.3, scaleRef.current)
+      const hitRadius = Math.max(7, Math.min(32, Math.round(13 * Math.sqrt(hitZoom))))
+      const hitSpacing = hitRadius
+      const shown = pins.slice(0, 3)
+      const startX = px - (shown.length - 1) * (hitSpacing / 2)
+      for (let i = 0; i < shown.length; i++) {
+        const ix = startX + i * hitSpacing
+        const dist = Math.sqrt((cx - ix) ** 2 + (cy - py) ** 2)
+        if (dist <= hitRadius + 7) {
+          const countryName = isoCountries.getName(alpha2, locale) ?? alpha2
+          return { alpha2, pins, countryName }
+        }
+      }
+    }
+    return null
+  }, [getProjection, locale])
+
   // 드래그
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     hasDraggedRef.current = false   // spin 여부와 무관하게 항상 초기화
@@ -765,6 +819,35 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       return
     }
 
+    // 핀 hover 감지 (나라 hover보다 우선 — 클릭 동작과 일치)
+    const pinHit = getPinsAtPoint(x, y)
+    if (pinHit) {
+      isOverPinRef.current = true
+      const topPin = pinHit.pins[0]
+      const newTooltip = {
+        name: topPin.business_name,
+        website: topPin.website_url ?? undefined,
+        x, y,
+      }
+      // 값이 바뀔 때만 setState (rAF 60fps → 리렌더 최소화)
+      if (
+        pinHoverTooltipRef.current?.name !== newTooltip.name ||
+        Math.abs((pinHoverTooltipRef.current?.x ?? 0) - x) > 4 ||
+        Math.abs((pinHoverTooltipRef.current?.y ?? 0) - y) > 4
+      ) {
+        pinHoverTooltipRef.current = newTooltip
+        setPinHoverTooltip(newTooltip)
+      }
+      overlayRef.current?.setTooltip(null)  // 핀 위에서는 나라 툴팁 숨김
+      return
+    }
+    // 핀 hover 해제
+    if (isOverPinRef.current) {
+      isOverPinRef.current = false
+      pinHoverTooltipRef.current = null
+      setPinHoverTooltip(null)
+    }
+
     // hover 감지
     const hit = getAlpha2AtPoint(x, y)
     if (hit?.alpha2) {
@@ -796,7 +879,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         })
       }
     }
-  }, [getAlpha2AtPoint, getProjection, lastBroadcastCountryRef, mySessionId, presenceChannelRef, viewersByCountryRef, locale])
+  }, [getAlpha2AtPoint, getPinsAtPoint, getProjection, lastBroadcastCountryRef, mySessionId, presenceChannelRef, viewersByCountryRef, locale])
 
   const onMouseUp = useCallback(() => {
     dragStartRef.current = null
@@ -809,6 +892,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     lastMouseRef.current = null
     hoveredAlpha2Ref.current = null
     overlayRef.current?.setTooltip(null)
+    isOverPinRef.current = false
+    pinHoverTooltipRef.current = null
+    setPinHoverTooltip(null)
     autoRotateRef.current = true
     if (lastBroadcastCountryRef.current !== null) {
       lastBroadcastCountryRef.current = null
@@ -821,53 +907,6 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
   const onPollVoteRef = useRef(onPollVote)
   useEffect(() => { onPollVoteRef.current = onPollVote }, [onPollVote])
-
-  // 핀 히트 테스트 — 클릭 좌표 근처에 핀이 있는 나라의 모든 핀 반환
-  const getPinsAtPoint = useCallback((cx: number, cy: number): { alpha2: string; pins: GlobePin[]; countryName: string } | null => {
-    const proj = getProjection()
-    if (!proj) return null
-    const cLng = -rotationRef.current[0] * Math.PI / 180
-    const cLat = -rotationRef.current[1] * Math.PI / 180
-
-    // 나라별로 그룹화
-    const pinsByCountry = new Map<string, GlobePin[]>()
-    for (const pin of pinsRef.current) {
-      const list = pinsByCountry.get(pin.country_alpha2) ?? []
-      list.push(pin)
-      pinsByCountry.set(pin.country_alpha2, list)
-    }
-
-    for (const [alpha2, pins] of pinsByCountry) {
-      const geo = centroidByAlpha2.get(alpha2)
-      if (!geo) continue
-      const pLng = geo[0] * Math.PI / 180
-      const pLat = geo[1] * Math.PI / 180
-      const dot = Math.cos(pLat) * Math.cos(cLat) * Math.cos(pLng - cLng)
-                + Math.sin(pLat) * Math.sin(cLat)
-      if (dot <= 0.05) continue
-      const projected = proj(geo)
-      if (!projected) continue
-      const [px, py] = projected
-      if (!isFinite(px) || !isFinite(py)) continue
-
-      // 나라별 표시 위치 계산 (draw loop와 동일한 pinRadius 계산)
-      const hitZoom = Math.pow(1.3, scaleRef.current)
-      const hitRadius = Math.max(5, Math.min(22, Math.round(9 * Math.sqrt(hitZoom))))
-      const hitSpacing = hitRadius // draw loop와 동일한 50% 겹침
-      const shown = pins.slice(0, 3)
-      const startX = px - (shown.length - 1) * (hitSpacing / 2)
-      for (let i = 0; i < shown.length; i++) {
-        const ix = startX + i * hitSpacing
-        const dist = Math.sqrt((cx - ix) ** 2 + (cy - py) ** 2)
-        if (dist <= hitRadius + 7) {
-          const hitLocale = 'ko'
-          const countryName = isoCountries.getName(alpha2, hitLocale) ?? alpha2
-          return { alpha2, pins, countryName }
-        }
-      }
-    }
-    return null
-  }, [getProjection])
 
   const onClick = useCallback(async (e: React.MouseEvent) => {
     if (contextMenuRef.current) { closeContextMenu(); return }
@@ -1048,7 +1087,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       <StarField />
       <canvas
         ref={canvasRef}
-        style={{ display: 'block', width: '100%', height: '100%', cursor: 'none', position: 'relative', zIndex: 1, background: 'transparent' }}
+        style={{ display: 'block', width: '100%', height: '100%', cursor: pinHoverTooltip ? 'pointer' : 'none', position: 'relative', zIndex: 1, background: 'transparent' }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -1058,6 +1097,33 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       />
 
       <WorldMapOverlay ref={overlayRef} />
+
+      {/* 핀 hover 툴팁 */}
+      {pinHoverTooltip && (
+        <div
+          style={{
+            position: 'absolute',
+            left: pinHoverTooltip.x + 14,
+            top: pinHoverTooltip.y - 10,
+            zIndex: 1500,
+            pointerEvents: 'none',
+            ...glass,
+            borderRadius: 10,
+            padding: '7px 12px',
+            maxWidth: 220,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {pinHoverTooltip.name}
+          </div>
+          {pinHoverTooltip.website && (
+            <div style={{ fontSize: 10, color: '#a78bfa', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              🔗 {pinHoverTooltip.website.replace(/^https?:\/\//, '')}
+            </div>
+          )}
+          <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>클릭해서 상세보기</div>
+        </div>
+      )}
 
       {/* 안내 — 좌상단 */}
       <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 16px', lineHeight: 1.35 }}>
@@ -1230,11 +1296,11 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
             {t('clickTier')}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {TIERS.map(t => (
-              <div key={t.tag} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <div style={{ width: 10, height: 10, borderRadius: 3, background: t.color, flexShrink: 0 }} />
-                <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72 }}>{t.label}</span>
-                <span style={{ fontSize: 10, color: t.color, fontWeight: 600 }}>{t.tag}</span>
+            {TIERS.map((tier, tierIdx) => (
+              <div key={tier.tag} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 3, background: tier.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72 }}>{tier.label}</span>
+                <span style={{ fontSize: 10, color: tier.color, fontWeight: 600 }}>{t(`tierTag${tierIdx}`)}</span>
               </div>
             ))}
           </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations, useLocale } from 'next-intl'
 import { glass } from '@/lib/mapConstants'
 
 type CountryInfo = {
@@ -19,12 +20,6 @@ type CountryInfo = {
   subregion: string
 }
 
-function fmt(n: number) {
-  if (n >= 1e8) return `${(n / 1e8).toFixed(1)}억`
-  if (n >= 1e4) return `${(n / 1e4).toFixed(0)}만`
-  return n.toLocaleString()
-}
-
 function fmtArea(n: number) {
   if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M km²`
   return `${n.toLocaleString()} km²`
@@ -33,6 +28,8 @@ function fmtArea(n: number) {
 type Props = { code: string; name: string; onClose: () => void }
 
 export default function CountryInfoModal({ code, name, onClose }: Props) {
+  const t = useTranslations('CountryInfo')
+  const locale = useLocale()
   const [info,    setInfo]    = useState<CountryInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(false)
@@ -47,21 +44,33 @@ export default function CountryInfoModal({ code, name, onClose }: Props) {
       .finally(() => setLoading(false))
   }, [code])
 
+  function fmtPop(n: number): string {
+    if (locale === 'ko') {
+      if (n >= 1e8) return `${(n / 1e8).toFixed(1)}${t('unitOk')}${t('peopleUnit')}`
+      if (n >= 1e4) return `${(n / 1e4).toFixed(0)}${t('unitMan')}${t('peopleUnit')}`
+      return `${n.toLocaleString()}${t('peopleUnit')}`
+    }
+    if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B${t('peopleUnit')}`
+    if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M${t('peopleUnit')}`
+    if (n >= 1e3) return `${(n / 1e3).toFixed(0)}K${t('peopleUnit')}`
+    return `${n.toLocaleString()}${t('peopleUnit')}`
+  }
+
   const phoneCode = info
     ? (info.idd?.root ?? '') + (info.idd?.suffixes?.[0] ?? '')
     : ''
 
   const rows = info ? [
-    { icon: '🏙️', label: '수도',       value: info.capital?.join(', ') ?? '없음' },
-    { icon: '👥', label: '인구',       value: `${fmt(info.population)}명` },
-    { icon: '📐', label: '면적',       value: fmtArea(info.area) },
-    { icon: '🌍', label: '지역',       value: [info.region, info.subregion].filter(Boolean).join(' / ') },
-    { icon: '🗣️', label: '공용어',    value: Object.values(info.languages ?? {}).join(', ') || '정보 없음' },
-    { icon: '💰', label: '통화',       value: Object.entries(info.currencies ?? {}).map(([c, v]) => `${v.name} (${c} / ${v.symbol})`).join(', ') || '정보 없음' },
-    { icon: '🕐', label: '시간대',     value: info.timezones?.[0] ?? '정보 없음' },
-    { icon: '📞', label: '국가번호',   value: phoneCode || '정보 없음' },
-    { icon: '🌐', label: '도메인',     value: info.tld?.join(', ') ?? '정보 없음' },
-    { icon: '🚗', label: '운전 방향',  value: info.car?.side === 'left' ? '좌측통행' : '우측통행' },
+    { icon: '🏙️', label: t('capital'),     value: info.capital?.join(', ') ?? t('none') },
+    { icon: '👥', label: t('population'),  value: fmtPop(info.population) },
+    { icon: '📐', label: t('area'),        value: fmtArea(info.area) },
+    { icon: '🌍', label: t('region'),      value: [info.region, info.subregion].filter(Boolean).join(' / ') },
+    { icon: '🗣️', label: t('language'),   value: Object.values(info.languages ?? {}).join(', ') || t('noInfo') },
+    { icon: '💰', label: t('currency'),    value: Object.entries(info.currencies ?? {}).map(([c, v]) => `${v.name} (${c} / ${v.symbol})`).join(', ') || t('noInfo') },
+    { icon: '🕐', label: t('timezone'),    value: info.timezones?.[0] ?? t('noInfo') },
+    { icon: '📞', label: t('phoneCode'),   value: phoneCode || t('noInfo') },
+    { icon: '🌐', label: t('domain'),      value: info.tld?.join(', ') ?? t('noInfo') },
+    { icon: '🚗', label: t('drivingSide'), value: info.car?.side === 'left' ? t('leftSide') : t('rightSide') },
   ] : []
 
   return (
@@ -90,8 +99,8 @@ export default function CountryInfoModal({ code, name, onClose }: Props) {
         </div>
 
         <div style={{ padding: '20px 24px' }}>
-          {loading && <div style={{ textAlign: 'center', color: '#334155', padding: '40px 0' }}>불러오는 중...</div>}
-          {error   && <div style={{ textAlign: 'center', color: '#f87171', padding: '40px 0' }}>정보를 불러오지 못했어요</div>}
+          {loading && <div style={{ textAlign: 'center', color: '#334155', padding: '40px 0' }}>{t('loading')}</div>}
+          {error   && <div style={{ textAlign: 'center', color: '#f87171', padding: '40px 0' }}>{t('error')}</div>}
 
           {info && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

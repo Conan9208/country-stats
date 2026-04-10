@@ -103,14 +103,18 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
       }),
     })
 
-    if (res.status === 429) {
-      setErrorMsg(t('rateLimitError'))
-      setStatus('error')
-      return
-    }
     if (!res.ok) {
       const json = await res.json().catch(() => ({}))
-      setErrorMsg(json.error ?? t('genericError'))
+      // API가 반환하는 code를 i18n 키로 매핑 (언어에 맞는 메시지 표시)
+      const CODE_TO_KEY: Record<string, string> = {
+        rate_limit:       'rateLimitError',
+        domain_unreachable: 'domainError',
+        malicious_url:    'maliciousError',
+        shorturl_blocked: 'shorturlError',
+        url_duplicate:    'urlDuplicateError',
+      }
+      const key = json.code ? CODE_TO_KEY[json.code as string] : undefined
+      setErrorMsg(key ? t(key) : (json.error ?? t('genericError')))
       setStatus('error')
       return
     }
@@ -265,6 +269,7 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
                   type="text"
                   value={urlDomain}
                   onChange={e => setUrlDomain(e.target.value.replace(/^https?:\/\//i, ''))}
+                  onKeyDown={e => { if (e.key === 'Enter' && canSubmit) handleSubmit() }}
                   placeholder="www.yoursite.com"
                   style={{
                     flex: 1, boxSizing: 'border-box',

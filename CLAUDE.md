@@ -112,7 +112,7 @@
 - **에디터**: VSCode + Claude Code 익스텐션
 - **Node.js**: v25.2.1
 - **패키지 매니저**: npm
-- **로컬 주소**: http://localhost:3000
+- **로컬 주소**: http://localhost:4000
 
 ---
 

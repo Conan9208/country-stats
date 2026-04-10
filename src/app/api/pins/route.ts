@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { createHash } from 'crypto'
+import { lookup as dnsLookup } from 'dns/promises'
+
+export const runtime = 'nodejs'
 
 const MAX_BUSINESS_NAME = 60
 const MAX_DESCRIPTION = 100
@@ -36,6 +39,66 @@ function normalizeUrl(url: string): string {
     return (parsed.protocol + '//' + parsed.host + parsed.pathname).replace(/\/+$/, '')
   } catch {
     return url.trim()
+  }
+}
+
+// 단축 URL 서비스 차단 (안전 검증 우회 방지)
+const BLOCKED_DOMAINS = ['bit.ly', 'tinyurl.com', 'goo.gl', 't.co', 'ow.ly', 'short.link']
+function isBlockedDomain(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return BLOCKED_DOMAINS.some(d => host === d || host.endsWith('.' + d))
+  } catch {
+    return false
+  }
+}
+
+// 도메인 실존 확인 (DNS 조회 방식)
+// HTTP HEAD 대신 DNS lookup 사용 이유:
+//   - 한국 사이트(naver 등)를 포함한 많은 서버가 봇 HTTP 요청을 차단
+//   - DNS 성공 = 도메인 실존, DNS NXDOMAIN = 존재하지 않는 도메인
+async function checkDomainExists(url: string): Promise<boolean> {
+  try {
+    const { hostname } = new URL(url)
+    if (!hostname) return false
+    await dnsLookup(hostname)
+    return true
+  } catch {
+    return false  // DNS 조회 실패 = 도메인 없음 (ENOTFOUND 등)
+  }
+}
+
+// Google Safe Browsing API v4 — 악성/피싱 사이트 검사
+// API 키 미설정 시 패스 (선택적 기능)
+async function checkSafeBrowsing(url: string): Promise<boolean> {
+  const apiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY
+  if (!apiKey) return true
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 3000)
+  try {
+    const res = await fetch(
+      `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          client: { clientId: 'worldstats', clientVersion: '1.0' },
+          threatInfo: {
+            threatTypes: ['MALWARE', 'SOCIAL_ENGINEERING', 'UNWANTED_SOFTWARE', 'POTENTIALLY_HARMFUL_APPLICATION'],
+            platformTypes: ['ANY_PLATFORM'],
+            threatEntryTypes: ['URL'],
+            threatEntries: [{ url }],
+          },
+        }),
+      }
+    )
+    const data = await res.json()
+    return !(data.matches && data.matches.length > 0)  // true = 안전
+  } catch {
+    return true  // 오류 시 허용 (서비스 중단 방지)
+  } finally {
+    clearTimeout(timer)
   }
 }
 
@@ -113,6 +176,23 @@ export async function POST(req: NextRequest) {
   // website_url 정규화 (trailing slash 제거, 쿼리/해시 제거, 소문자 scheme+host)
   const normalizedWebsiteUrl = website_url ? normalizeUrl(website_url) : null
 
+  // website_url 단축 URL 차단 + 도메인 실존 + Safe Browsing 병렬 검증
+  if (normalizedWebsiteUrl) {
+    if (isBlockedDomain(normalizedWebsiteUrl)) {
+      return Response.json({ code: 'shorturl_blocked' }, { status: 422 })
+    }
+    const [exists, isSafe] = await Promise.all([
+      checkDomainExists(normalizedWebsiteUrl),
+      checkSafeBrowsing(normalizedWebsiteUrl),
+    ])
+    if (!exists) {
+      return Response.json({ code: 'domain_unreachable' }, { status: 422 })
+    }
+    if (!isSafe) {
+      return Response.json({ code: 'malicious_url' }, { status: 422 })
+    }
+  }
+
   // website_url 전역 중복 방지 (만료되지 않은 핀 기준, 정규화된 값으로 비교)
   if (normalizedWebsiteUrl) {
     const nowStr = new Date().toISOString()
@@ -123,7 +203,7 @@ export async function POST(req: NextRequest) {
       .gt('expires_at', nowStr)
 
     if ((urlCount ?? 0) > 0) {
-      return Response.json({ error: '이미 등록된 URL이에요. 동일한 URL은 전 세계에서 1개만 등록 가능해요.' }, { status: 409 })
+      return Response.json({ code: 'url_duplicate' }, { status: 409 })
     }
   }
 
@@ -137,7 +217,7 @@ export async function POST(req: NextRequest) {
       .gte('created_at', since)
 
     if ((count ?? 0) >= MAX_PINS_PER_DAY) {
-      return Response.json({ error: `하루에 핀 ${MAX_PINS_PER_DAY}개만 등록할 수 있어요` }, { status: 429 })
+      return Response.json({ code: 'rate_limit' }, { status: 429 })
     }
   }
 
