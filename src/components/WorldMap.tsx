@@ -445,6 +445,12 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     }
 
     // 지구본 홍보 핀 렌더링 (로고 이미지 기반)
+    // 줌 레벨에 따라 핀 크기 동적 조절
+    const pinZoomFactor = Math.pow(1.3, scaleRef.current)
+    const pinRadius = Math.max(5, Math.min(16, Math.round(9 * Math.sqrt(pinZoomFactor))))
+    const pinDiameter = pinRadius * 2
+    const pinSpacing = pinDiameter
+
     const pinsByCountryMap = new Map<string, GlobePin[]>()
     for (const pin of pinsRef.current) {
       const list = pinsByCountryMap.get(pin.country_alpha2) ?? []
@@ -468,48 +474,50 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       const pulse2 = (Math.sin(now * 0.004 + py * 0.02) + 1) / 2
 
       // 글로우
-      const pinGlow = ctx.createRadialGradient(px, py, 0, px, py, 18)
+      const glowRadius = pinDiameter
+      const pinGlow = ctx.createRadialGradient(px, py, 0, px, py, glowRadius)
       pinGlow.addColorStop(0, `rgba(167,139,250,${0.18 + pulse2 * 0.12})`)
       pinGlow.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.beginPath()
-      ctx.arc(px, py, 18, 0, Math.PI * 2)
+      ctx.arc(px, py, glowRadius, 0, Math.PI * 2)
       ctx.fillStyle = pinGlow
       ctx.fill()
 
       // 최대 3개 원형 아이콘 가로 배치
       const shown = pins.slice(0, 3)
-      const startX = px - (shown.length - 1) * 9
+      const startX = px - (shown.length - 1) * (pinSpacing / 2)
       for (let i = 0; i < shown.length; i++) {
         const pin = shown[i]
-        const ix = startX + i * 18
+        const ix = startX + i * pinSpacing
 
         if (pin.logo_url) {
           let img = pinImgCacheRef.current.get(pin.logo_url)
           if (!img) {
             img = new window.Image()
+            img.crossOrigin = 'anonymous'  // crossOrigin은 반드시 src 전에 설정
             img.src = pin.logo_url
-            img.crossOrigin = 'anonymous'
+            img.onerror = () => { pinImgCacheRef.current.delete(pin.logo_url!) }
             pinImgCacheRef.current.set(pin.logo_url, img)
           }
           if (img.complete && img.naturalWidth > 0) {
             ctx.save()
             ctx.beginPath()
-            ctx.arc(ix, py, 9, 0, Math.PI * 2)
+            ctx.arc(ix, py, pinRadius, 0, Math.PI * 2)
             ctx.clip()
-            ctx.drawImage(img, ix - 9, py - 9, 18, 18)
+            ctx.drawImage(img, ix - pinRadius, py - pinRadius, pinDiameter, pinDiameter)
             ctx.restore()
             ctx.beginPath()
-            ctx.arc(ix, py, 9, 0, Math.PI * 2)
+            ctx.arc(ix, py, pinRadius, 0, Math.PI * 2)
             ctx.strokeStyle = 'rgba(255,255,255,0.75)'
             ctx.lineWidth = 1.5
             ctx.stroke()
           } else {
             // 로딩 중 fallback
             ctx.beginPath()
-            ctx.arc(ix, py, 9, 0, Math.PI * 2)
+            ctx.arc(ix, py, pinRadius, 0, Math.PI * 2)
             ctx.fillStyle = 'rgba(167,139,250,0.5)'
             ctx.fill()
-            ctx.font = '10px serif'
+            ctx.font = `${Math.round(pinRadius * 1.1)}px serif`
             ctx.textAlign = 'center'
             ctx.textBaseline = 'middle'
             ctx.fillText('📌', ix, py)
@@ -517,15 +525,15 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         } else {
           // 로고 없음: 이니셜 원형
           ctx.beginPath()
-          ctx.arc(ix, py, 9, 0, Math.PI * 2)
+          ctx.arc(ix, py, pinRadius, 0, Math.PI * 2)
           ctx.fillStyle = 'rgba(167,139,250,0.8)'
           ctx.fill()
           ctx.beginPath()
-          ctx.arc(ix, py, 9, 0, Math.PI * 2)
+          ctx.arc(ix, py, pinRadius, 0, Math.PI * 2)
           ctx.strokeStyle = 'rgba(255,255,255,0.5)'
           ctx.lineWidth = 1.5
           ctx.stroke()
-          ctx.font = 'bold 8px sans-serif'
+          ctx.font = `bold ${Math.max(7, Math.round(pinRadius * 0.85))}px sans-serif`
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
           ctx.fillStyle = '#fff'
@@ -537,13 +545,14 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
       // 4개 이상이면 "+N" 뱃지
       if (pins.length > 3) {
-        const bx = startX + (shown.length - 1) * 18 + 14
-        const by2 = py - 7
+        const bx = startX + (shown.length - 1) * pinSpacing + pinRadius + 5
+        const by2 = py - pinRadius * 0.7
+        const badgeR = Math.max(5, Math.round(pinRadius * 0.75))
         ctx.beginPath()
-        ctx.arc(bx, by2, 7, 0, Math.PI * 2)
+        ctx.arc(bx, by2, badgeR, 0, Math.PI * 2)
         ctx.fillStyle = 'rgba(250,204,21,0.9)'
         ctx.fill()
-        ctx.font = 'bold 7px sans-serif'
+        ctx.font = `bold ${Math.max(6, badgeR - 1)}px sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillStyle = '#1a1a1a'
@@ -707,9 +716,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
   // 드래그
   const onMouseDown = useCallback((e: React.MouseEvent) => {
+    hasDraggedRef.current = false   // spin 여부와 무관하게 항상 초기화
     if (spinningRef.current) return
     autoRotateRef.current = false
-    hasDraggedRef.current = false
     dragStartRef.current = {
       x: e.clientX,
       y: e.clientY,
@@ -746,9 +755,12 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         ]
       }
       lastMouseRef.current = { x: e.clientX, y: e.clientY, t: now }
-      hasDraggedRef.current = true
-      hoveredAlpha2Ref.current = null
-      overlayRef.current?.setTooltip(null)
+      // 6px 임계값: 미세한 손떨림이 클릭을 막지 않도록
+      if (Math.sqrt(dx * dx + dy * dy) > 6) {
+        hasDraggedRef.current = true
+        hoveredAlpha2Ref.current = null
+        overlayRef.current?.setTooltip(null)
+      }
       return
     }
 
@@ -837,15 +849,18 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       const [px, py] = projected
       if (!isFinite(px) || !isFinite(py)) continue
 
-      // 나라별 표시 위치 계산 (최대 3개 가로 배치)
+      // 나라별 표시 위치 계산 (draw loop와 동일한 pinRadius 계산)
+      const hitZoom = Math.pow(1.3, scaleRef.current)
+      const hitRadius = Math.max(5, Math.min(16, Math.round(9 * Math.sqrt(hitZoom))))
+      const hitSpacing = hitRadius * 2
       const shown = pins.slice(0, 3)
-      const startX = px - (shown.length - 1) * 9
+      const startX = px - (shown.length - 1) * (hitSpacing / 2)
       for (let i = 0; i < shown.length; i++) {
-        const ix = startX + i * 18
+        const ix = startX + i * hitSpacing
         const dist = Math.sqrt((cx - ix) ** 2 + (cy - py) ** 2)
-        if (dist <= 16) {
-          const locale = 'ko'
-          const countryName = isoCountries.getName(alpha2, locale) ?? alpha2
+        if (dist <= hitRadius + 7) {
+          const hitLocale = 'ko'
+          const countryName = isoCountries.getName(alpha2, hitLocale) ?? alpha2
           return { alpha2, pins, countryName }
         }
       }
@@ -994,14 +1009,26 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    const alpha2 = hoveredAlpha2Ref.current
-    const name   = hoveredNameRef.current
+    // hover 상태 우선, 없으면 클릭 위치에서 직접 hit-test
+    let alpha2 = hoveredAlpha2Ref.current
+    let name   = hoveredNameRef.current
+    if (!alpha2) {
+      const canvas = canvasRef.current
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect()
+        const hit = getAlpha2AtPoint(e.clientX - rect.left, e.clientY - rect.top)
+        if (hit?.alpha2) {
+          alpha2 = hit.alpha2
+          name = isoCountries.getName(hit.alpha2.toUpperCase(), locale) ?? hit.alpha2
+        }
+      }
+    }
     if (!alpha2 || !name) return
     selectedAlpha2Ref.current = alpha2
     const menu = { x: e.clientX, y: e.clientY, alpha2, name }
     contextMenuRef.current = menu
     setContextMenu(menu)
-  }, [])
+  }, [getAlpha2AtPoint, locale])
 
   const handleMenuSelect = useCallback((action: 'info' | 'debt' | 'comment' | 'pin', alpha2: string, name: string) => {
     closeContextMenu()
@@ -1033,35 +1060,22 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
       {/* 안내 — 좌상단 */}
       <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 16px', lineHeight: 1.35 }}>
-        {pollMode ? (
-          <>
-            <div style={{ fontFamily: "'Bungee', cursive", letterSpacing: '0.04em', fontSize: 15, color: '#f1f5f9' }}>
-              <span style={{ color: '#a78bfa' }}>🗳️ Click a country</span>
-            </div>
-            <div style={{ fontFamily: "'Bungee', cursive", letterSpacing: '0.04em', fontSize: 15, color: '#cbd5e1', marginTop: 3 }}>
-              to cast your vote!
-            </div>
-            <div style={{ fontSize: 10, color: '#334155', marginTop: 6, letterSpacing: '0.03em' }}>
-              drag · scroll to zoom · spin the globe
-            </div>
-          </>
-        ) : (
-          <>
-            <div style={{ fontFamily: "'Bungee', cursive", letterSpacing: '0.04em', fontSize: 15, color: '#f1f5f9' }}>
-              <span style={{ color: '#34d399' }}>❤ Left click</span>
-              <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
-              <span style={{ color: '#cbd5e1' }}>you love this country</span>
-            </div>
-            <div style={{ fontFamily: "'Bungee', cursive", letterSpacing: '0.04em', fontSize: 15, color: '#f1f5f9', marginTop: 3 }}>
-              <span style={{ color: '#a78bfa' }}>🔍 Right click</span>
-              <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
-              <span style={{ color: '#cbd5e1' }}>wanna know more?</span>
-            </div>
-            <div style={{ fontSize: 10, color: '#334155', marginTop: 6, letterSpacing: '0.03em' }}>
-              drag · scroll to zoom · spin the globe
-            </div>
-          </>
-        )}
+        {/* POLL_DISABLED: pollMode 분기 제거, 항상 일반 안내 표시 */}
+        <>
+          <div style={{ fontFamily: "'Bungee', cursive", letterSpacing: '0.04em', fontSize: 15, color: '#f1f5f9' }}>
+            <span style={{ color: '#34d399' }}>❤ Left click</span>
+            <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
+            <span style={{ color: '#cbd5e1' }}>you love this country</span>
+          </div>
+          <div style={{ fontFamily: "'Bungee', cursive", letterSpacing: '0.04em', fontSize: 15, color: '#f1f5f9', marginTop: 3 }}>
+            <span style={{ color: '#a78bfa' }}>🔍 Right click</span>
+            <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
+            <span style={{ color: '#cbd5e1' }}>wanna know more?</span>
+          </div>
+          <div style={{ fontSize: 10, color: '#334155', marginTop: 6, letterSpacing: '0.03em' }}>
+            drag · scroll to zoom · spin the globe
+          </div>
+        </>
       </div>
 
       {/* 댓글 패널 */}
