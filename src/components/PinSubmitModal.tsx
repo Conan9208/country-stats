@@ -23,7 +23,8 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
 
   const [businessName, setBusinessName] = useState('')
   const [description, setDescription] = useState('')
-  const [websiteUrl, setWebsiteUrl] = useState('')
+  const [urlProtocol, setUrlProtocol] = useState<'https' | 'http'>('https')
+  const [urlDomain, setUrlDomain] = useState('')
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [status, setStatus] = useState<'idle' | 'uploading' | 'submitting' | 'done' | 'error'>('idle')
@@ -86,6 +87,10 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
 
     setStatus('submitting')
 
+    // 프로토콜 + 도메인 합치기
+    const domainTrimmed = urlDomain.trim().replace(/^https?:\/\//i, '')
+    const fullUrl = domainTrimmed ? `${urlProtocol}://${domainTrimmed}` : undefined
+
     const res = await fetch('/api/pins', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,7 +99,7 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
         business_name: businessName.trim(),
         description: description.trim() || undefined,
         logo_url: logoUrl,
-        website_url: websiteUrl.trim() || undefined,
+        website_url: fullUrl,
       }),
     })
 
@@ -242,18 +247,33 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
             {/* 웹사이트 URL */}
             <div>
               <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6, fontWeight: 600, letterSpacing: '0.05em' }}>{t('websiteLabel')}</div>
-              <input
-                type="url"
-                value={websiteUrl}
-                onChange={e => setWebsiteUrl(e.target.value)}
-                placeholder="https://yoursite.com"
-                style={{
-                  width: '100%', boxSizing: 'border-box',
-                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 10, color: '#e2e8f0', fontSize: 13,
-                  padding: '10px 12px', outline: 'none', fontFamily: 'inherit',
-                }}
-              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <select
+                  value={urlProtocol}
+                  onChange={e => setUrlProtocol(e.target.value as 'https' | 'http')}
+                  style={{
+                    flexShrink: 0,
+                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 10, color: '#94a3b8', fontSize: 12, fontWeight: 600,
+                    padding: '10px 8px', outline: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  <option value="https">https://</option>
+                  <option value="http">http://</option>
+                </select>
+                <input
+                  type="text"
+                  value={urlDomain}
+                  onChange={e => setUrlDomain(e.target.value.replace(/^https?:\/\//i, ''))}
+                  placeholder="www.yoursite.com"
+                  style={{
+                    flex: 1, boxSizing: 'border-box',
+                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 10, color: '#e2e8f0', fontSize: 13,
+                    padding: '10px 12px', outline: 'none', fontFamily: 'inherit',
+                  }}
+                />
+              </div>
             </div>
 
             {/* 에러 */}

@@ -23,11 +23,14 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
     setReportedIds(prev => new Set(prev).add(id))
   }
 
-  // 화면 가장자리 보정
-  const panelW = 260
-  const panelH = Math.min(pins.length * 90 + 110, 420)
-  const left = Math.min(x + 12, (typeof window !== 'undefined' ? window.innerWidth : 1200) - panelW - 12)
-  const top  = Math.min(y - 10, (typeof window !== 'undefined' ? window.innerHeight : 800) - panelH - 12)
+  // 화면 가장자리 보정 (maxHeight는 뷰포트 높이의 65% 이하)
+  const panelW = 280
+  const winH = typeof window !== 'undefined' ? window.innerHeight : 800
+  const winW = typeof window !== 'undefined' ? window.innerWidth : 1200
+  const maxPanelH = Math.min(Math.floor(winH * 0.65), 520)
+  const panelH = Math.min(pins.length * 94 + 120, maxPanelH)
+  const left = Math.min(x + 12, winW - panelW - 12)
+  const top  = Math.min(y - 10, winH - panelH - 12)
 
   return (
     <div
@@ -36,7 +39,7 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
         zIndex: 2500, ...glass, borderRadius: 14,
         padding: '14px 14px 10px', width: panelW,
         boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
-        pointerEvents: 'all', maxHeight: 420, display: 'flex', flexDirection: 'column',
+        pointerEvents: 'all', maxHeight: maxPanelH, display: 'flex', flexDirection: 'column',
       }}
       onMouseDown={e => e.stopPropagation()}
     >
@@ -52,7 +55,12 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
       </div>
 
       {/* 핀 카드 리스트 */}
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{
+        flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8,
+        paddingRight: 2, // 스크롤바 여백
+        scrollbarWidth: 'thin',
+        scrollbarColor: 'rgba(167,139,250,0.3) transparent',
+      } as React.CSSProperties}>
         {pins.map(pin => (
           <div
             key={pin.id}

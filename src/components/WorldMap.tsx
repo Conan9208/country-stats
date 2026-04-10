@@ -447,9 +447,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     // 지구본 홍보 핀 렌더링 (로고 이미지 기반)
     // 줌 레벨에 따라 핀 크기 동적 조절
     const pinZoomFactor = Math.pow(1.3, scaleRef.current)
-    const pinRadius = Math.max(5, Math.min(16, Math.round(9 * Math.sqrt(pinZoomFactor))))
+    const pinRadius = Math.max(5, Math.min(22, Math.round(9 * Math.sqrt(pinZoomFactor))))
     const pinDiameter = pinRadius * 2
-    const pinSpacing = pinDiameter
+    // 50% 겹침: 이웃 핀 중심간 거리 = pinRadius (직경의 절반)
+    const pinSpacing = pinRadius
 
     const pinsByCountryMap = new Map<string, GlobePin[]>()
     for (const pin of pinsRef.current) {
@@ -851,8 +852,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
       // 나라별 표시 위치 계산 (draw loop와 동일한 pinRadius 계산)
       const hitZoom = Math.pow(1.3, scaleRef.current)
-      const hitRadius = Math.max(5, Math.min(16, Math.round(9 * Math.sqrt(hitZoom))))
-      const hitSpacing = hitRadius * 2
+      const hitRadius = Math.max(5, Math.min(22, Math.round(9 * Math.sqrt(hitZoom))))
+      const hitSpacing = hitRadius // draw loop와 동일한 50% 겹침
       const shown = pins.slice(0, 3)
       const startX = px - (shown.length - 1) * (hitSpacing / 2)
       for (let i = 0; i < shown.length; i++) {
@@ -1001,7 +1002,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     if (!canvas) return
     const handler = (e: WheelEvent) => {
       e.preventDefault()
-      scaleRef.current = Math.max(-3, Math.min(5, scaleRef.current - e.deltaY * 0.003))
+      scaleRef.current = Math.max(-3, Math.min(7, scaleRef.current - e.deltaY * 0.003))
     }
     canvas.addEventListener('wheel', handler, { passive: false })
     return () => canvas.removeEventListener('wheel', handler)
