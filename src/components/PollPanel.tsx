@@ -6,6 +6,7 @@ import type { PollTodayResponse } from '@/types/poll'
 import { glass } from '@/lib/mapConstants'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
+import { Medal, Globe, Check, Clipboard, Share2 } from 'lucide-react'
 
 isoCountries.registerLocale(localeKo as Parameters<typeof isoCountries.registerLocale>[0])
 
@@ -193,7 +194,7 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
             <div style={{ fontSize: 12, fontWeight: 700, color: '#34d399', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {countryName(myVote)}
             </div>
-            <div style={{ fontSize: 10, color: '#475569' }}>내 투표 ✓</div>
+            <div style={{ fontSize: 10, color: '#475569', display: 'flex', alignItems: 'center', gap: 2 }}>내 투표 <Check size={9} /></div>
           </div>
           <button
             onClick={handleCancel}
@@ -216,7 +217,7 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
       ) : (
         !loading && (
           <div style={{ fontSize: 12, color: '#475569', marginBottom: 12, textAlign: 'center', padding: '4px 0' }}>
-            🌐 지구본에서 나라를 클릭해 투표하세요
+            <Globe size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />지구본에서 나라를 클릭해 투표하세요
           </div>
         )
       )}
@@ -248,7 +249,9 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, minWidth: 20 }}>{MEDAL[i]}</span>
+                  <span style={{ minWidth: 20, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {i < 3 ? <Medal size={12} style={{ color: ['#facc15','#94a3b8','#cd7f32'][i] }} /> : <span style={{ fontSize: 11, color: '#64748b' }}>{MEDAL[i]}</span>}
+                  </span>
                   <span style={{ fontSize: 17 }}>{flagEmoji(alpha2)}</span>
                   <span style={{ fontSize: 12, color: '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isMyVote ? 700 : 400 }}>
                     {countryName(alpha2)}
@@ -288,7 +291,9 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
               transition: 'all 0.2s',
             }}
           >
-            {copied ? '✓ 복사됨!' : '📋 결과 공유'}
+            {copied
+              ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Check size={11} /> 복사됨!</span>
+              : <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clipboard size={11} /> 결과 공유</span>}
           </button>
           <button
             onClick={handleTwitterShare}
@@ -304,7 +309,7 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
               cursor: 'pointer',
             }}
           >
-            🐦 X 공유
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Share2 size={11} /> X 공유</span>
           </button>
         </div>
       )}

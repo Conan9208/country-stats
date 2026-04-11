@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { PartyPopper, Check, MessageCircle } from 'lucide-react'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
 import { glass } from '@/lib/mapConstants'
@@ -81,7 +82,7 @@ export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) 
 
           {/* 타이틀 */}
           <div style={{ fontFamily: "'Pacifico', cursive", fontSize: 26, color: '#facc15', marginBottom: 8, letterSpacing: '0.02em' }}>
-            투표 완료! 🎉
+            투표 완료! <PartyPopper size={20} style={{ display: 'inline', verticalAlign: 'middle' }} />
           </div>
 
           <div style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', marginBottom: reason.trim() ? 16 : 24 }}>
@@ -106,7 +107,7 @@ export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) 
           )}
 
           <div style={{ fontSize: 12, color: '#475569', marginBottom: 20 }}>
-            오늘의 투표에 참여했어요 ✓
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>오늘의 투표에 참여했어요 <Check size={11} /></span>
           </div>
 
           <button
@@ -201,7 +202,11 @@ export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) 
               transition: 'all 0.2s',
             }}
           >
-            {submitting ? '저장 중…' : reason.trim() ? '💬 이유 저장하고 완료!' : '🎉 투표 완료!'}
+            {submitting
+              ? '저장 중…'
+              : reason.trim()
+                ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><MessageCircle size={14} /> 이유 저장하고 완료!</span>
+                : <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><PartyPopper size={14} /> 투표 완료!</span>}
           </button>
         </div>
       </div>

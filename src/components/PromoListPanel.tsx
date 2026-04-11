@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Link2, Flag, X } from 'lucide-react'
 import { glass } from '@/lib/mapConstants'
 import type { GlobePin } from '@/types/pin'
 import { useTranslations } from 'next-intl'
@@ -55,7 +56,7 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
             {t('promoCount', { count: pins.length })}
           </span>
         </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '2px 4px' }}>✕</button>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center' }}><X size={14} /></button>
       </div>
 
       {/* 핀 카드 리스트 */}
@@ -128,7 +129,7 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
                       textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
                     }}
                   >
-                    🔗 {t('visitSite')}
+                    <Link2 size={10} /> {t('visitSite')}
                   </a>
                 : <span />
               }
@@ -140,7 +141,7 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
                   color: reportedIds.has(pin.id) ? '#475569' : '#f87171', fontSize: 11, padding: '2px 4px',
                 }}
               >
-                {reportedIds.has(pin.id) ? t('reported') : '🚩'}
+                {reportedIds.has(pin.id) ? t('reported') : <Flag size={11} />}
               </button>
             </div>
           </div>

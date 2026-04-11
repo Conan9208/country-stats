@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { glass } from '@/lib/mapConstants'
 import { useTranslations } from 'next-intl'
+import { X, Building, Globe } from 'lucide-react'
 
 const MAX_BUSINESS_NAME = 60
 const MAX_DESCRIPTION = 100
@@ -143,7 +144,7 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
             <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>{t('title')}</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{countryName}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={16} /></button>
         </div>
 
         {status !== 'done' ? (
@@ -166,7 +167,7 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
                 >
                   {logoPreview
                     ? <img src={logoPreview} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <span style={{ fontSize: 20 }}>🏢</span>
+                    : <Building size={22} style={{ color: '#475569' }} />
                   }
                 </div>
 
@@ -315,7 +316,7 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center', padding: '8px 0' }}>
             {logoPreview
               ? <img src={logoPreview} alt="logo" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }} />
-              : <div style={{ fontSize: 40 }}>🌍</div>
+              : <Globe size={40} style={{ color: '#64748b' }} />
             }
             <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', textAlign: 'center' }}>{t('successTitle')}</div>
             <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>{t('successDesc', { country: countryName })}</div>

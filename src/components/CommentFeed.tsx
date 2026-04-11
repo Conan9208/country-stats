@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Globe } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
@@ -88,7 +89,7 @@ export default function CommentFeed() {
 
         {!loading && comments.length === 0 && (
           <div className="flex flex-col items-center justify-center h-64 gap-3 text-center px-6">
-            <div className="text-4xl">🌍</div>
+            <div className="text-zinc-500"><Globe size={40} /></div>
             <p className="text-zinc-400 text-sm font-medium">{t('noComments')}</p>
             <p className="text-zinc-600 text-xs leading-relaxed whitespace-pre-wrap">
               {t('noCommentsDesc')}

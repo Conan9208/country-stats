@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
+import { Globe } from 'lucide-react'
 /* POLL_DISABLED START */
 // import VoteReasonModal from '@/components/VoteReasonModal'
 // import { supabase } from '@/lib/supabase'
@@ -88,7 +89,7 @@ function HomeContent() {
       {/* 헤더 */}
       <div className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 flex items-center gap-6 h-12">
-          <span className="text-base font-bold tracking-tight whitespace-nowrap">🌍 WorldStats</span>
+          <span className="text-base font-bold tracking-tight whitespace-nowrap flex items-center gap-1.5"><Globe size={16} /> WorldStats</span>
 
           <div className="w-px h-5 bg-zinc-700" />
 

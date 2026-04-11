@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Bug, BarChart2, Trash2, Lightbulb } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: '문의 — WorldStats',
@@ -27,7 +28,7 @@ export default function ContactPage() {
 
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-2">
               <div className="flex items-center gap-3 mb-1">
-                <span className="text-lg">🐛</span>
+                <Bug size={18} className="text-zinc-400 shrink-0" />
                 <h2 className="text-base font-semibold text-white">버그 신고 / 기능 제안</h2>
               </div>
               <p className="text-zinc-400">
@@ -46,7 +47,7 @@ export default function ContactPage() {
 
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-2">
               <div className="flex items-center gap-3 mb-1">
-                <span className="text-lg">📊</span>
+                <BarChart2 size={18} className="text-zinc-400 shrink-0" />
                 <h2 className="text-base font-semibold text-white">데이터 오류 제보</h2>
               </div>
               <p className="text-zinc-400">
@@ -57,7 +58,7 @@ export default function ContactPage() {
 
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-2">
               <div className="flex items-center gap-3 mb-1">
-                <span className="text-lg">🗑️</span>
+                <Trash2 size={18} className="text-zinc-400 shrink-0" />
                 <h2 className="text-base font-semibold text-white">댓글 삭제 요청</h2>
               </div>
               <p className="text-zinc-400">
@@ -70,7 +71,7 @@ export default function ContactPage() {
 
           {/* 응답 시간 안내 */}
           <section className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-4 text-zinc-500 text-xs">
-            💡 WorldStats는 개인이 운영하는 프로젝트입니다. 문의에 대한 응답은 수일이 소요될 수 있습니다.
+            <span className="flex items-start gap-2"><Lightbulb size={13} className="shrink-0 mt-0.5" />WorldStats는 개인이 운영하는 프로젝트입니다. 문의에 대한 응답은 수일이 소요될 수 있습니다.</span>
           </section>
 
         </div>

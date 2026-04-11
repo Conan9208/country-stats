@@ -2,6 +2,7 @@
 /* eslint-disable react-hooks/preserve-manual-memoization */
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { Heart, Search, Link2 } from 'lucide-react'
 import type { Feature, Geometry, GeoJsonProperties } from 'geojson'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
@@ -1118,7 +1119,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           </div>
           {pinHoverTooltip.website && (
             <div style={{ fontSize: 10, color: '#a78bfa', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              🔗 {pinHoverTooltip.website.replace(/^https?:\/\//, '')}
+              <Link2 size={10} style={{ verticalAlign: 'middle', marginRight: 3, flexShrink: 0 }} />{pinHoverTooltip.website.replace(/^https?:\/\//, '')}
             </div>
           )}
           <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>클릭해서 상세보기</div>
@@ -1129,17 +1130,17 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 16px', lineHeight: 1.35 }}>
         {/* POLL_DISABLED: pollMode 분기 제거, 항상 일반 안내 표시 */}
         <>
-          <div style={{ fontFamily: "'Bungee', cursive", letterSpacing: '0.04em', fontSize: 15, color: '#f1f5f9' }}>
-            <span style={{ color: '#34d399' }}>❤ Left click</span>
-            <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
-            <span style={{ color: '#cbd5e1' }}>you love this country</span>
+          <div style={{ fontSize: 15, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: '#34d399', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 4 }}><Heart size={12} /> Left click</span>
+            <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
+            <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>you love this country</span>
           </div>
-          <div style={{ fontFamily: "'Bungee', cursive", letterSpacing: '0.04em', fontSize: 15, color: '#f1f5f9', marginTop: 3 }}>
-            <span style={{ color: '#a78bfa' }}>🔍 Right click</span>
-            <span style={{ color: '#64748b', margin: '0 6px', fontFamily: 'inherit' }}>—</span>
-            <span style={{ color: '#cbd5e1' }}>wanna know more?</span>
+          <div style={{ fontSize: 15, color: '#f1f5f9', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: '#a78bfa', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 4 }}><Search size={12} /> Right click</span>
+            <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
+            <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>wanna know more?</span>
           </div>
-          <div style={{ fontSize: 10, color: '#334155', marginTop: 6, letterSpacing: '0.03em' }}>
+          <div style={{ fontSize: 10, color: '#334155', marginTop: 6, fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", letterSpacing: '0.03em' }}>
             drag · scroll to zoom · spin the globe
           </div>
         </>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, memo } from 'react'
+import { Medal } from 'lucide-react'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
 import localeEn from 'i18n-iso-countries/langs/en.json'
@@ -130,7 +131,9 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
             return (
               <div key={alpha2} style={{ marginBottom: 6, padding: '5px 7px', borderRadius: 8, border: isMyVote ? '1px solid rgba(167,139,250,0.5)' : '1px solid transparent', background: isMyVote ? 'rgba(167,139,250,0.08)' : 'transparent' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
-                  <span style={{ fontSize: 11, minWidth: 20, color: POLL_COLORS[i] }}>{MEDAL[i]}</span>
+                  <span style={{ minWidth: 20, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {i < 3 ? <Medal size={11} style={{ color: POLL_COLORS[i] }} /> : <span style={{ fontSize: 11, color: POLL_COLORS[i] }}>{MEDAL[i]}</span>}
+                  </span>
                   <span style={{ fontSize: 13 }}>{flagEmoji(alpha2)}</span>
                   <span style={{ fontSize: 11, color: '#cbd5e1', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
                   <span style={{ fontSize: 11, color: POLL_COLORS[i], fontWeight: 600, flexShrink: 0 }}>{pct}%</span>

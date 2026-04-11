@@ -21,7 +21,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const newCount = (pin.report_count ?? 0) + 1
     await supabase
       .from('globe_pins')
-      .update({ report_count: newCount, is_approved: newCount < 3 })
+      .update({ report_count: newCount, is_approved: newCount < 20 })
       .eq('id', id)
 
     return Response.json({ reported: true })

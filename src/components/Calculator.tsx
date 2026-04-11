@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { ArrowLeftRight, Scale, Trophy, Building2, Users, Ruler, Globe, MessageSquare, DollarSign, Medal } from 'lucide-react'
 
 type CalcTab = 'exchange' | 'compare' | 'ranking'
 type Rates = Record<string, number>
@@ -17,10 +18,10 @@ type CountryBasic = {
   currencies?: Record<string, { name: string; symbol: string }>
 }
 
-const CALC_TABS = [
-  { id: 'exchange', label: '💱 환율 계산기' },
-  { id: 'compare', label: '⚖️ 국가 비교' },
-  { id: 'ranking', label: '🏆 세계 순위' },
+const CALC_TABS: { id: string; Icon: React.ElementType; label: string }[] = [
+  { id: 'exchange', Icon: ArrowLeftRight, label: '환율 계산기' },
+  { id: 'compare', Icon: Scale, label: '국가 비교' },
+  { id: 'ranking', Icon: Trophy, label: '세계 순위' },
 ]
 
 const POPULAR_CURRENCIES = [
@@ -111,7 +112,10 @@ export default function Calculator() {
                   : 'border-transparent text-zinc-500 hover:text-zinc-300'
               }`}
             >
-              {tab.label}
+              <span className="flex items-center gap-1.5">
+                <tab.Icon size={13} />
+                {tab.label}
+              </span>
             </button>
           ))}
         </div>
@@ -123,7 +127,7 @@ export default function Calculator() {
         {activeTab === 'exchange' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-white">💱 환율 계산기</h2>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2"><ArrowLeftRight size={18} /> 환율 계산기</h2>
               <p className="text-zinc-500 text-sm mt-1">실시간 환율 기준 · open.er-api.com</p>
             </div>
 
@@ -246,7 +250,7 @@ export default function Calculator() {
         {activeTab === 'compare' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-white">⚖️ 국가 비교</h2>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2"><Scale size={18} /> 국가 비교</h2>
               <p className="text-zinc-500 text-sm mt-1">두 나라를 나란히 비교해보세요</p>
             </div>
 
@@ -293,18 +297,19 @@ export default function Calculator() {
                   <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
                     {(
                       [
-                        { label: '🏙️ 수도', type: 'text', v1: c1.capital?.[0] ?? '—', v2: c2.capital?.[0] ?? '—' },
-                        { label: '👥 인구', type: 'bar', v1: c1.population, v2: c2.population, fmt: (n: number) => n >= 1e8 ? (n / 1e8).toFixed(2) + '억명' : n >= 1e4 ? (n / 1e4).toFixed(1) + '만명' : n.toLocaleString() + '명' },
-                        { label: '📐 면적 (km²)', type: 'bar', v1: c1.area ?? 0, v2: c2.area ?? 0, fmt: (n: number) => n.toLocaleString() + ' km²' },
-                        { label: '🌐 지역', type: 'text', v1: c1.region, v2: c2.region },
-                        { label: '🗣️ 언어', type: 'text', v1: Object.values(c1.languages ?? {}).slice(0, 2).join(', ') || '—', v2: Object.values(c2.languages ?? {}).slice(0, 2).join(', ') || '—' },
-                        { label: '💰 통화', type: 'text', v1: Object.entries(c1.currencies ?? {}).map(([code, { symbol }]) => `${code}(${symbol})`).join(', ') || '—', v2: Object.entries(c2.currencies ?? {}).map(([code, { symbol }]) => `${code}(${symbol})`).join(', ') || '—' },
+                        { label: '수도', Icon: Building2, type: 'text', v1: c1.capital?.[0] ?? '—', v2: c2.capital?.[0] ?? '—' },
+                        { label: '인구', Icon: Users, type: 'bar', v1: c1.population, v2: c2.population, fmt: (n: number) => n >= 1e8 ? (n / 1e8).toFixed(2) + '억명' : n >= 1e4 ? (n / 1e4).toFixed(1) + '만명' : n.toLocaleString() + '명' },
+                        { label: '면적 (km²)', Icon: Ruler, type: 'bar', v1: c1.area ?? 0, v2: c2.area ?? 0, fmt: (n: number) => n.toLocaleString() + ' km²' },
+                        { label: '지역', Icon: Globe, type: 'text', v1: c1.region, v2: c2.region },
+                        { label: '언어', Icon: MessageSquare, type: 'text', v1: Object.values(c1.languages ?? {}).slice(0, 2).join(', ') || '—', v2: Object.values(c2.languages ?? {}).slice(0, 2).join(', ') || '—' },
+                        { label: '통화', Icon: DollarSign, type: 'text', v1: Object.entries(c1.currencies ?? {}).map(([code, { symbol }]) => `${code}(${symbol})`).join(', ') || '—', v2: Object.entries(c2.currencies ?? {}).map(([code, { symbol }]) => `${code}(${symbol})`).join(', ') || '—' },
                       ] as Array<{
                         label: string
                         type: 'text' | 'bar'
                         v1: string | number
                         v2: string | number
                         fmt?: (n: number) => string
+                        Icon: React.ElementType
                       }>
                     ).map((row, idx) => (
                       <div
@@ -324,7 +329,7 @@ export default function Calculator() {
                                 </div>
                               </div>
                             </div>
-                            <span className="text-xs text-zinc-600 font-medium whitespace-nowrap text-center px-2">{row.label}</span>
+                            <span className="text-xs text-zinc-600 font-medium whitespace-nowrap text-center px-2 flex flex-col items-center gap-0.5"><row.Icon size={12} />{row.label}</span>
                             <div className="text-left space-y-1.5">
                               <p className="text-sm text-white font-mono">{row.fmt!(row.v2 as number)}</p>
                               <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden w-28">
@@ -338,7 +343,7 @@ export default function Calculator() {
                         ) : (
                           <>
                             <p className="text-sm text-zinc-300 text-right">{String(row.v1)}</p>
-                            <span className="text-xs text-zinc-600 font-medium whitespace-nowrap text-center px-2">{row.label}</span>
+                            <span className="text-xs text-zinc-600 font-medium whitespace-nowrap text-center px-2 flex flex-col items-center gap-0.5"><row.Icon size={12} />{row.label}</span>
                             <p className="text-sm text-zinc-300 text-left">{String(row.v2)}</p>
                           </>
                         )}
@@ -355,7 +360,7 @@ export default function Calculator() {
         {activeTab === 'ranking' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-white">🏆 세계 순위</h2>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2"><Trophy size={18} /> 세계 순위</h2>
               <p className="text-zinc-500 text-sm mt-1">Top 20 · 기준을 바꿔가며 비교해보세요</p>
             </div>
 
@@ -368,7 +373,7 @@ export default function Calculator() {
                     rankBy === key ? 'bg-white text-zinc-950' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
                   }`}
                 >
-                  {key === 'population' ? '👥 인구' : '📐 면적'}
+                  <span className="flex items-center gap-1">{key === 'population' ? <><Users size={13} /> 인구</> : <><Ruler size={13} /> 면적</>}</span>
                 </button>
               ))}
               <div className="w-px bg-zinc-800 mx-1" />
@@ -395,7 +400,8 @@ export default function Calculator() {
                   const value = (country[rankBy] as number) ?? 0
                   const max = ((ranked[0]?.[rankBy] as number) ?? 1)
                   const pct = max > 0 ? (value / max) * 100 : 0
-                  const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null
+                  const medalColor = idx === 0 ? '#facc15' : idx === 1 ? '#94a3b8' : idx === 2 ? '#cd7f32' : null
+                  const medal = medalColor ? <Medal size={14} style={{ color: medalColor }} /> : null
                   const displayValue = rankBy === 'population'
                     ? value >= 1e9
                       ? (value / 1e9).toFixed(2) + 'B'

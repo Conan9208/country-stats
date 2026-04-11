@@ -1,12 +1,45 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Globe, BarChart2, ArrowLeftRight, Scale, Trophy, MessageCircle, Pin, Vote, AlertTriangle } from 'lucide-react'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
 
-export const metadata: Metadata = {
-  title: 'About — WorldStats',
-  description: 'WorldStats는 전 세계 국가의 통계 정보를 한눈에 비교할 수 있는 인터랙티브 플랫폼입니다.',
+type Props = { params: Promise<{ locale: string }> }
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params
+  const t = await getTranslations({ locale, namespace: 'About' })
+  return {
+    title: t('metaTitle'),
+    description: t('metaDesc'),
+  }
 }
 
-export default function AboutPage() {
+export default async function AboutPage({ params }: Props) {
+  const { locale } = await params
+  setRequestLocale(locale)
+  const t = await getTranslations({ locale, namespace: 'About' })
+
+  const features = [
+    { icon: <Globe size={16} className="text-zinc-500 shrink-0 mt-0.5" />, name: t('f1Name'), desc: t('f1Desc') },
+    { icon: <BarChart2 size={16} className="text-zinc-500 shrink-0 mt-0.5" />, name: t('f2Name'), desc: t('f2Desc') },
+    { icon: <ArrowLeftRight size={16} className="text-zinc-500 shrink-0 mt-0.5" />, name: t('f3Name'), desc: t('f3Desc') },
+    { icon: <Scale size={16} className="text-zinc-500 shrink-0 mt-0.5" />, name: t('f4Name'), desc: t('f4Desc') },
+    { icon: <Trophy size={16} className="text-zinc-500 shrink-0 mt-0.5" />, name: t('f5Name'), desc: t('f5Desc') },
+    { icon: <Vote size={16} className="text-zinc-500 shrink-0 mt-0.5" />, name: t('f6Name'), desc: t('f6Desc') },
+    { icon: <MessageCircle size={16} className="text-zinc-500 shrink-0 mt-0.5" />, name: t('f7Name'), desc: t('f7Desc') },
+    { icon: <Pin size={16} className="text-zinc-500 shrink-0 mt-0.5" />, name: t('f8Name'), desc: t('f8Desc') },
+  ]
+
+  const commentRules = [t('commentRule1'), t('commentRule2'), t('commentRule3'), t('commentRule4')]
+  const pinRules = [t('pinRule1'), t('pinRule2'), t('pinRule3'), t('pinRule4'), t('pinRule5')]
+
+  const dataSources = [
+    { name: t('data1Name'), desc: t('data1Desc') },
+    { name: t('data2Name'), desc: t('data2Desc') },
+    { name: t('data3Name'), desc: t('data3Desc') },
+    { name: t('data4Name'), desc: t('data4Desc') },
+  ]
+
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-2xl mx-auto px-6 py-12">
@@ -14,102 +47,118 @@ export default function AboutPage() {
         {/* 헤더 */}
         <div className="mb-10">
           <Link href="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
-            ← WorldStats 홈으로
+            {t('backHome')}
           </Link>
-          <h1 className="text-3xl font-bold text-white mt-6">🌍 About WorldStats</h1>
-          <p className="text-zinc-400 mt-2 text-sm">글로벌 국가 비교 통계 플랫폼</p>
+          <h1 className="text-3xl font-bold text-white mt-6 flex items-center gap-2">
+            <Globe size={28} /> {t('heading')}
+          </h1>
+          <p className="text-zinc-400 mt-2 text-sm">{t('subheading')}</p>
         </div>
 
         <div className="space-y-10 text-zinc-300 leading-relaxed">
 
           {/* 소개 */}
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">WorldStats란?</h2>
-            <p>
-              WorldStats는 전 세계 200개 이상의 국가에 대한 통계 정보를 시각적으로 탐색할 수 있는
-              인터랙티브 플랫폼입니다. 인구, 면적, 경제 지표, 국가 부채 등 다양한 데이터를 직관적인
-              인터페이스로 제공합니다.
-            </p>
+            <h2 className="text-lg font-semibold text-white mb-3">{t('whatIsTitle')}</h2>
+            <p>{t('whatIsBody')}</p>
           </section>
 
           {/* 주요 기능 */}
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">주요 기능</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">{t('featuresTitle')}</h2>
             <ul className="space-y-2 text-sm">
-              <li className="flex gap-3">
-                <span className="text-zinc-500 w-5">🌐</span>
-                <span><strong className="text-zinc-200">인터랙티브 지구본</strong> — 3D 지구본에서 국가를 직접 클릭하고 탐색합니다. 클릭 수는 전 세계 사용자와 실시간으로 공유됩니다.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="text-zinc-500 w-5">📊</span>
-                <span><strong className="text-zinc-200">국가 상세 정보</strong> — 수도, 인구, 면적, 공용어, 통화 등 각국의 기본 정보를 확인할 수 있습니다.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="text-zinc-500 w-5">💸</span>
-                <span><strong className="text-zinc-200">실시간 국가 부채</strong> — World Bank 데이터를 기반으로 국가별 부채 현황을 실시간으로 시각화합니다.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="text-zinc-500 w-5">💱</span>
-                <span><strong className="text-zinc-200">환율 계산기</strong> — 실시간 환율 데이터로 각국 통화 간 환산을 지원합니다.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="text-zinc-500 w-5">⚖️</span>
-                <span><strong className="text-zinc-200">국가 비교</strong> — 두 나라를 나란히 놓고 인구, 면적, 언어 등을 비교합니다.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="text-zinc-500 w-5">🏆</span>
-                <span><strong className="text-zinc-200">세계 순위</strong> — 인구 및 면적 기준 국가 랭킹을 지역별로 필터링해 볼 수 있습니다.</span>
-              </li>
+              {features.map((f) => (
+                <li key={f.name} className="flex gap-3">
+                  {f.icon}
+                  <span><strong className="text-zinc-200">{f.name}</strong> — {f.desc}</span>
+                </li>
+              ))}
             </ul>
+          </section>
+
+          {/* 커뮤니티 가이드라인 */}
+          <section>
+            <h2 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+              <AlertTriangle size={18} className="text-amber-400" />
+              {t('guidelineTitle')}
+            </h2>
+            <p className="text-xs text-zinc-500 mb-4">{t('guidelineSubtext')}</p>
+
+            <div className="space-y-4">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <MessageCircle size={14} className="text-zinc-400" />
+                  <span className="text-sm font-semibold text-zinc-200">{t('commentRulesTitle')}</span>
+                </div>
+                <ul className="space-y-1.5 text-sm text-zinc-400">
+                  {commentRules.map((rule) => (
+                    <li key={rule} className="flex gap-2">
+                      <span className="text-zinc-600 shrink-0">·</span>
+                      {rule}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Pin size={14} className="text-zinc-400" />
+                  <span className="text-sm font-semibold text-zinc-200">{t('pinRulesTitle')}</span>
+                </div>
+                <ul className="space-y-1.5 text-sm text-zinc-400">
+                  {pinRules.map((rule) => (
+                    <li key={rule} className="flex gap-2">
+                      <span className="text-zinc-600 shrink-0">·</span>
+                      {rule}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="bg-amber-950/30 border border-amber-900/40 rounded-xl p-4">
+                <p className="text-sm text-amber-200/80">
+                  {t('sanctionNotice')}
+                  <Link href="/contact" className="underline underline-offset-2 hover:text-amber-100 transition-colors">
+                    {t('sanctionContact')}
+                  </Link>
+                  {t('sanctionNotice2')}
+                </p>
+              </div>
+            </div>
           </section>
 
           {/* 데이터 출처 */}
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">데이터 출처</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">{t('dataTitle')}</h2>
             <ul className="space-y-1 text-sm">
-              <li className="flex gap-2 items-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 flex-shrink-0 mt-0.5" />
-                <span><strong className="text-zinc-200">REST Countries API</strong> — 국가 기본 정보 (restcountries.com)</span>
-              </li>
-              <li className="flex gap-2 items-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 flex-shrink-0 mt-0.5" />
-                <span><strong className="text-zinc-200">World Bank API</strong> — GDP, 부채 비율, 금리 등 경제 지표</span>
-              </li>
-              <li className="flex gap-2 items-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 flex-shrink-0 mt-0.5" />
-                <span><strong className="text-zinc-200">Open Exchange Rates</strong> — 실시간 환율 데이터 (open.er-api.com)</span>
-              </li>
-              <li className="flex gap-2 items-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 flex-shrink-0 mt-0.5" />
-                <span><strong className="text-zinc-200">Natural Earth / World Atlas</strong> — 지도 GeoJSON 데이터</span>
-              </li>
+              {dataSources.map((d) => (
+                <li key={d.name} className="flex gap-2 items-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 flex-shrink-0 mt-0.5" />
+                  <span><strong className="text-zinc-200">{d.name}</strong> — {d.desc}</span>
+                </li>
+              ))}
             </ul>
           </section>
 
           {/* 기술 스택 */}
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">기술 스택</h2>
-            <p className="text-sm">
-              Next.js (App Router) · TypeScript · Tailwind CSS · Supabase · D3.js · Vercel
-            </p>
+            <h2 className="text-lg font-semibold text-white mb-3">{t('techTitle')}</h2>
+            <p className="text-sm">{t('techList')}</p>
           </section>
 
           {/* 만든 사람 */}
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">만든 사람</h2>
-            <p className="text-sm">
-              WorldStats는 국가 데이터에 대한 관심에서 출발한 개인 프로젝트입니다.
-              더 많은 기능이 꾸준히 추가되고 있습니다.
-            </p>
+            <h2 className="text-lg font-semibold text-white mb-3">{t('authorTitle')}</h2>
+            <p className="text-sm">{t('authorBody')}</p>
           </section>
 
         </div>
 
         {/* 푸터 링크 */}
         <div className="mt-16 pt-8 border-t border-zinc-800 flex gap-6 text-sm text-zinc-600">
-          <Link href="/" className="hover:text-zinc-400 transition-colors">홈</Link>
-          <Link href="/privacy" className="hover:text-zinc-400 transition-colors">개인정보처리방침</Link>
-          <Link href="/contact" className="hover:text-zinc-400 transition-colors">문의</Link>
+          <Link href="/" className="hover:text-zinc-400 transition-colors">{t('footerHome')}</Link>
+          <Link href="/privacy" className="hover:text-zinc-400 transition-colors">{t('footerPrivacy')}</Link>
+          <Link href="/contact" className="hover:text-zinc-400 transition-colors">{t('footerContact')}</Link>
         </div>
       </div>
     </div>

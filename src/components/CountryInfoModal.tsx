@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslations, useLocale } from 'next-intl'
 import { glass } from '@/lib/mapConstants'
+import { Building2, Users, Ruler, Globe, MessageSquare, DollarSign, Clock, Phone, Car, X } from 'lucide-react'
 
 type CountryInfo = {
   name: { common: string; official: string }
@@ -60,17 +62,17 @@ export default function CountryInfoModal({ code, name, onClose }: Props) {
     ? (info.idd?.root ?? '') + (info.idd?.suffixes?.[0] ?? '')
     : ''
 
-  const rows = info ? [
-    { icon: '🏙️', label: t('capital'),     value: info.capital?.join(', ') ?? t('none') },
-    { icon: '👥', label: t('population'),  value: fmtPop(info.population) },
-    { icon: '📐', label: t('area'),        value: fmtArea(info.area) },
-    { icon: '🌍', label: t('region'),      value: [info.region, info.subregion].filter(Boolean).join(' / ') },
-    { icon: '🗣️', label: t('language'),   value: Object.values(info.languages ?? {}).join(', ') || t('noInfo') },
-    { icon: '💰', label: t('currency'),    value: Object.entries(info.currencies ?? {}).map(([c, v]) => `${v.name} (${c} / ${v.symbol})`).join(', ') || t('noInfo') },
-    { icon: '🕐', label: t('timezone'),    value: info.timezones?.[0] ?? t('noInfo') },
-    { icon: '📞', label: t('phoneCode'),   value: phoneCode || t('noInfo') },
-    { icon: '🌐', label: t('domain'),      value: info.tld?.join(', ') ?? t('noInfo') },
-    { icon: '🚗', label: t('drivingSide'), value: info.car?.side === 'left' ? t('leftSide') : t('rightSide') },
+  const rows: { icon: ReactNode; label: string; value: string }[] = info ? [
+    { icon: <Building2 size={14} />, label: t('capital'),     value: info.capital?.join(', ') ?? t('none') },
+    { icon: <Users size={14} />,     label: t('population'),  value: fmtPop(info.population) },
+    { icon: <Ruler size={14} />,     label: t('area'),        value: fmtArea(info.area) },
+    { icon: <Globe size={14} />,     label: t('region'),      value: [info.region, info.subregion].filter(Boolean).join(' / ') },
+    { icon: <MessageSquare size={14} />, label: t('language'), value: Object.values(info.languages ?? {}).join(', ') || t('noInfo') },
+    { icon: <DollarSign size={14} />, label: t('currency'),   value: Object.entries(info.currencies ?? {}).map(([c, v]) => `${v.name} (${c} / ${v.symbol})`).join(', ') || t('noInfo') },
+    { icon: <Clock size={14} />,     label: t('timezone'),    value: info.timezones?.[0] ?? t('noInfo') },
+    { icon: <Phone size={14} />,     label: t('phoneCode'),   value: phoneCode || t('noInfo') },
+    { icon: <Globe size={14} />,     label: t('domain'),      value: info.tld?.join(', ') ?? t('noInfo') },
+    { icon: <Car size={14} />,       label: t('drivingSide'), value: info.car?.side === 'left' ? t('leftSide') : t('rightSide') },
   ] : []
 
   return (
@@ -95,7 +97,7 @@ export default function CountryInfoModal({ code, name, onClose }: Props) {
               )}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#64748b', width: 30, height: 30, borderRadius: 8, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#64748b', width: 30, height: 30, borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
         </div>
 
         <div style={{ padding: '20px 24px' }}>
@@ -106,7 +108,7 @@ export default function CountryInfoModal({ code, name, onClose }: Props) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {rows.map(row => (
                 <div key={row.label} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '9px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.02)' }}>
-                  <span style={{ fontSize: 15, flexShrink: 0, width: 22, textAlign: 'center' }}>{row.icon}</span>
+                  <span style={{ flexShrink: 0, width: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', paddingTop: 1 }}>{row.icon}</span>
                   <span style={{ fontSize: 11, color: '#475569', fontWeight: 700, width: 60, flexShrink: 0, paddingTop: 1 }}>{row.label}</span>
                   <span style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.4 }}>{row.value}</span>
                 </div>

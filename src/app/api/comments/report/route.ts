@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { createHash } from 'crypto'
 
-const REPORT_THRESHOLD = 3  // 이 수 이상이면 자동 숨김
+const REPORT_THRESHOLD = 20  // 이 수 이상이면 자동 숨김 (관리자 검토 우선, 극단적 남용만 안전망)
 
 function hashIp(ip: string): string {
   return createHash('sha256').update(ip + (process.env.IP_SALT ?? 'salt')).digest('hex').slice(0, 16)

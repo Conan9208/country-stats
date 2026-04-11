@@ -1,4 +1,5 @@
 import { TIERS } from '@/lib/mapConstants'
+import { Medal } from 'lucide-react'
 import { formatCount } from '@/lib/mapUtils'
 
 export type RankEntry = { alpha2: string; name: string; count: number }
@@ -30,8 +31,10 @@ export default function RankList({ title, entries, emptyMsg, live, onSelect }: {
             const tier = TIERS.find(t => e.count >= t.min && e.count <= t.max)
             return (
               <li key={e.alpha2} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 20, textAlign: 'center', fontSize: i < 3 ? 13 : 11, color: '#475569', flexShrink: 0 }}>
-                  {i < 3 ? ['🥇','🥈','🥉'][i] : i + 1}
+                <span style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {i < 3
+                    ? <Medal size={13} style={{ color: ['#facc15','#94a3b8','#cd7f32'][i] }} />
+                    : <span style={{ fontSize: 11, color: '#475569' }}>{i + 1}</span>}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>

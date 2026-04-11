@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { BarChart2 } from 'lucide-react'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
 
@@ -120,7 +121,7 @@ export default function StatsPage() {
         }}>
           <div className="mb-6 text-center">
             <Link href="/" className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">← WorldStats</Link>
-            <h1 className="text-lg font-bold mt-3">📊 방문자 통계</h1>
+            <h1 className="text-lg font-bold mt-3 flex items-center justify-center gap-1.5"><BarChart2 size={16} /> 방문자 통계</h1>
             <p className="text-xs text-zinc-500 mt-1">관리자 로그인이 필요합니다</p>
           </div>
 
@@ -165,7 +166,7 @@ export default function StatsPage() {
       <div className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur shrink-0">
         <div className="max-w-2xl mx-auto px-6 flex items-center h-12 gap-4">
           <Link href="/" className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">← WorldStats</Link>
-          <span className="text-sm font-bold">📊 방문자 출신 국가 통계</span>
+          <span className="text-sm font-bold flex items-center gap-1.5"><BarChart2 size={14} /> 방문자 출신 국가 통계</span>
           {!IS_PUBLIC && (
             <button
               onClick={async () => { await supabase.auth.signOut(); setAuthed(false); setToken(null); setStats(null) }}

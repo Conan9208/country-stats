@@ -2,6 +2,7 @@
 
 
 import { forwardRef, useImperativeHandle, useState } from 'react'
+import { Sparkles, Landmark, Globe, Ban } from 'lucide-react'
 import type { TooltipState } from '@/types/map'
 import { getLocalTime } from '@/lib/timezoneData'
 import { formatCount, getTier } from '@/lib/mapUtils'
@@ -139,16 +140,16 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((props, ref) => {
                   lineHeight: 1.55,
                   textAlign: 'left',
                 }}>
-                  ✨ {landingFacts.funFact}
+                  <Sparkles size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4, flexShrink: 0 }} />{landingFacts.funFact}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
                   {landingFacts.capital && (
-                    <span style={{ fontSize: 12, color: '#94a3b8' }}>🏛️ <strong style={{ color: '#cbd5e1' }}>{landingFacts.capital}</strong></span>
+                    <span style={{ fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 3 }}><Landmark size={11} /> <strong style={{ color: '#cbd5e1' }}>{landingFacts.capital}</strong></span>
                   )}
                   <span style={{ fontSize: 12, color: '#94a3b8' }}>{t('popRank', { rank: landingFacts.popRank })}</span>
                   <span style={{ fontSize: 12, color: '#94a3b8' }}>{t('areaRank', { rank: landingFacts.areaRank })}</span>
                 </div>
-                <div style={{ fontSize: 11, color: '#475569' }}>🌍 {landingFacts.region}</div>
+                <div style={{ fontSize: 11, color: '#475569', display: 'flex', alignItems: 'center', gap: 3 }}><Globe size={10} /> {landingFacts.region}</div>
               </div>
             ) : (
               <div style={{ fontSize: 12, color: '#475569' }}>{t('loadingFacts')}</div>
@@ -164,7 +165,7 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((props, ref) => {
           className={n.isRateLimit ? 'float-num float-num--rate-limit' : 'float-num'}
           style={{ left: n.x - 16, top: n.y - 24 }}
         >
-          {n.isRateLimit ? '🚫' : `+${n.value.toLocaleString()}`}
+          {n.isRateLimit ? <Ban size={14} /> : `+${n.value.toLocaleString()}`}
         </div>
       ))}
 

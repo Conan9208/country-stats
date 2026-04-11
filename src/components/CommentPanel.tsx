@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { glass } from '@/lib/mapConstants'
 import { useTranslations } from 'next-intl'
+import { X } from 'lucide-react'
 
 type Comment = {
   id: number
@@ -125,9 +126,9 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
           </div>
           <button onClick={onClose} style={{
             background: 'rgba(255,255,255,0.06)', border: 'none', color: '#64748b',
-            width: 28, height: 28, borderRadius: 8, cursor: 'pointer', fontSize: 16,
+            width: 28, height: 28, borderRadius: 8, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>✕</button>
+          }}><X size={14} /></button>
         </div>
       </div>
 
