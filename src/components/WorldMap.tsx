@@ -295,8 +295,11 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         ctx.lineWidth = 1.5
         ctx.stroke()
       } else if (isHovered) {
-        ctx.fillStyle = isPoll ? 'rgba(167,139,250,0.45)' : 'rgba(255,255,255,0.35)'
+        ctx.fillStyle = isPoll ? 'rgba(167,139,250,0.45)' : 'rgba(255,255,255,0.30)'
         ctx.fill()
+        ctx.strokeStyle = isPoll ? 'rgba(167,139,250,0.85)' : 'rgba(255,255,255,0.75)'
+        ctx.lineWidth = 1.2
+        ctx.stroke()
       } else if (isPoll && pData && alpha2 && pData[alpha2]) {
         const maxVotes = Math.max(...Object.values(pData))
         ctx.fillStyle = pollVoteColor(pData[alpha2], maxVotes)
@@ -314,8 +317,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     // 국경선
     ctx.beginPath()
     path(bordersMesh)
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)'
-    ctx.lineWidth = 0.4
+    ctx.strokeStyle = 'rgba(180,210,255,0.38)'
+    ctx.lineWidth = 0.65
     ctx.stroke()
 
     // 구 테두리
