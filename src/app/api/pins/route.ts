@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { createHash } from 'crypto'
 import { lookup as dnsLookup } from 'dns/promises'
 
@@ -8,7 +9,7 @@ export const runtime = 'nodejs'
 const MAX_BUSINESS_NAME = 60
 const MAX_DESCRIPTION = 100
 const RATE_WINDOW_MS = 24 * 60 * 60 * 1000
-const MAX_PINS_PER_DAY = 100 // TODO: 테스트 후 3으로 복구
+const MAX_PINS_PER_DAY = 3
 const DISABLE_RATE_LIMIT = process.env.DISABLE_PIN_RATE_LIMIT === 'true'
 
 function hashIp(ip: string): string {
@@ -206,7 +207,7 @@ export async function POST(req: NextRequest) {
   // website_url 전역 중복 방지 (만료되지 않은 핀 기준, 정규화된 값으로 비교)
   if (normalizedWebsiteUrl) {
     const nowStr = new Date().toISOString()
-    const { count: urlCount } = await supabase
+    const { count: urlCount } = await supabaseAdmin
       .from('globe_pins')
       .select('id', { count: 'exact', head: true })
       .eq('website_url', normalizedWebsiteUrl)
@@ -220,7 +221,7 @@ export async function POST(req: NextRequest) {
   // 하루 MAX_PINS_PER_DAY개 제한
   if (!DISABLE_RATE_LIMIT) {
     const since = new Date(Date.now() - RATE_WINDOW_MS).toISOString()
-    const { count } = await supabase
+    const { count } = await supabaseAdmin
       .from('globe_pins')
       .select('id', { count: 'exact', head: true })
       .eq('ip_hash', ipHash)
@@ -233,7 +234,7 @@ export async function POST(req: NextRequest) {
 
   const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('globe_pins')
     .insert({
       country_alpha2,

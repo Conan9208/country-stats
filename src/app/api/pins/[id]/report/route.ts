@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdminAdmin } from '@/lib/supabaseAdmin-admin'
 import { createHash } from 'crypto'
 
 // 중복 신고 방지: "pinId:ipHash" → 신고 시각 (24h TTL)
@@ -38,11 +38,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // report_count 증가 후 3 이상이면 숨김
-  const { data, error } = await supabase.rpc('increment_pin_report', { pin_id: id })
+  const { data, error } = await supabaseAdmin.rpc('increment_pin_report', { pin_id: id })
 
   if (error) {
     // rpc 없을 경우 fallback: 직접 업데이트
-    const { data: pin } = await supabase
+    const { data: pin } = await supabaseAdmin
       .from('globe_pins')
       .select('report_count')
       .eq('id', id)
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!pin) return Response.json({ error: 'pin not found' }, { status: 404 })
 
     const newCount = (pin.report_count ?? 0) + 1
-    await supabase
+    await supabaseAdmin
       .from('globe_pins')
       .update({ report_count: newCount, is_approved: newCount < 20 })
       .eq('id', id)
