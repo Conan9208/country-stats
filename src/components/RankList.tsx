@@ -26,7 +26,7 @@ export default function RankList({ title, entries, emptyMsg, live, onSelect }: {
       {entries.length === 0 ? (
         <p style={{ color: '#334155', fontSize: 12, margin: 0 }}>{emptyMsg}</p>
       ) : (
-        <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto', paddingRight: 14, marginRight: -4, scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,0.3) transparent' }}>
+        <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto', paddingRight: 14, marginRight: -4, scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,0.3) transparent', overscrollBehavior: 'contain' }}>
           {entries.map((e, i) => {
             const tier = TIERS.find(t => e.count >= t.min && e.count <= t.max)
             return (

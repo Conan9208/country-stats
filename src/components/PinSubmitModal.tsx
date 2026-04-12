@@ -1,10 +1,11 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import { glass } from '@/lib/mapConstants'
 import { useTranslations } from 'next-intl'
 import { X, Building, Globe } from 'lucide-react'
+import type { GlobePin } from '@/types/pin'
 
 const MAX_BUSINESS_NAME = 60
 const MAX_DESCRIPTION = 100
@@ -15,7 +16,7 @@ type Props = {
   countryName: string
   countryAlpha2: string
   onClose: () => void
-  onSuccess: (shareText: string) => void
+  onSuccess: (shareText: string, pin: GlobePin) => void
 }
 
 export default function PinSubmitModal({ countryName, countryAlpha2, onClose, onSuccess }: Props) {
@@ -56,18 +57,16 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
   }
 
   async function uploadLogo(file: File): Promise<string | null> {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    if (!supabaseUrl || !supabaseAnonKey) return null
-
-    const client = createClient(supabaseUrl, supabaseAnonKey)
     const ext = file.name.split('.').pop() ?? 'png'
     const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
-    const { error } = await client.storage.from('logos').upload(path, file, { upsert: false })
-    if (error) return null
+    const { error } = await supabase.storage.from('logos').upload(path, file, { upsert: false })
+    if (error) {
+      console.error('[PinSubmitModal] Supabase storage upload error:', error.message, error)
+      return null
+    }
 
-    const { data } = client.storage.from('logos').getPublicUrl(path)
+    const { data } = supabase.storage.from('logos').getPublicUrl(path)
     return data.publicUrl
   }
 
@@ -89,8 +88,13 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
     setStatus('submitting')
 
     // 프로토콜 + 도메인 합치기
-    const domainTrimmed = urlDomain.trim().replace(/^https?:\/\//i, '')
-    const fullUrl = domainTrimmed ? `${urlProtocol}://${domainTrimmed}` : undefined
+    // 사용자가 URL 전체를 붙여넣은 경우 콤보박스 무시하고 그대로 사용
+    const urlTrimmed = urlDomain.trim()
+    const fullUrl = urlTrimmed
+      ? /^https?:\/\//i.test(urlTrimmed)
+        ? urlTrimmed
+        : `${urlProtocol}://${urlTrimmed}`
+      : undefined
 
     const res = await fetch('/api/pins', {
       method: 'POST',
@@ -120,8 +124,9 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
       return
     }
 
+    const newPin: GlobePin = await res.json()
     setStatus('done')
-    onSuccess(t('shareText', { country: countryName }))
+    onSuccess(t('shareText', { country: countryName }), newPin)
   }
 
   const isLoading = status === 'uploading' || status === 'submitting'
@@ -184,16 +189,23 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
                       {t('logoUploadBtn')}
                     </button>
                   ) : (
-                    <button
-                      onClick={removeLogo}
-                      style={{
-                        background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)',
-                        borderRadius: 8, color: '#f87171', fontSize: 12, padding: '7px 12px',
-                        cursor: 'pointer', textAlign: 'left',
-                      }}
-                    >
-                      {t('logoRemoveBtn')}
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ fontSize: 12, color: '#4ade80', fontWeight: 600 }}>✓ {t('logoUploadedMsg')}</span>
+                      <button
+                        onClick={removeLogo}
+                        title={t('logoRemoveBtn')}
+                        style={{
+                          background: 'rgba(248,113,113,0.15)',
+                          border: '1px solid rgba(248,113,113,0.3)',
+                          borderRadius: '50%', color: '#f87171',
+                          width: 24, height: 24, flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'pointer', padding: 0,
+                        }}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
                   )}
                   <span style={{ fontSize: 10, color: '#334155' }}>{t('logoHint')}</span>
                 </div>
@@ -256,11 +268,17 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
                 <select
                   value={urlProtocol}
                   onChange={e => setUrlProtocol(e.target.value as 'https' | 'http')}
+                  disabled={/^https?:\/\//i.test(urlDomain)}
                   style={{
                     flexShrink: 0,
                     background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: 10, color: '#94a3b8', fontSize: 12, fontWeight: 600,
-                    padding: '10px 8px', outline: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                    borderRadius: 10, color: /^https?:\/\//i.test(urlDomain) ? '#334155' : '#94a3b8',
+                    fontSize: 12, fontWeight: 600,
+                    padding: '10px 8px', outline: 'none',
+                    cursor: /^https?:\/\//i.test(urlDomain) ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                    opacity: /^https?:\/\//i.test(urlDomain) ? 0.4 : 1,
+                    transition: 'opacity 0.2s',
                   }}
                 >
                   <option value="https">https://</option>
@@ -269,7 +287,7 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
                 <input
                   type="text"
                   value={urlDomain}
-                  onChange={e => setUrlDomain(e.target.value.replace(/^https?:\/\//i, ''))}
+                  onChange={e => setUrlDomain(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && canSubmit) handleSubmit() }}
                   placeholder="www.yoursite.com"
                   style={{

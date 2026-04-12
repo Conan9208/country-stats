@@ -179,7 +179,7 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
               transition: 'all 0.15s',
             }}
           >
-            {submitting ? '...' : '등록 ↵'}
+            {submitting ? t('submitting') : t('submit')}
           </button>
         </div>
         {notice && (

@@ -1,7 +1,7 @@
 import * as topojson from 'topojson-client'
 import type { Topology } from 'topojson-specification'
 import type { Feature, FeatureCollection, Geometry, GeoJsonProperties } from 'geojson'
-import { geoGraticule, geoCentroid } from 'd3-geo'
+import { geoGraticule, geoCentroid, geoBounds } from 'd3-geo'
 import isoCountries from 'i18n-iso-countries'
 import type { CountryProps } from '@/types/map'
 
@@ -42,6 +42,18 @@ for (const f of worldGeo.features) {
   const numericId = String((f as Feature & { id?: string | number }).id ?? '')
   const a2 = alpha2Map.get(numericId)
   if (a2) centroidByAlpha2.set(a2, geoCentroid(f) as [number, number])
+}
+
+// alpha2 → geographic bounding box (핀 그리드 레이아웃용)
+export type GeoBBox = { west: number; south: number; east: number; north: number }
+export const geoBBoxByAlpha2 = new Map<string, GeoBBox>()
+for (const f of worldGeo.features) {
+  const numericId = String((f as Feature & { id?: string | number }).id ?? '')
+  const a2 = alpha2Map.get(numericId)
+  if (a2) {
+    const [[west, south], [east, north]] = geoBounds(f)
+    geoBBoxByAlpha2.set(a2, { west, south, east, north })
+  }
 }
 
 export function flagEmoji(alpha2: string): string {

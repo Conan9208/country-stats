@@ -8,7 +8,7 @@ export const runtime = 'nodejs'
 const MAX_BUSINESS_NAME = 60
 const MAX_DESCRIPTION = 100
 const RATE_WINDOW_MS = 24 * 60 * 60 * 1000
-const MAX_PINS_PER_DAY = 3
+const MAX_PINS_PER_DAY = 100 // TODO: 테스트 후 3으로 복구
 const DISABLE_RATE_LIMIT = process.env.DISABLE_PIN_RATE_LIMIT === 'true'
 
 function hashIp(ip: string): string {

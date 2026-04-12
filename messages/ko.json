@@ -106,6 +106,7 @@
     "logoLabel": "로고 이미지 (선택)",
     "logoUploadBtn": "이미지 선택 (JPG·PNG·WebP·GIF)",
     "logoRemoveBtn": "이미지 제거",
+    "logoUploadedMsg": "이미지 선택됨",
     "logoHint": "최대 2MB · 정사각형 이미지 권장",
     "businessNameLabel": "사업명 / 이름",
     "businessNamePlaceholder": "예: 김철수 카페, My Studio...",

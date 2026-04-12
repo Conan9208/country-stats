@@ -106,6 +106,7 @@
     "logoLabel": "Logo Image (optional)",
     "logoUploadBtn": "Choose image (JPG · PNG · WebP · GIF)",
     "logoRemoveBtn": "Remove image",
+    "logoUploadedMsg": "Image selected",
     "logoHint": "Max 2MB · Square image recommended",
     "businessNameLabel": "Business / Name",
     "businessNamePlaceholder": "e.g. My Café, My Studio...",

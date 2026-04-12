@@ -18,11 +18,9 @@ import type { ClickData, ClickEntry } from '@/types/map'
 import { TIERS, glass } from '@/lib/mapConstants'
 import { countryColor, pollVoteColor, topN, topNToday } from '@/lib/mapUtils'
 import { supabase } from '@/lib/supabase'
-import { worldGeo, landGeo, bordersMesh, graticuleData, alpha2Map, featureByAlpha2, centroidByAlpha2 } from '@/lib/geoData'
+import { worldGeo, landGeo, bordersMesh, graticuleData, alpha2Map, featureByAlpha2, centroidByAlpha2, geoBBoxByAlpha2 } from '@/lib/geoData'
 import { useRealtimeViewers } from '@/hooks/useRealtimeViewers'
 import { useSpinRoulette } from '@/hooks/useSpinRoulette'
-import Link from 'next/link'
-import AdminPanel from '@/components/AdminPanel'
 import PinSubmitModal from '@/components/PinSubmitModal'
 import PromoListPanel from '@/components/PromoListPanel'
 import type { GlobePin } from '@/types/pin'
@@ -168,6 +166,20 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     const handler = () => { if (contextMenuRef.current) closeContextMenu() }
     window.addEventListener('mousedown', handler)
     return () => window.removeEventListener('mousedown', handler)
+  }, [closeContextMenu])
+
+  // Esc 키로 팝업/모달 닫기
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (contextMenuRef.current) { closeContextMenu(); return }
+      setActivePinPopup(prev => { if (prev) return null; return prev })
+      setPinSubmitCountry(prev => { if (prev) return null; return prev })
+      setInfoCountry(prev => { if (prev) return null; return prev })
+      setCommentCountry(prev => { if (prev) return null; return prev })
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
   }, [closeContextMenu])
 
   // Supabase Realtime 구독 — 다른 사람이 클릭하면 내 화면도 업데이트
@@ -468,9 +480,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     }
 
     // 지구본 홍보 핀 렌더링 (로고 이미지 기반)
-    // 줌 레벨에 따라 핀 크기 동적 조절
+    // 줌 레벨에 따라 핀 크기 동적 조절 (나라 확대 비율과 동일하게 선형 스케일)
     const pinZoomFactor = Math.pow(1.3, scaleRef.current)
-    const pinRadius = Math.max(7, Math.min(32, Math.round(13 * Math.sqrt(pinZoomFactor))))
+    const pinRadius = Math.max(7, Math.min(60, Math.round(13 * pinZoomFactor)))
     const pinDiameter = pinRadius * 2
     // 50% 겹침: 이웃 핀 중심간 거리 = pinRadius (직경의 절반)
     const pinSpacing = pinRadius
@@ -507,12 +519,52 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       ctx.fillStyle = pinGlow
       ctx.fill()
 
-      // 최대 3개 원형 아이콘 가로 배치
-      const shown = pins.slice(0, 3)
-      const startX = px - (shown.length - 1) * (pinSpacing / 2)
+      // 나라 면적 기반 그리드 레이아웃 계산
+      const canvas = canvasRef.current!
+      const size = Math.min(canvas.width, canvas.height)
+      const projScale = size * 1.6 * Math.pow(1.3, scaleRef.current)
+      const DEG_TO_PX = projScale * Math.PI / 180
+
+      const bbox = geoBBoxByAlpha2.get(alpha2)
+      let cols = 1, rows = 1
+      if (bbox) {
+        const { west, south, east, north } = bbox
+        const midLat = (south + north) / 2
+        const lngSpan = east >= west ? east - west : east + 360 - west
+        const screenW = lngSpan * DEG_TO_PX * Math.cos(midLat * Math.PI / 180)
+        const screenH = (north - south) * DEG_TO_PX
+        cols = Math.max(1, Math.floor(screenW / pinSpacing))
+        rows = Math.max(1, Math.floor(screenH / pinSpacing))
+      }
+
+      const isSmallCountry = cols === 1 && rows === 1
+      const maxPins = cols * rows
+
+      // 표시 수 및 overflow 결정
+      let shownCount: number, overflow: number
+      if (isSmallCountry) {
+        shownCount = Math.min(pins.length, 3)
+        overflow = pins.length > 3 ? pins.length - 3 : 0
+      } else if (pins.length <= maxPins) {
+        shownCount = pins.length; overflow = 0
+      } else {
+        shownCount = maxPins - 1  // 마지막 칸을 +N 뱃지로
+        overflow = pins.length - shownCount
+      }
+
+      // 그리드 시작 좌표 계산 (centroid 기준 중앙 정렬)
+      const actualCols = isSmallCountry ? Math.max(1, shownCount) : Math.min(cols, Math.max(1, shownCount))
+      const usedRows = Math.ceil(shownCount / actualCols)
+      const gridStartX = px - ((actualCols - 1) * pinSpacing) / 2
+      const gridStartY = py - ((usedRows - 1) * pinSpacing) / 2
+
+      const shown = pins.slice(0, shownCount)
       for (let i = 0; i < shown.length; i++) {
         const pin = shown[i]
-        const ix = startX + i * pinSpacing
+        const col = i % actualCols
+        const row = Math.floor(i / actualCols)
+        const ix = gridStartX + col * pinSpacing
+        const iy = gridStartY + row * pinSpacing
 
         if (pin.logo_url && !pinImgFailedRef.current.has(pin.logo_url)) {
           let img = pinImgCacheRef.current.get(pin.logo_url)
@@ -529,34 +581,34 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           if (img.complete && img.naturalWidth > 0) {
             ctx.save()
             ctx.beginPath()
-            ctx.arc(ix, py, pinRadius, 0, Math.PI * 2)
+            ctx.arc(ix, iy, pinRadius, 0, Math.PI * 2)
             ctx.clip()
-            ctx.drawImage(img, ix - pinRadius, py - pinRadius, pinDiameter, pinDiameter)
+            ctx.drawImage(img, ix - pinRadius, iy - pinRadius, pinDiameter, pinDiameter)
             ctx.restore()
             ctx.beginPath()
-            ctx.arc(ix, py, pinRadius, 0, Math.PI * 2)
+            ctx.arc(ix, iy, pinRadius, 0, Math.PI * 2)
             ctx.strokeStyle = 'rgba(255,255,255,0.75)'
             ctx.lineWidth = 1.5
             ctx.stroke()
           } else {
             // 로딩 중 fallback
             ctx.beginPath()
-            ctx.arc(ix, py, pinRadius, 0, Math.PI * 2)
+            ctx.arc(ix, iy, pinRadius, 0, Math.PI * 2)
             ctx.fillStyle = 'rgba(167,139,250,0.5)'
             ctx.fill()
             ctx.font = `${Math.round(pinRadius * 1.1)}px serif`
             ctx.textAlign = 'center'
             ctx.textBaseline = 'middle'
-            ctx.fillText('📌', ix, py)
+            ctx.fillText('📌', ix, iy)
           }
         } else {
           // 로고 없음: 이니셜 원형
           ctx.beginPath()
-          ctx.arc(ix, py, pinRadius, 0, Math.PI * 2)
+          ctx.arc(ix, iy, pinRadius, 0, Math.PI * 2)
           ctx.fillStyle = 'rgba(167,139,250,0.8)'
           ctx.fill()
           ctx.beginPath()
-          ctx.arc(ix, py, pinRadius, 0, Math.PI * 2)
+          ctx.arc(ix, iy, pinRadius, 0, Math.PI * 2)
           ctx.strokeStyle = 'rgba(255,255,255,0.5)'
           ctx.lineWidth = 1.5
           ctx.stroke()
@@ -564,16 +616,19 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
           ctx.fillStyle = '#fff'
-          ctx.fillText((pin.business_name.charAt(0) || '?').toUpperCase(), ix, py)
+          ctx.fillText((pin.business_name.charAt(0) || '?').toUpperCase(), ix, iy)
         }
         ctx.textAlign = 'left'
         ctx.textBaseline = 'alphabetic'
       }
 
-      // 4개 이상이면 "+N" 뱃지
-      if (pins.length > 3) {
-        const bx = startX + (shown.length - 1) * pinSpacing + pinRadius + 5
-        const by2 = py - pinRadius * 0.7
+      // overflow 있으면 "+N" 뱃지 (마지막 핀 오른쪽 상단)
+      if (overflow > 0) {
+        const lastIdx = shownCount - 1
+        const lastCol = isSmallCountry ? shownCount - 1 : lastIdx % actualCols
+        const lastRow = isSmallCountry ? 0 : Math.floor(lastIdx / actualCols)
+        const bx = gridStartX + lastCol * pinSpacing + pinRadius + 5
+        const by2 = gridStartY + lastRow * pinSpacing - pinRadius * 0.7
         const badgeR = Math.max(5, Math.round(pinRadius * 0.75))
         ctx.beginPath()
         ctx.arc(bx, by2, badgeR, 0, Math.PI * 2)
@@ -583,7 +638,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillStyle = '#1a1a1a'
-        ctx.fillText(`+${pins.length - 3}`, bx, by2)
+        ctx.fillText(`+${overflow}`, bx, by2)
         ctx.textAlign = 'left'
         ctx.textBaseline = 'alphabetic'
       }
@@ -768,15 +823,50 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       const [px, py] = projected
       if (!isFinite(px) || !isFinite(py)) continue
 
-      // draw loop와 동일한 pinRadius 계산 — 반드시 동기화 유지
+      // draw loop와 동일한 pinRadius 및 그리드 계산 — 반드시 동기화 유지
       const hitZoom = Math.pow(1.3, scaleRef.current)
-      const hitRadius = Math.max(7, Math.min(32, Math.round(13 * Math.sqrt(hitZoom))))
+      const hitRadius = Math.max(7, Math.min(60, Math.round(13 * hitZoom)))
       const hitSpacing = hitRadius
-      const shown = pins.slice(0, 3)
-      const startX = px - (shown.length - 1) * (hitSpacing / 2)
-      for (let i = 0; i < shown.length; i++) {
-        const ix = startX + i * hitSpacing
-        const dist = Math.sqrt((cx - ix) ** 2 + (cy - py) ** 2)
+
+      const hitCanvas = canvasRef.current!
+      const hitSize = Math.min(hitCanvas.width, hitCanvas.height)
+      const hitProjScale = hitSize * 1.6 * Math.pow(1.3, scaleRef.current)
+      const hitDEG_TO_PX = hitProjScale * Math.PI / 180
+
+      const hitBbox = geoBBoxByAlpha2.get(alpha2)
+      let hitCols = 1, hitRows = 1
+      if (hitBbox) {
+        const { west, south, east, north } = hitBbox
+        const midLat = (south + north) / 2
+        const lngSpan = east >= west ? east - west : east + 360 - west
+        const screenW = lngSpan * hitDEG_TO_PX * Math.cos(midLat * Math.PI / 180)
+        const screenH = (north - south) * hitDEG_TO_PX
+        hitCols = Math.max(1, Math.floor(screenW / hitSpacing))
+        hitRows = Math.max(1, Math.floor(screenH / hitSpacing))
+      }
+
+      const hitIsSmall = hitCols === 1 && hitRows === 1
+      const hitMaxPins = hitCols * hitRows
+      let hitShownCount: number
+      if (hitIsSmall) {
+        hitShownCount = Math.min(pins.length, 3)
+      } else if (pins.length <= hitMaxPins) {
+        hitShownCount = pins.length
+      } else {
+        hitShownCount = hitMaxPins - 1
+      }
+
+      const hitActualCols = hitIsSmall ? Math.max(1, hitShownCount) : Math.min(hitCols, Math.max(1, hitShownCount))
+      const hitUsedRows = Math.ceil(hitShownCount / hitActualCols)
+      const hitGridStartX = px - ((hitActualCols - 1) * hitSpacing) / 2
+      const hitGridStartY = py - ((hitUsedRows - 1) * hitSpacing) / 2
+
+      for (let i = 0; i < hitShownCount; i++) {
+        const col = i % hitActualCols
+        const row = Math.floor(i / hitActualCols)
+        const ix = hitGridStartX + col * hitSpacing
+        const iy = hitGridStartY + row * hitSpacing
+        const dist = Math.sqrt((cx - ix) ** 2 + (cy - iy) ** 2)
         if (dist <= hitRadius + 7) {
           const countryName = isoCountries.getName(alpha2, locale) ?? alpha2
           return { alpha2, pins, countryName }
@@ -1087,12 +1177,12 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     setContextMenu(menu)
   }, [getAlpha2AtPoint, locale])
 
-  const handleMenuSelect = useCallback((action: 'info' | 'debt' | 'comment' | 'pin', alpha2: string, name: string) => {
+  const handleMenuSelect = useCallback((action: 'info' | 'debt' | 'comment' | 'promote', alpha2: string, name: string) => {
     closeContextMenu()
-    if (action === 'info')    setInfoCountry({ code: alpha2, name })
-    if (action === 'debt')    setDebtCountry({ code: alpha2, name })
-    if (action === 'comment') setCommentCountry({ code: alpha2, name })
-    if (action === 'pin')     setPinSubmitCountry({ code: alpha2, name })
+    if (action === 'info')     setInfoCountry({ code: alpha2, name })
+    if (action === 'debt')     setDebtCountry({ code: alpha2, name })
+    if (action === 'comment')  setCommentCountry({ code: alpha2, name })
+    if (action === 'promote')  setPinSubmitCountry({ code: alpha2, name })
   }, [closeContextMenu])
 
   const allTimeTop = useMemo(() => topN(clickData, locale), [clickData, locale])
@@ -1149,12 +1239,12 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           <div style={{ fontSize: 15, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ color: '#34d399', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 4 }}><Heart size={12} /> Left click</span>
             <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
-            <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>you love this country</span>
+            <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>love it &amp; climb the tiers</span>
           </div>
           <div style={{ fontSize: 15, color: '#f1f5f9', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ color: '#a78bfa', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 4 }}><Search size={12} /> Right click</span>
             <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
-            <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>wanna know more?</span>
+            <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>explore, comment, or promote here</span>
           </div>
           <div style={{ fontSize: 10, color: '#334155', marginTop: 6, fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", letterSpacing: '0.03em' }}>
             drag · scroll to zoom · spin the globe
@@ -1207,8 +1297,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
             {contextMenu.name}
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '4px 0' }} />
-          {(['info', 'comment', 'pin'] as const).map((action) => {
-            const labels = { info: t('contextInfo'), comment: t('contextComment'), pin: t('contextPin') }
+          {(['info', 'comment', 'promote'] as const).map((action) => {
+            const labels = { info: t('contextInfo'), comment: t('contextComment'), promote: t('contextPin') }
             return (
               <button
                 key={action}
@@ -1234,13 +1324,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           countryName={pinSubmitCountry.name}
           countryAlpha2={pinSubmitCountry.code}
           onClose={() => setPinSubmitCountry(null)}
-          onSuccess={() => {
+          onSuccess={(_shareText, newPin) => {
+            // POST 응답으로 받은 핀을 캐시 우회하여 즉시 반영
+            pinsRef.current = [newPin, ...pinsRef.current]
             setPinSubmitCountry(null)
-            // 즉시 핀 목록 갱신
-            fetch('/api/pins?all=1')
-              .then(r => r.json())
-              .then((data: GlobePin[]) => { if (Array.isArray(data)) pinsRef.current = data })
-              .catch(() => {})
           }}
         />
       )}
@@ -1259,32 +1346,6 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           }}
         />
       )}
-
-      {/* AdminPanel — 랭킹 패널 왼쪽 */}
-      <AdminPanel right={(commentCountry ? 324 : 16) + 240 + 8} />
-
-      {/* 방문자 통계 링크 — AdminPanel 왼쪽 */}
-      <Link
-        href="/stats"
-        style={{
-          position: 'absolute',
-          bottom: 80,
-          right: (commentCountry ? 324 : 16) + 240 + 8 + 34 + 8,
-          zIndex: 1000,
-          padding: '6px 14px',
-          borderRadius: 99,
-          background: 'rgba(15,15,25,0.65)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          color: '#475569',
-          fontSize: 12,
-          fontWeight: 500,
-          backdropFilter: 'blur(8px)',
-          textDecoration: 'none',
-          transition: 'right 0.35s cubic-bezier(0.4,0,0.2,1)',
-        }}
-      >
-        {t('visitorStats')}
-      </Link>
 
       {/* 좌하단: 랜덤 스핀 버튼 + 범례 */}
       <div style={{ position: 'absolute', bottom: 32, left: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
