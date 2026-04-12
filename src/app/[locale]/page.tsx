@@ -12,7 +12,14 @@ import { Globe } from 'lucide-react'
 /* POLL_DISABLED END */
 import CommentFeed from '@/components/CommentFeed'
 
-const WorldMap = dynamic(() => import('@/components/WorldMap'), { ssr: false })
+const WorldMap = dynamic(() => import('@/components/WorldMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex-1 flex items-center justify-center bg-zinc-950">
+      <div className="w-10 h-10 rounded-full border-2 border-zinc-700 border-t-zinc-400 animate-spin" />
+    </div>
+  ),
+})
 
 const tabs = [
   { id: 'map', labelKey: 'globe' },

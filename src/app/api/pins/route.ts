@@ -131,7 +131,9 @@ export async function GET(req: NextRequest) {
       .limit(500)
 
     if (error) return Response.json({ error: error.message }, { status: 500 })
-    return Response.json(data ?? [])
+    return Response.json(data ?? [], {
+      headers: { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=60' },
+    })
   }
 
   if (!country) return Response.json({ error: 'country or all=1 required' }, { status: 400 })

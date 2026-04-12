@@ -120,6 +120,12 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const particlesRef  = useRef<Particle[]>([])
   const flashesRef    = useRef<Flash[]>([])
   const mousePosRef   = useRef<{ x: number; y: number } | null>(null)
+  // 그라디언트 캐시 — canvas 크기/줌이 바뀔 때만 재생성
+  const gradientCacheRef = useRef<{
+    key: string
+    ocean: CanvasGradient
+    shine: CanvasGradient
+  } | null>(null)
 
   useEffect(() => {
     fetch('/api/clicks')
@@ -243,13 +249,27 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     const centerX = canvas.width / 2
     const centerY = canvas.height / 2
     const radius = proj.scale()
-    const gradient = ctx.createRadialGradient(
-      centerX - radius * 0.2, centerY - radius * 0.25, radius * 0.05,
-      centerX, centerY, radius * 1.1
-    )
-    gradient.addColorStop(0, '#1a6fa8')
-    gradient.addColorStop(0.5, '#0d4f7a')
-    gradient.addColorStop(1, '#062840')
+
+    // 그라디언트 캐시: 크기·줌이 바뀔 때만 재생성
+    const gKey = `${canvas.width},${canvas.height},${radius.toFixed(1)}`
+    if (!gradientCacheRef.current || gradientCacheRef.current.key !== gKey) {
+      const ocean = ctx.createRadialGradient(
+        centerX - radius * 0.2, centerY - radius * 0.25, radius * 0.05,
+        centerX, centerY, radius * 1.1
+      )
+      ocean.addColorStop(0, '#1a6fa8')
+      ocean.addColorStop(0.5, '#0d4f7a')
+      ocean.addColorStop(1, '#062840')
+      const shine = ctx.createRadialGradient(
+        centerX - radius * 0.35, centerY - radius * 0.35, radius * 0.02,
+        centerX - radius * 0.1, centerY - radius * 0.1, radius * 0.75
+      )
+      shine.addColorStop(0, 'rgba(255,255,255,0.12)')
+      shine.addColorStop(0.4, 'rgba(255,255,255,0.03)')
+      shine.addColorStop(1, 'rgba(0,0,0,0)')
+      gradientCacheRef.current = { key: gKey, ocean, shine }
+    }
+    const gradient = gradientCacheRef.current.ocean
     ctx.fillStyle = gradient
     ctx.fill()
 
@@ -328,17 +348,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     ctx.lineWidth = 1.5
     ctx.stroke()
 
-    // 구 광택 효과
-    const shineGrad = ctx.createRadialGradient(
-      centerX - radius * 0.35, centerY - radius * 0.35, radius * 0.02,
-      centerX - radius * 0.1, centerY - radius * 0.1, radius * 0.75
-    )
-    shineGrad.addColorStop(0, 'rgba(255,255,255,0.12)')
-    shineGrad.addColorStop(0.4, 'rgba(255,255,255,0.03)')
-    shineGrad.addColorStop(1, 'rgba(0,0,0,0)')
+    // 구 광택 효과 (캐시된 그라디언트 재사용)
     ctx.beginPath()
     path({ type: 'Sphere' } as unknown as Feature<Geometry, GeoJsonProperties>)
-    ctx.fillStyle = shineGrad
+    ctx.fillStyle = gradientCacheRef.current!.shine
     ctx.fill()
 
     // 클릭 플래시 — 나라 위에 황금색 오버레이

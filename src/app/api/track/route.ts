@@ -30,6 +30,11 @@ export async function POST(req: NextRequest) {
     return Response.json({ ok: false, reason: 'cooldown' })
   }
 
+  // 만료된 항목 정리 (메모리 누수 방지)
+  for (const [k, t] of cooldownMap) {
+    if (now - t > COOLDOWN_MS) cooldownMap.delete(k)
+  }
+
   cooldownMap.set(ip, now)
 
   const ipHash = hashIp(ip)

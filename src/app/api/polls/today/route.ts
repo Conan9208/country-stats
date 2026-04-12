@@ -12,7 +12,7 @@ function getIp(req: NextRequest): string {
 }
 
 function hashIp(ip: string): string {
-  return createHash('sha256').update(ip + 'poll_salt_2026').digest('hex').slice(0, 32)
+  return createHash('sha256').update(ip + (process.env.IP_SALT ?? 'poll_salt_2026')).digest('hex').slice(0, 32)
 }
 
 export async function GET(req: NextRequest) {

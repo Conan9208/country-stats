@@ -8,7 +8,9 @@ export async function GET(req: NextRequest) {
   if (!token) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-  if (authError || !user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  if (authError || !user || user.email !== process.env.ADMIN_EMAIL) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z'
 
