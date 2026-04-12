@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import SiteHeader from '@/components/SiteHeader'
 
 const KOFI_BASE = 'https://ko-fi.com/conankor'
 const MAX_CHARS = 500
@@ -51,6 +52,7 @@ export default function DonatePage() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
+      <SiteHeader />
       <div className="max-w-2xl mx-auto px-6 py-16 flex flex-col gap-12">
 
         {/* 헤더 */}

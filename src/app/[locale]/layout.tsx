@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import { routing } from '@/i18n/routing';
 import { notFound } from 'next/navigation';
+import Script from 'next/script';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,7 +19,29 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "WorldStats",
-  description: "Global Country Comparison Statistics",
+  description: "Explore the world on an interactive 3D globe — compare countries, cast votes, and discover fun facts.",
+  metadataBase: new URL("https://worldstats.cc"),
+  openGraph: {
+    title: "WorldStats",
+    description: "Explore the world on an interactive 3D globe — compare countries, cast votes, and discover fun facts.",
+    url: "https://worldstats.cc",
+    siteName: "WorldStats",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "WorldStats — Interactive 3D Globe",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "WorldStats",
+    description: "Explore the world on an interactive 3D globe — compare countries, cast votes, and discover fun facts.",
+    images: ["/og-image.png"],
+  },
 };
 
 export function generateStaticParams() {
@@ -53,6 +76,12 @@ export default async function RootLayout({
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
       </head>
       <body className="min-h-full flex flex-col">
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8766166885849764"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
         <NextIntlClientProvider messages={messages} locale={locale}>
           {children}
         </NextIntlClientProvider>

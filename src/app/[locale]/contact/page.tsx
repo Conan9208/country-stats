@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Bug, BarChart2, Trash2, Lightbulb } from 'lucide-react'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
+import SiteHeader from '@/components/SiteHeader'
 
 type Props = { params: Promise<{ locale: string }> }
 
@@ -21,13 +22,11 @@ export default async function ContactPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
+      <SiteHeader />
       <div className="max-w-2xl mx-auto px-6 py-12">
 
         <div className="mb-10">
-          <Link href="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
-            {t('backHome')}
-          </Link>
-          <h1 className="text-3xl font-bold text-white mt-6">{t('heading')}</h1>
+          <h1 className="text-3xl font-bold text-white">{t('heading')}</h1>
           <p className="text-zinc-400 mt-2 text-sm">{t('subheading')}</p>
         </div>
 

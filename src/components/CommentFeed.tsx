@@ -42,6 +42,7 @@ export default function CommentFeed() {
         setComments(d.comments ?? [])
         setLoading(false)
       })
+      .catch(() => setLoading(false))
   }, [])
 
   // 실시간 구독

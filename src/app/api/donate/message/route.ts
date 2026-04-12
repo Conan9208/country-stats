@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `메시지가 너무 깁니다. (최대 ${MAX_CHARS}자)` }, { status: 400 })
   }
 
-  const from = senderName?.trim() || '익명'
+  const rawFrom = senderName?.trim() || '익명'
+  const from = rawFrom.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
   const resend = new Resend(process.env.RESEND_API_KEY)
 

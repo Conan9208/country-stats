@@ -46,14 +46,18 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
 
   const fetchComments = useCallback(async (p: number, reset = false) => {
     setLoading(true)
-    const res  = await fetch(`/api/comments?country=${countryCode}&page=${p}`)
-    const data = await res.json()
-    setLoading(false)
-    if (!res.ok) return
-    setComments(prev => reset ? data.comments : [...prev, ...data.comments])
-    setTotal(data.total)
-    setPage(p)
-    setHasMore(data.hasMore)
+    try {
+      const res  = await fetch(`/api/comments?country=${countryCode}&page=${p}`)
+      const data = await res.json()
+      setLoading(false)
+      if (!res.ok) return
+      setComments(prev => reset ? data.comments : [...prev, ...data.comments])
+      setTotal(data.total)
+      setPage(p)
+      setHasMore(data.hasMore)
+    } catch {
+      setLoading(false)
+    }
   }, [countryCode])
 
   useEffect(() => {
@@ -74,35 +78,44 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
   const handleSubmit = async () => {
     if (!text.trim() || submitting) return
     setSubmitting(true)
-    const res = await fetch('/api/comments', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ country_code: countryCode, content: text.trim() }),
-    })
-    const data = await res.json()
-    setSubmitting(false)
-    if (!res.ok) { showNotice(data.error, false); return }
-    setComments(prev => [data, ...prev])
-    setTotal(tot => tot + 1)
-    setText('')
-    showNotice(t('posted'), true)
+    try {
+      const res = await fetch('/api/comments', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ country_code: countryCode, content: text.trim() }),
+      })
+      const data = await res.json()
+      setSubmitting(false)
+      if (!res.ok) { showNotice(data.error, false); return }
+      setComments(prev => [data, ...prev])
+      setTotal(tot => tot + 1)
+      setText('')
+      showNotice(t('posted'), true)
+    } catch {
+      setSubmitting(false)
+      showNotice('오류가 발생했어요', false)
+    }
   }
 
   const handleReport = async (id: number) => {
     if (reported.has(id)) return
-    const res = await fetch('/api/comments/report', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ comment_id: id }),
-    })
-    const data = await res.json()
-    if (!res.ok) { showNotice(data.error, false); return }
-    setReported(prev => new Set([...prev, id]))
-    if (data.hidden) {
-      setComments(prev => prev.filter(c => c.id !== id))
-      setTotal(t => t - 1)
+    try {
+      const res = await fetch('/api/comments/report', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ comment_id: id }),
+      })
+      const data = await res.json()
+      if (!res.ok) { showNotice(data.error, false); return }
+      setReported(prev => new Set([...prev, id]))
+      if (data.hidden) {
+        setComments(prev => prev.filter(c => c.id !== id))
+        setTotal(t => t - 1)
+      }
+      showNotice(t('reported'), true)
+    } catch {
+      showNotice('오류가 발생했어요', false)
     }
-    showNotice('신고했어요', true)
   }
 
   return (

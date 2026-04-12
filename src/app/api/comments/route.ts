@@ -58,8 +58,8 @@ export async function POST(req: NextRequest) {
   if (content.trim().length > MAX_CONTENT) {
     return Response.json({ error: `최대 ${MAX_CONTENT}자` }, { status: 400 })
   }
-  // URL 필터
-  if (/https?:\/\/|www\./i.test(content)) {
+  // URL 필터 (프로토콜, www, 일반 도메인 패턴)
+  if (/https?:\/\/|ftp:\/\/|www\.|[a-z0-9-]{2,}\.(com|net|org|io|co|kr|jp|cn|ly|gg|me|tv|info|biz|link|site|app|dev|xyz)/i.test(content)) {
     return Response.json({ error: 'URL은 포함할 수 없어요' }, { status: 400 })
   }
 

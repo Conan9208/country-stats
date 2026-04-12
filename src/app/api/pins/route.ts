@@ -61,10 +61,15 @@ async function checkDomainExists(url: string): Promise<boolean> {
   try {
     const { hostname } = new URL(url)
     if (!hostname) return false
-    await dnsLookup(hostname)
+    await Promise.race([
+      dnsLookup(hostname),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('dns timeout')), 3000)
+      ),
+    ])
     return true
   } catch {
-    return false  // DNS 조회 실패 = 도메인 없음 (ENOTFOUND 등)
+    return false  // DNS 조회 실패 또는 타임아웃 = 도메인 없음으로 처리
   }
 }
 
@@ -159,6 +164,9 @@ export async function POST(req: NextRequest) {
 
   if (!country_alpha2 || !business_name?.trim()) {
     return Response.json({ error: '필수 항목 누락 (country_alpha2, business_name)' }, { status: 400 })
+  }
+  if (!/^[A-Z]{2}$/.test(country_alpha2)) {
+    return Response.json({ error: '유효하지 않은 국가 코드예요' }, { status: 400 })
   }
   if (business_name.trim().length > MAX_BUSINESS_NAME) {
     return Response.json({ error: `사업명은 최대 ${MAX_BUSINESS_NAME}자` }, { status: 400 })
