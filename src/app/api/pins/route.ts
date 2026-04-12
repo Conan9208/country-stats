@@ -241,6 +241,7 @@ export async function POST(req: NextRequest) {
       description: description?.trim() || null,
       logo_url: logo_url || null,
       website_url: normalizedWebsiteUrl || null,
+      is_approved: true,
       ip_hash: ipHash,
       expires_at: expiresAt,
     })
