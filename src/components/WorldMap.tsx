@@ -100,6 +100,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const [debtCountry, setDebtCountry]   = useState<{ code: string; name: string } | null>(null)
   const [infoCountry, setInfoCountry]   = useState<{ code: string; name: string } | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 클라이언트 사이드 rate limit (서버와 동일: 1분에 10회)
+  const clientClickTimestampsRef = useRef<number[]>([])
+  const CLIENT_RATE_LIMIT = 10
+  const CLIENT_RATE_WINDOW = 60_000
   // 내 클릭 기록 (localStorage)
   const myClicksRef = useRef<Set<string>>(new Set())
   const [myClickCount, setMyClickCount] = useState(0)
@@ -1107,6 +1111,24 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     const cRect = container?.getBoundingClientRect()
     const fx = cRect ? e.clientX - cRect.left : x
     const fy = cRect ? e.clientY - cRect.top  : y
+
+    // 클라이언트 사이드 rate limit 체크 (낙관적 업데이트 전에 먼저 차단)
+    const nowMs = Date.now()
+    clientClickTimestampsRef.current = clientClickTimestampsRef.current.filter(
+      ts => nowMs - ts < CLIENT_RATE_WINDOW
+    )
+    if (clientClickTimestampsRef.current.length >= CLIENT_RATE_LIMIT) {
+      // 😤 float 즉시 표시 (API 호출 없음, 낙관적 업데이트도 없음)
+      const floatId = Date.now() + Math.random()
+      overlayRef.current?.addFloatNum(floatId, fx, fy, 1)
+      overlayRef.current?.rateLimitFloatNum(floatId)
+      setTimeout(() => overlayRef.current?.removeFloatNum(floatId), 1400)
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+      overlayRef.current?.setToast({ message: t('toastRateLimitTitle'), sub: t('toastRateLimitSub') })
+      toastTimerRef.current = setTimeout(() => overlayRef.current?.setToast(null), 3000)
+      return
+    }
+    clientClickTimestampsRef.current.push(nowMs)
 
     // 낙관적 업데이트: 지구본 색상만 즉시 반영 (confirmedCountRef/tooltip은 건드리지 않음)
     const prevTotal = clickDataRef.current[alpha2]?.total ?? 0

@@ -89,7 +89,7 @@ async function checkSafeBrowsing(url: string): Promise<boolean> {
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-          client: { clientId: 'worldstats', clientVersion: '1.0' },
+          client: { clientId: 'postmyglobe', clientVersion: '1.0' },
           threatInfo: {
             threatTypes: ['MALWARE', 'SOCIAL_ENGINEERING', 'UNWANTED_SOFTWARE', 'POTENTIALLY_HARMFUL_APPLICATION'],
             platformTypes: ['ANY_PLATFORM'],
