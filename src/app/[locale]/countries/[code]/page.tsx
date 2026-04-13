@@ -130,7 +130,7 @@ export default function CountryDebtPage() {
         )}
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: 11, color: '#1e3a5f', fontWeight: 700, letterSpacing: '0.1em' }}>
-          🌍 WorldStats
+          🌍 PostMyGlobe
         </span>
       </div>
 

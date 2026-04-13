@@ -108,7 +108,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const autoRotateRef = useRef(true)
 
   const { isSpinning, landingMarkerRef, spinningRef, spinStartRef, spinTargetRef, spinProgressRef, spinJourneyRef, fireworkParticlesRef, handleRandomSpin } = useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef, overlayRef })
-  const { viewersByCountryRef, lastBroadcastCountryRef, presenceChannelRef, mySessionId } = useRealtimeViewers()
+  const { viewersByCountryRef, lastBroadcastCountryRef, presenceChannelRef, mySessionId, channelSubscribedRef } = useRealtimeViewers()
 
   // 이펙트
   type Shockwave = { x: number; y: number; t: number }
@@ -298,16 +298,38 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     ctx.fillStyle = '#2a5a3a'
     ctx.fill()
 
-    // 국가별 색상
+    // 루프 밖에서 한 번만 계산 — 매 프레임 재계산 방지
+    const isDragging   = dragStartRef.current !== null
+    const isPoll       = pollModeRef.current
+    const pData        = pollDataRef.current
+    const maxPollVotes = (isPoll && pData && Object.keys(pData).length > 0)
+      ? Math.max(...Object.values(pData))
+      : 1
+
+    // 특수 상태(호버·선택·클릭·투표)인 나라만 Set으로 추림
+    // → path 계산이 필요 없는 나라(대다수)를 완전히 건너뜀
+    const specialAlpha2s = new Set<string>()
+    if (hoveredAlpha2Ref.current)  specialAlpha2s.add(hoveredAlpha2Ref.current)
+    if (selectedAlpha2Ref.current) specialAlpha2s.add(selectedAlpha2Ref.current)
+    if (isPoll) {
+      if (pollVotedCountryRef.current) specialAlpha2s.add(pollVotedCountryRef.current)
+      if (pData) for (const a2 of Object.keys(pData)) specialAlpha2s.add(a2)
+    } else {
+      for (const a2 of Object.keys(clickDataRef.current)) {
+        if ((clickDataRef.current[a2]?.total ?? 0) > 0) specialAlpha2s.add(a2)
+      }
+    }
+
+    // 국가별 색상 — specialAlpha2s에 없는 나라는 path 계산 자체를 건너뜀
     for (const feature of worldGeo.features) {
       const numericId = String((feature as Feature & { id?: string | number }).id ?? '')
       const alpha2 = alpha2Map.get(numericId) ?? null
-      const count = alpha2 ? (clickDataRef.current[alpha2]?.total ?? 0) : 0
-      const isHovered   = alpha2 !== null && alpha2 === hoveredAlpha2Ref.current
-      const isSelected  = alpha2 !== null && alpha2 === selectedAlpha2Ref.current
-      const isPoll       = pollModeRef.current
-      const isMyPollVote = isPoll && alpha2 !== null && alpha2 === pollVotedCountryRef.current
-      const pData        = pollDataRef.current
+      if (!alpha2 || !specialAlpha2s.has(alpha2)) continue
+
+      const count        = clickDataRef.current[alpha2]?.total ?? 0
+      const isHovered    = alpha2 === hoveredAlpha2Ref.current
+      const isSelected   = alpha2 === selectedAlpha2Ref.current
+      const isMyPollVote = isPoll && alpha2 === pollVotedCountryRef.current
 
       ctx.beginPath()
       path(feature)
@@ -332,9 +354,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         ctx.strokeStyle = isPoll ? 'rgba(167,139,250,0.85)' : 'rgba(255,255,255,0.75)'
         ctx.lineWidth = 1.2
         ctx.stroke()
-      } else if (isPoll && pData && alpha2 && pData[alpha2]) {
-        const maxVotes = Math.max(...Object.values(pData))
-        ctx.fillStyle = pollVoteColor(pData[alpha2], maxVotes)
+      } else if (isPoll && pData?.[alpha2]) {
+        ctx.fillStyle = pollVoteColor(pData[alpha2], maxPollVotes)
         ctx.globalAlpha = 0.75
         ctx.fill()
         ctx.globalAlpha = 1
@@ -404,36 +425,43 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       ctx.fill()
     }
 
-    // 커서 — 글로우 도트 + 부드럽게 맥동하는 외곽 링
+    // 커서 — 드래그 중에는 단순 도트(그라디언트 생성 비용 절감), 평시에는 글로우 링
     const mp = mousePosRef.current
     if (mp) {
-      const onCountry = hoveredAlpha2Ref.current !== null
-      const pulse = (Math.sin(now * 0.004) + 1) / 2        // 0→1 맥동
-      const outerR = 14 + pulse * 5                          // 14~19px
-      const outerA = 0.35 + pulse * 0.25                     // 0.35~0.60
-      const cr = onCountry ? '250,204,21' : '255,255,255'
+      if (isDragging) {
+        ctx.beginPath()
+        ctx.arc(mp.x, mp.y, 4, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(255,255,255,0.75)'
+        ctx.fill()
+      } else {
+        const onCountry = hoveredAlpha2Ref.current !== null
+        const pulse = (Math.sin(now * 0.004) + 1) / 2        // 0→1 맥동
+        const outerR = 14 + pulse * 5                          // 14~19px
+        const outerA = 0.35 + pulse * 0.25                     // 0.35~0.60
+        const cr = onCountry ? '250,204,21' : '255,255,255'
 
-      // 소프트 글로우
-      const glow = ctx.createRadialGradient(mp.x, mp.y, 0, mp.x, mp.y, outerR * 2)
-      glow.addColorStop(0,   `rgba(${cr},${onCountry ? 0.18 : 0.08})`)
-      glow.addColorStop(1,   'rgba(0,0,0,0)')
-      ctx.beginPath()
-      ctx.arc(mp.x, mp.y, outerR * 2, 0, Math.PI * 2)
-      ctx.fillStyle = glow
-      ctx.fill()
+        // 소프트 글로우
+        const glow = ctx.createRadialGradient(mp.x, mp.y, 0, mp.x, mp.y, outerR * 2)
+        glow.addColorStop(0,   `rgba(${cr},${onCountry ? 0.18 : 0.08})`)
+        glow.addColorStop(1,   'rgba(0,0,0,0)')
+        ctx.beginPath()
+        ctx.arc(mp.x, mp.y, outerR * 2, 0, Math.PI * 2)
+        ctx.fillStyle = glow
+        ctx.fill()
 
-      // 외곽 링
-      ctx.beginPath()
-      ctx.arc(mp.x, mp.y, outerR, 0, Math.PI * 2)
-      ctx.strokeStyle = `rgba(${cr},${outerA})`
-      ctx.lineWidth = 1
-      ctx.stroke()
+        // 외곽 링
+        ctx.beginPath()
+        ctx.arc(mp.x, mp.y, outerR, 0, Math.PI * 2)
+        ctx.strokeStyle = `rgba(${cr},${outerA})`
+        ctx.lineWidth = 1
+        ctx.stroke()
 
-      // 중심 도트
-      ctx.beginPath()
-      ctx.arc(mp.x, mp.y, onCountry ? 4 : 3, 0, Math.PI * 2)
-      ctx.fillStyle = onCountry ? '#facc15' : 'rgba(255,255,255,0.9)'
-      ctx.fill()
+        // 중심 도트
+        ctx.beginPath()
+        ctx.arc(mp.x, mp.y, onCountry ? 4 : 3, 0, Math.PI * 2)
+        ctx.fillStyle = onCountry ? '#facc15' : 'rgba(255,255,255,0.9)'
+        ctx.fill()
+      }
     }
 
     // 실시간 뷰어 점 — 다른 사람이 보고 있는 나라 표시
@@ -456,14 +484,16 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       if (!isFinite(px) || !isFinite(py)) continue
       const pulse = (Math.sin(now * 0.005 + px * 0.01) + 1) / 2
       const dotR = 2.5 + pulse * 1.5
-      // 글로우
-      const vGlow = ctx.createRadialGradient(px, py, 0, px, py, dotR * 4)
-      vGlow.addColorStop(0, `rgba(192,132,252,${0.25 + pulse * 0.15})`)
-      vGlow.addColorStop(1, 'rgba(0,0,0,0)')
-      ctx.beginPath()
-      ctx.arc(px, py, dotR * 4, 0, Math.PI * 2)
-      ctx.fillStyle = vGlow
-      ctx.fill()
+      // 글로우 (드래그 중에는 생략 — RadialGradient 생성 비용 절감)
+      if (!isDragging) {
+        const vGlow = ctx.createRadialGradient(px, py, 0, px, py, dotR * 4)
+        vGlow.addColorStop(0, `rgba(192,132,252,${0.25 + pulse * 0.15})`)
+        vGlow.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx.beginPath()
+        ctx.arc(px, py, dotR * 4, 0, Math.PI * 2)
+        ctx.fillStyle = vGlow
+        ctx.fill()
+      }
       // 점
       ctx.beginPath()
       ctx.arc(px, py, dotR, 0, Math.PI * 2)
@@ -509,15 +539,17 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       if (!isFinite(px) || !isFinite(py)) continue
       const pulse2 = (Math.sin(now * 0.004 + py * 0.02) + 1) / 2
 
-      // 글로우
-      const glowRadius = pinDiameter
-      const pinGlow = ctx.createRadialGradient(px, py, 0, px, py, glowRadius)
-      pinGlow.addColorStop(0, `rgba(167,139,250,${0.18 + pulse2 * 0.12})`)
-      pinGlow.addColorStop(1, 'rgba(0,0,0,0)')
-      ctx.beginPath()
-      ctx.arc(px, py, glowRadius, 0, Math.PI * 2)
-      ctx.fillStyle = pinGlow
-      ctx.fill()
+      // 글로우 (드래그 중에는 생략)
+      if (!isDragging) {
+        const glowRadius = pinDiameter
+        const pinGlow = ctx.createRadialGradient(px, py, 0, px, py, glowRadius)
+        pinGlow.addColorStop(0, `rgba(167,139,250,${0.18 + pulse2 * 0.12})`)
+        pinGlow.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx.beginPath()
+        ctx.arc(px, py, glowRadius, 0, Math.PI * 2)
+        ctx.fillStyle = pinGlow
+        ctx.fill()
+      }
 
       // 나라 면적 기반 그리드 레이아웃 계산
       const canvas = canvasRef.current!
@@ -768,25 +800,20 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const getAlpha2AtPoint = useCallback((x: number, y: number) => {
     const proj = getProjection()
     if (!proj) return null
-    const coords = proj.invert?.([x, y])
-    if (!coords) return null
-    const path = geoPath(proj)
-    for (const feature of [...worldGeo.features].reverse()) {
-      if (path.measure(feature) === 0) continue
-      try {
-        if (geoPath(proj).bounds(feature) && path.area(feature) > 0) {
-          // point-in-polygon check
-        }
-      } catch { /* skip */ }
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    // geoPath 인스턴스를 루프 밖에서 한 번만 생성 (기존: 매 feature마다 새로 생성)
+    const pathInCtx = geoPath(proj, ctx)
+    const features = worldGeo.features
+    for (let i = features.length - 1; i >= 0; i--) {
+      const feature = features[i]
       const numericId = String((feature as Feature & { id?: string | number }).id ?? '')
-      const alpha2 = isoCountries.numericToAlpha2(numericId)
-      // canvas point-in-path check
-      const canvas = canvasRef.current
-      if (!canvas) continue
-      const ctx = canvas.getContext('2d')
-      if (!ctx) continue
+      const alpha2 = alpha2Map.get(numericId) ?? null
+      if (!alpha2) continue
       ctx.beginPath()
-      geoPath(proj, ctx)(feature)
+      pathInCtx(feature)
       if (ctx.isPointInPath(x, y)) {
         return { alpha2, numericId, feature }
       }
@@ -969,10 +996,12 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       // 뷰어 broadcast — 나라가 바뀔 때만 전송
       if (hit.alpha2 !== lastBroadcastCountryRef.current) {
         lastBroadcastCountryRef.current = hit.alpha2
-        presenceChannelRef.current?.send({
-          type: 'broadcast', event: 'hover',
-          payload: { sessionId: mySessionId.current, countryCode: hit.alpha2, ts: Date.now() },
-        })
+        if (channelSubscribedRef.current) {
+          presenceChannelRef.current?.send({
+            type: 'broadcast', event: 'hover',
+            payload: { sessionId: mySessionId.current, countryCode: hit.alpha2, ts: Date.now() },
+          })
+        }
       }
     } else {
       hoveredAlpha2Ref.current = null
@@ -980,10 +1009,12 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       overlayRef.current?.setTooltip(null)
       if (lastBroadcastCountryRef.current !== null) {
         lastBroadcastCountryRef.current = null
-        presenceChannelRef.current?.send({
-          type: 'broadcast', event: 'hover',
-          payload: { sessionId: mySessionId.current, countryCode: null, ts: Date.now() },
-        })
+        if (channelSubscribedRef.current) {
+          presenceChannelRef.current?.send({
+            type: 'broadcast', event: 'hover',
+            payload: { sessionId: mySessionId.current, countryCode: null, ts: Date.now() },
+          })
+        }
       }
     }
   }, [getAlpha2AtPoint, getPinsAtPoint, getProjection, lastBroadcastCountryRef, mySessionId, presenceChannelRef, viewersByCountryRef, locale])
@@ -1005,12 +1036,14 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     autoRotateRef.current = true
     if (lastBroadcastCountryRef.current !== null) {
       lastBroadcastCountryRef.current = null
-      presenceChannelRef.current?.send({
-        type: 'broadcast', event: 'hover',
-        payload: { sessionId: mySessionId.current, countryCode: null, ts: Date.now() },
-      })
+      if (channelSubscribedRef.current) {
+        presenceChannelRef.current?.send({
+          type: 'broadcast', event: 'hover',
+          payload: { sessionId: mySessionId.current, countryCode: null, ts: Date.now() },
+        })
+      }
     }
-  }, [lastBroadcastCountryRef, mySessionId, presenceChannelRef])
+  }, [channelSubscribedRef, lastBroadcastCountryRef, mySessionId, presenceChannelRef])
 
   const onPollVoteRef = useRef(onPollVote)
   useEffect(() => { onPollVoteRef.current = onPollVote }, [onPollVote])

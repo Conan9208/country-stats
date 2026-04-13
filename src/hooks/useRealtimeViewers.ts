@@ -7,6 +7,7 @@ export function useRealtimeViewers() {
   const mySessionId = useRef('')
   const lastBroadcastCountryRef = useRef<string | null>(null)
   const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const channelSubscribedRef = useRef(false)
 
   useEffect(() => {
     const sid = (() => {
@@ -43,7 +44,9 @@ export function useRealtimeViewers() {
         }
         recomputeViewers()
       })
-      .subscribe()
+      .subscribe((status) => {
+        channelSubscribedRef.current = status === 'SUBSCRIBED'
+      })
 
     presenceChannelRef.current = presenceChannel
 
@@ -58,7 +61,7 @@ export function useRealtimeViewers() {
 
     const heartbeat = setInterval(() => {
       const code = lastBroadcastCountryRef.current
-      if (code) {
+      if (code && channelSubscribedRef.current) {
         presenceChannelRef.current?.send({
           type: 'broadcast', event: 'hover',
           payload: { sessionId: sid, countryCode: code, ts: Date.now() },
@@ -67,6 +70,7 @@ export function useRealtimeViewers() {
     }, 30000)
 
     return () => {
+      channelSubscribedRef.current = false
       supabase.removeChannel(presenceChannel)
       presenceChannelRef.current = null
       clearInterval(staleCleanup)
@@ -74,5 +78,5 @@ export function useRealtimeViewers() {
     }
   }, [])
 
-  return { viewersByCountryRef, viewersMapRef, mySessionId, lastBroadcastCountryRef, presenceChannelRef }
+  return { viewersByCountryRef, viewersMapRef, mySessionId, lastBroadcastCountryRef, presenceChannelRef, channelSubscribedRef }
 }

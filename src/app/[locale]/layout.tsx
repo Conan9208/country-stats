@@ -18,28 +18,28 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WorldStats",
-  description: "Explore the world on an interactive 3D globe — compare countries, cast votes, and discover fun facts.",
-  metadataBase: new URL("https://worldstats.cc"),
+  title: "PostMyGlobe",
+  description: "Post your world to the globe — explore countries, cast votes, and discover fun facts on an interactive 3D globe.",
+  metadataBase: new URL("https://postmyglobe.com"),
   openGraph: {
-    title: "WorldStats",
-    description: "Explore the world on an interactive 3D globe — compare countries, cast votes, and discover fun facts.",
-    url: "https://worldstats.cc",
-    siteName: "WorldStats",
+    title: "PostMyGlobe",
+    description: "Post your world to the globe — explore countries, cast votes, and discover fun facts on an interactive 3D globe.",
+    url: "https://postmyglobe.com",
+    siteName: "PostMyGlobe",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "WorldStats — Interactive 3D Globe",
+        alt: "PostMyGlobe — Interactive 3D Globe",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "WorldStats",
-    description: "Explore the world on an interactive 3D globe — compare countries, cast votes, and discover fun facts.",
+    title: "PostMyGlobe",
+    description: "Post your world to the globe — explore countries, cast votes, and discover fun facts on an interactive 3D globe.",
     images: ["/og-image.png"],
   },
 };

@@ -73,7 +73,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
       '',
       topLines,
       '',
-      'worldstats.vercel.app',
+      'postmyglobe.com',
     ].join('\n')
   }
 

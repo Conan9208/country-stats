@@ -99,7 +99,7 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
       '',
       topLines,
       '',
-      '너도 투표해봐 👉 worldstats.vercel.app',
+      '너도 투표해봐 👉 postmyglobe.com',
     ].join('\n')
   }, [poll, top5, myVote])
 

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { Globe } from 'lucide-react'
+import { Send } from 'lucide-react'
 
 export default function SiteHeader() {
   const t = useTranslations('Nav')
@@ -22,7 +22,7 @@ export default function SiteHeader() {
           href="/"
           className="text-base font-bold tracking-tight whitespace-nowrap flex items-center gap-1.5 text-white hover:text-zinc-300 transition-colors"
         >
-          <Globe size={16} /> WorldStats
+          <Send size={16} /> PostMyGlobe
         </Link>
 
         <div className="w-px h-5 bg-zinc-700" />

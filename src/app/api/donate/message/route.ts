@@ -45,9 +45,9 @@ export async function POST(req: NextRequest) {
 
   try {
     await resend.emails.send({
-      from: 'WorldStats <onboarding@resend.dev>',
+      from: 'PostMyGlobe <onboarding@resend.dev>',
       to: process.env.ADMIN_EMAIL ?? '',
-      subject: `💌 WorldStats 메시지`,
+      subject: `💌 PostMyGlobe 메시지`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; background: #09090b; color: #f1f5f9; border-radius: 12px;">
           <h2 style="color: #a78bfa; margin-top: 0;">💌 새 메시지가 도착했어요!</h2>

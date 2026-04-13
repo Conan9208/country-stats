@@ -201,7 +201,7 @@ export default function AdminPage() {
           <div style={{ marginBottom: 20 }}>
             <Link href="/" style={{ fontSize: 12, color: '#475569', textDecoration: 'none' }}>← 홈으로</Link>
             <div style={{ marginTop: 12, fontSize: 18, fontWeight: 700, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Globe size={18} /> WorldStats 관리자
+              <Globe size={18} /> PostMyGlobe 관리자
             </div>
           </div>
 
@@ -250,7 +250,7 @@ export default function AdminPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Globe size={20} />
-            <span style={{ fontSize: 18, fontWeight: 700 }}>WorldStats 관리자</span>
+            <span style={{ fontSize: 18, fontWeight: 700 }}>PostMyGlobe 관리자</span>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button

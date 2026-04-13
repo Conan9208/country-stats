@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: ['/api/', '/admin/'],
     },
-    sitemap: 'https://worldstats.cc/sitemap.xml',
+    sitemap: 'https://postmyglobe.com/sitemap.xml',
   }
 }

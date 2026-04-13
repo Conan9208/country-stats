@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next'
 
-const BASE_URL = 'https://worldstats.cc'
+const BASE_URL = 'https://postmyglobe.com'
 const LOCALES = ['ko', 'en']
 
 const STATIC_ROUTES = ['', '/about', '/privacy', '/contact', '/donate']
