@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { supabaseAdminAdmin } from '@/lib/supabaseAdmin-admin'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { createHash } from 'crypto'
 
 // 중복 신고 방지: "pinId:ipHash" → 신고 시각 (24h TTL)
