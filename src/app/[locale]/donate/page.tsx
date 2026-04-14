@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import SiteHeader from '@/components/SiteHeader'
 
 const KOFI_BASE = 'https://ko-fi.com/conankor'
+const KAKAO_PAY_URL = 'https://qr.kakaopay.com/FT9kCDkwB'
 const MAX_CHARS = 500
 
 export default function DonatePage() {
@@ -91,15 +92,31 @@ export default function DonatePage() {
           </CardContent>
         </Card>
 
-        {/* Ko-fi 버튼 */}
+        {/* 결제 버튼 */}
         <div className="flex flex-col gap-3">
           <p className="text-sm text-zinc-500">{t('tierHint')}</p>
-          <button
-            onClick={() => window.open(KOFI_BASE, '_blank')}
-            className="w-full flex items-center justify-center gap-2 bg-white text-zinc-950 hover:bg-zinc-100 transition-colors font-semibold py-4 rounded-xl text-base"
-          >
-            {t('ctaKofiSimple')}
-          </button>
+
+          {/* 카카오페이 — 한국 유저 */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-zinc-600">{t('labelKorean')}</span>
+            <button
+              onClick={() => window.open(KAKAO_PAY_URL, '_blank')}
+              className="w-full flex items-center justify-center gap-2 bg-[#FEE500] text-zinc-950 hover:bg-yellow-300 transition-colors font-semibold py-4 rounded-xl text-base"
+            >
+              {t('ctaKakao')}
+            </button>
+          </div>
+
+          {/* Ko-fi — 해외 유저 */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-zinc-600">{t('labelGlobal')}</span>
+            <button
+              onClick={() => window.open(KOFI_BASE, '_blank')}
+              className="w-full flex items-center justify-center gap-2 bg-white text-zinc-950 hover:bg-zinc-100 transition-colors font-semibold py-4 rounded-xl text-base"
+            >
+              {t('ctaKofiSimple')}
+            </button>
+          </div>
         </div>
 
         {/* 구분선 */}

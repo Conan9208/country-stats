@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   if (authError || !user) {
     return Response.json({ error: `Unauthorized: ${authError?.message ?? 'no user'}` }, { status: 401 })
   }
-  if (user.email !== process.env.ADMIN_EMAIL) {
+  if (user.email !== process.env.ADMIN_EMAIL?.trim()) {
     return Response.json({ error: `Unauthorized: email mismatch (${user.email})` }, { status: 401 })
   }
 
