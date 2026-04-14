@@ -70,6 +70,7 @@ export default function AdminPage() {
 
   const [tab, setTab] = useState<Tab>('stats')
   const [stats, setStats] = useState<Stats | null>(null)
+  const [statsError, setStatsError] = useState<string | null>(null)
   const [comments, setComments] = useState<ReportedComment[]>([])
   const [pins, setPins] = useState<ReportedPin[]>([])
   const [loading, setLoading] = useState(false)
@@ -84,10 +85,15 @@ export default function AdminPage() {
   // ── 데이터 로드 ──────────────────────────────────────────────────────────
 
   const loadStats = useCallback(async (token: string) => {
+    setStatsError(null)
     const res = await fetch('/api/admin/stats', {
       headers: { Authorization: `Bearer ${token}` },
     })
-    if (!res.ok) return
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}))
+      setStatsError(json.error ?? `HTTP ${res.status}`)
+      return
+    }
     setStats(await res.json())
   }, [])
 
@@ -296,6 +302,13 @@ export default function AdminPage() {
         {/* 로딩 */}
         {loading && (
           <div style={{ textAlign: 'center', color: '#475569', padding: '40px 0' }}>로딩 중...</div>
+        )}
+
+        {/* ── 방문자 통계 탭 에러 ── */}
+        {!loading && tab === 'stats' && !stats && statsError && (
+          <div style={{ textAlign: 'center', color: '#f87171', padding: '40px 0', fontSize: 14 }}>
+            통계 로드 실패: {statsError}
+          </div>
         )}
 
         {/* ── 방문자 통계 탭 ── */}

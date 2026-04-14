@@ -6,7 +6,6 @@ import { Sparkles, Landmark, Globe, Ban } from 'lucide-react'
 import type { TooltipState } from '@/types/map'
 import { getLocalTime } from '@/lib/timezoneData'
 import { formatCount, getTier } from '@/lib/mapUtils'
-import { flagEmoji } from '@/lib/geoData'
 import { glass } from '@/lib/mapConstants'
 import { useTranslations } from 'next-intl'
 
@@ -43,7 +42,7 @@ export interface OverlayHandle {
   setToast: (toast: { message: string, sub: string } | null) => void;
 }
 
-export const WorldMapOverlay = forwardRef<OverlayHandle>((props, ref) => {
+export const WorldMapOverlay = forwardRef<OverlayHandle>((_, ref) => {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const [floatNums, setFloatNums] = useState<FloatNumData[]>([])
   const [rouletteSlot, setRouletteSlot] = useState<RouletteSlotData | null>(null)
@@ -85,8 +84,12 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((props, ref) => {
             <div style={{ fontSize: 10, color: '#334155', fontWeight: 700, letterSpacing: '0.14em', marginBottom: 14 }}>
               {t('spinTitle')}
             </div>
-            <div style={{ fontSize: 48, lineHeight: 1.1, marginBottom: 10 }}>
-              {flagEmoji(rouletteSlot.current.alpha2)}
+            <div style={{ lineHeight: 1.1, marginBottom: 10, textAlign: 'center' }}>
+              <img
+                src={`https://flagcdn.com/72x54/${rouletteSlot.current.alpha2.toLowerCase()}.png`}
+                alt={rouletteSlot.current.name}
+                style={{ width: 72, height: 54, objectFit: 'cover', borderRadius: 4, display: 'inline-block' }}
+              />
             </div>
             <div style={{ fontSize: 17, fontWeight: 700, color: '#f1f5f9', letterSpacing: '-0.01em' }}>
               {rouletteSlot.current.name}
@@ -122,8 +125,12 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((props, ref) => {
             <div style={{ fontSize: 11, color: '#a78bfa', fontWeight: 700, letterSpacing: '0.16em', marginBottom: 16 }}>
               {t('spinResult')}
             </div>
-            <div style={{ fontSize: 64, lineHeight: 1, marginBottom: 12 }}>
-              {flagEmoji(rouletteSlot.current.alpha2)}
+            <div style={{ lineHeight: 1, marginBottom: 12, textAlign: 'center' }}>
+              <img
+                src={`https://flagcdn.com/96x72/${rouletteSlot.current.alpha2.toLowerCase()}.png`}
+                alt={rouletteSlot.current.name}
+                style={{ width: 96, height: 72, objectFit: 'cover', borderRadius: 6, display: 'inline-block' }}
+              />
             </div>
             <div style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9', marginBottom: 20, letterSpacing: '-0.01em' }}>
               {rouletteSlot.current.name}
