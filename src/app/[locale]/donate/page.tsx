@@ -72,12 +72,12 @@ export default function DonatePage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       <SiteHeader />
-      <div className="max-w-2xl mx-auto px-6 py-16 flex flex-col gap-12">
+      <div className="max-w-2xl mx-auto px-6 pt-8 pb-16 flex flex-col gap-12">
 
         {/* 헤더 */}
         <div className="flex flex-col gap-4">
           <div>
-            <Badge variant="outline" className="text-zinc-400 border-zinc-700 text-xs">
+            <Badge variant="outline" className="text-zinc-300 border-zinc-600 text-sm font-medium px-3 py-1">
               {t('badge')}
             </Badge>
           </div>
@@ -112,14 +112,14 @@ export default function DonatePage() {
 
         {/* 결제 버튼 */}
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-zinc-500">{t('tierHint')}</p>
+          <p className="text-base text-zinc-300 font-medium">{t('tierHint')}</p>
 
           {/* 카카오페이 — 한국 유저 */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-zinc-600">{t('labelKorean')}</span>
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-zinc-300">{t('labelKorean')}</span>
             <button
               onClick={handleKakaoClick}
-              className="w-full flex items-center justify-center gap-2 bg-[#FEE500] text-zinc-950 hover:bg-yellow-300 transition-colors font-semibold py-4 rounded-xl text-base"
+              className="w-full flex items-center justify-center gap-2 bg-[#FEE500] text-zinc-950 hover:bg-yellow-300 hover:shadow-[0_6px_24px_rgba(254,229,0,0.35)] active:scale-[0.99] transition-all font-semibold py-5 rounded-2xl text-lg"
             >
               {t('ctaKakao')}
             </button>
@@ -152,11 +152,11 @@ export default function DonatePage() {
           )}
 
           {/* Ko-fi — 해외 유저 */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-zinc-600">{t('labelGlobal')}</span>
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-zinc-300">{t('labelGlobal')}</span>
             <button
               onClick={() => window.open(KOFI_BASE, '_blank')}
-              className="w-full flex items-center justify-center gap-2 bg-white text-zinc-950 hover:bg-zinc-100 transition-colors font-semibold py-4 rounded-xl text-base"
+              className="w-full flex items-center justify-center gap-2 bg-white text-zinc-950 hover:bg-zinc-100 hover:shadow-[0_6px_24px_rgba(255,255,255,0.15)] active:scale-[0.99] transition-all font-semibold py-5 rounded-2xl text-lg"
             >
               {t('ctaKofiSimple')}
             </button>

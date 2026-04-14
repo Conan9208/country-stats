@@ -33,7 +33,7 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
   const winH = typeof window !== 'undefined' ? window.innerHeight : 800
   const winW = typeof window !== 'undefined' ? window.innerWidth : 1200
   const maxPanelH = Math.min(Math.floor(winH * 0.65), 520)
-  const panelH = Math.min(pins.length * 94 + 120, maxPanelH)
+  const panelH = Math.min(pins.length * 130 + 120, maxPanelH)
   const left = Math.min(x + 12, winW - panelW - 12)
   const top  = Math.min(y - 10, winH - panelH - 12)
 
@@ -108,7 +108,7 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
                   })()}
                 </div>
                 {pin.description && (
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, lineHeight: 1.4, wordBreak: 'break-word' }}>
                     {pin.description}
                   </div>
                 )}
