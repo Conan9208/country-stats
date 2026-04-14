@@ -6,10 +6,19 @@ import { useTranslations } from 'next-intl'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import SiteHeader from '@/components/SiteHeader'
+import QRCode from 'react-qr-code'
 
 const KOFI_BASE = 'https://ko-fi.com/conankor'
 const KAKAO_PAY_URL = 'https://qr.kakaopay.com/FT9kCDkwB'
 const MAX_CHARS = 500
+
+function isMobileDevice(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  )
+}
 
 export default function DonatePage() {
   const t = useTranslations('Donate')
@@ -19,6 +28,15 @@ export default function DonatePage() {
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<'success' | 'error' | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
+  const [showKakaoQR, setShowKakaoQR] = useState(false)
+
+  function handleKakaoClick() {
+    if (isMobileDevice()) {
+      window.open(KAKAO_PAY_URL, '_blank')
+    } else {
+      setShowKakaoQR(true)
+    }
+  }
 
   async function handleSend() {
     if (!message.trim()) return
@@ -100,12 +118,38 @@ export default function DonatePage() {
           <div className="flex flex-col gap-1.5">
             <span className="text-xs text-zinc-600">{t('labelKorean')}</span>
             <button
-              onClick={() => window.open(KAKAO_PAY_URL, '_blank')}
+              onClick={handleKakaoClick}
               className="w-full flex items-center justify-center gap-2 bg-[#FEE500] text-zinc-950 hover:bg-yellow-300 transition-colors font-semibold py-4 rounded-xl text-base"
             >
               {t('ctaKakao')}
             </button>
           </div>
+
+          {/* 카카오페이 QR 모달 (데스크탑 전용) */}
+          {showKakaoQR && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+              onClick={() => setShowKakaoQR(false)}
+            >
+              <div
+                className="bg-white rounded-2xl p-8 flex flex-col items-center gap-4 max-w-xs w-full mx-4"
+                onClick={e => e.stopPropagation()}
+              >
+                <p className="text-zinc-900 font-bold text-lg">카카오페이로 후원</p>
+                <QRCode value={KAKAO_PAY_URL} size={200} />
+                <p className="text-zinc-500 text-sm text-center leading-relaxed">
+                  카카오페이 앱 실행 후<br />
+                  QR 스캔 버튼으로 스캔하세요
+                </p>
+                <button
+                  onClick={() => setShowKakaoQR(false)}
+                  className="text-zinc-400 text-sm mt-1 hover:text-zinc-600 transition-colors"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Ko-fi — 해외 유저 */}
           <div className="flex flex-col gap-1.5">
