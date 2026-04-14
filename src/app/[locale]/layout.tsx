@@ -7,6 +7,8 @@ import { getMessages, setRequestLocale } from 'next-intl/server';
 import { routing } from '@/i18n/routing';
 import { notFound } from 'next/navigation';
 
+const BASE_URL = 'https://postmyglobe.com'
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,32 +20,61 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "PostMyGlobe",
-  description: "Post your world to the globe — explore countries, cast votes, and discover fun facts on an interactive 3D globe.",
-  metadataBase: new URL("https://postmyglobe.com"),
-  openGraph: {
-    title: "PostMyGlobe",
-    description: "Post your world to the globe — explore countries, cast votes, and discover fun facts on an interactive 3D globe.",
-    url: "https://postmyglobe.com",
-    siteName: "PostMyGlobe",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "PostMyGlobe — Interactive 3D Globe",
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}): Promise<Metadata> {
+  const { locale } = await params
+
+  const isKo = locale === 'ko'
+
+  const title = isKo
+    ? '세계 나라 통계 & 부채 실시간 | PostMyGlobe'
+    : 'Interactive 3D World Globe | Country Stats & Debt Clock | PostMyGlobe'
+
+  const description = isKo
+    ? '3D 지구본으로 세계 195개 국가를 탐험하세요. 국가 부채 실시간, GDP, 환율, 국가 비교 정보를 한눈에.'
+    : 'Explore 195 countries on an interactive 3D globe. Real-time national debt, GDP, exchange rates, and country comparisons.'
+
+  const url = `${BASE_URL}/${locale}`
+
+  return {
+    title,
+    description,
+    metadataBase: new URL(BASE_URL),
+    alternates: {
+      canonical: url,
+      languages: {
+        ko: `${BASE_URL}/ko`,
+        en: `${BASE_URL}/en`,
+        'x-default': BASE_URL,
       },
-    ],
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "PostMyGlobe",
-    description: "Post your world to the globe — explore countries, cast votes, and discover fun facts on an interactive 3D globe.",
-    images: ["/og-image.png"],
-  },
-};
+    },
+    openGraph: {
+      title,
+      description,
+      url,
+      siteName: 'PostMyGlobe',
+      images: [
+        {
+          url: '/og-image.png',
+          width: 1200,
+          height: 630,
+          alt: 'PostMyGlobe — Interactive 3D Globe',
+        },
+      ],
+      type: 'website',
+      locale: isKo ? 'ko_KR' : 'en_US',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: ['/og-image.png'],
+    },
+  }
+}
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
