@@ -1,15 +1,17 @@
 import { NextRequest } from 'next/server'
-import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export async function GET(req: NextRequest) {
   // Bearer 토큰으로 관리자 인증 검증
   const token = req.headers.get('Authorization')?.replace('Bearer ', '').trim()
-  if (!token) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!token) return Response.json({ error: 'Unauthorized: no token' }, { status: 401 })
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-  if (authError || !user || user.email !== process.env.ADMIN_EMAIL) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+  if (authError || !user) {
+    return Response.json({ error: `Unauthorized: ${authError?.message ?? 'no user'}` }, { status: 401 })
+  }
+  if (user.email !== process.env.ADMIN_EMAIL) {
+    return Response.json({ error: `Unauthorized: email mismatch (${user.email})` }, { status: 401 })
   }
 
   const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z'

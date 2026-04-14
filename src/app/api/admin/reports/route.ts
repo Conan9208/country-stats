@@ -1,11 +1,10 @@
 import { NextRequest } from 'next/server'
-import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 async function verifyAdmin(req: NextRequest): Promise<boolean> {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '').trim()
   if (!token) return false
-  const { data: { user }, error } = await supabase.auth.getUser(token)
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token)
   return !error && !!user && user.email === process.env.ADMIN_EMAIL
 }
 
