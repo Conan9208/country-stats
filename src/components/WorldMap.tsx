@@ -28,7 +28,7 @@ import { useLocale, useTranslations } from 'next-intl'
 
 isoCountries.registerLocale(localeKo)
 isoCountries.registerLocale(localeEn)
-
+  
 
 type WorldMapProps = {
   pollMode?: boolean

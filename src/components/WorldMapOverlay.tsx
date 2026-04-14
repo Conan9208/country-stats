@@ -62,7 +62,7 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((_, ref) => {
 
   return (
     <>
-      {/* 슬롯머신 오버레이 — cycling 중에만 표시 */}
+      {/* 슬롯머신 오버레이 — cycling중에만 표시 */}
       {rouletteSlot?.phase === 'cycling' && (
         <div style={{
           position: 'absolute',
