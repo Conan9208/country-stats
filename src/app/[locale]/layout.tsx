@@ -31,8 +31,8 @@ export async function generateMetadata({
   const isKo = locale === 'ko'
 
   const title = isKo
-    ? '세계 나라 통계 & 부채 실시간 | PostMyGlobe'
-    : 'Interactive 3D World Globe | Country Stats & Debt Clock | PostMyGlobe'
+    ? '글로브 포스트 | 세계 국가 통계'
+    : 'GlobePost | Country Stats'
 
   const description = isKo
     ? '3D 지구본으로 세계 195개 국가를 탐험하세요. 국가 부채 실시간, GDP, 환율, 국가 비교 정보를 한눈에.'
