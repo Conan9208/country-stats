@@ -1,8 +1,8 @@
 'use client'
 
 
-import { forwardRef, useImperativeHandle, useState } from 'react'
-import { Sparkles, Landmark, Globe, Ban } from 'lucide-react'
+import { forwardRef, useImperativeHandle, useState, useCallback } from 'react'
+import { Sparkles, Landmark, Globe, Ban, Clipboard, Check } from 'lucide-react'
 import type { TooltipState } from '@/types/map'
 import { getLocalTime } from '@/lib/timezoneData'
 import { formatCount, getTier } from '@/lib/mapUtils'
@@ -48,7 +48,19 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((_, ref) => {
   const [rouletteSlot, setRouletteSlot] = useState<RouletteSlotData | null>(null)
   const [landingFacts, setLandingFacts] = useState<LandingFactsData | null>(null)
   const [toast, setToast] = useState<{ message: string; sub: string } | null>(null)
+  const [spinShareCopied, setSpinShareCopied] = useState(false)
   const t = useTranslations('Map')
+
+  const handleSpinShare = useCallback(() => {
+    if (!rouletteSlot || !landingFacts) return
+    const text = `🌍 ${rouletteSlot.current.name}\n\n${landingFacts.funFact}\n\n→ postmyglobe.com`
+    navigator.clipboard.writeText(text).then(() => {
+      setSpinShareCopied(true)
+      setTimeout(() => setSpinShareCopied(false), 2000)
+    }).catch(() => {
+      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
+    })
+  }, [rouletteSlot, landingFacts])
 
   useImperativeHandle(ref, () => ({
     setTooltip,
@@ -121,6 +133,7 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((_, ref) => {
             boxShadow: '0 0 80px rgba(167,139,250,0.18), 0 16px 60px rgba(0,0,0,0.7)',
             animation: 'rouletteLand 0.4s cubic-bezier(0.22,1,0.36,1)',
             minWidth: 280,
+            pointerEvents: 'auto',
           }}>
             <div style={{ fontSize: 11, color: '#a78bfa', fontWeight: 700, letterSpacing: '0.16em', marginBottom: 16 }}>
               {t('spinResult')}
@@ -157,6 +170,29 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((_, ref) => {
                   <span style={{ fontSize: 12, color: '#94a3b8' }}>{t('areaRank', { rank: landingFacts.areaRank })}</span>
                 </div>
                 <div style={{ fontSize: 11, color: '#475569', display: 'flex', alignItems: 'center', gap: 3 }}><Globe size={10} /> {landingFacts.region}</div>
+                <button
+                  onClick={handleSpinShare}
+                  style={{
+                    marginTop: 4,
+                    padding: '8px 0',
+                    borderRadius: 10,
+                    background: spinShareCopied ? 'rgba(52,211,153,0.15)' : 'rgba(167,139,250,0.12)',
+                    border: `1px solid ${spinShareCopied ? 'rgba(52,211,153,0.35)' : 'rgba(167,139,250,0.3)'}`,
+                    color: spinShareCopied ? '#34d399' : '#a78bfa',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 5,
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {spinShareCopied
+                    ? <><Check size={12} /> 복사됨!</>
+                    : <><Clipboard size={12} /> 공유하기</>}
+                </button>
               </div>
             ) : (
               <div style={{ fontSize: 12, color: '#475569' }}>{t('loadingFacts')}</div>

@@ -1,15 +1,13 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, Suspense, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { Globe, Send } from 'lucide-react'
-/* POLL_DISABLED START */
-// import VoteReasonModal from '@/components/VoteReasonModal'
-// import { supabase } from '@/lib/supabase'
-/* POLL_DISABLED END */
+import VoteReasonModal from '@/components/VoteReasonModal'
+import { supabase } from '@/lib/supabase'
 import CommentFeed from '@/components/CommentFeed'
 
 const WorldMap = dynamic(() => import('@/components/WorldMap'), {
@@ -35,61 +33,80 @@ function HomeContent() {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab)
   const t = useTranslations('Nav')
 
-  /* POLL_DISABLED START */
-  // const [pollMode, setPollMode] = useState(false)
-  // const [showPollIntro, setShowPollIntro] = useState(false)
-  // const [voteModal, setVoteModal] = useState<{ alpha2: string; name: string } | null>(null)
-  // const [pollVotedCountry, setPollVotedCountry] = useState<string | null>(null)
-  // const [pollData, setPollData] = useState<Record<string, number>>({})
-  // const [pollQuestion, setPollQuestion] = useState<{ emoji: string; text: string } | null>(null)
-  // const [pollTotalVotes, setPollTotalVotes] = useState(0)
-  /* POLL_DISABLED END */
+  const [pollMode, setPollMode] = useState(false)
+  const [voteModal, setVoteModal] = useState<{ alpha2: string; name: string } | null>(null)
+  const [pollVotedCountry, setPollVotedCountry] = useState<string | null>(null)
+  const [pollData, setPollData] = useState<Record<string, number>>({})
+  const [pollQuestion, setPollQuestion] = useState<{ emoji: string; text: string } | null>(null)
+  const [pollTotalVotes, setPollTotalVotes] = useState(0)
 
   // 페이지 진입 시 방문 기록 (1회)
   useEffect(() => {
     fetch('/api/track', { method: 'POST' }).catch(() => {})
   }, [])
 
-  /* POLL_DISABLED START */
   // map 탭 진입 시 오늘의 질문 프리로드
-  // useEffect(() => {
-  //   if (activeTab !== 'map') return
-  //   fetch('/api/polls/today')
-  //     .then(r => r.json())
-  //     .then(d => {
-  //       setShowPollIntro(false)
-  //       setPollMode(false)
-  //       setPollQuestion(d.question ?? null)
-  //       setPollTotalVotes(d.totalVotes ?? 0)
-  //       setPollData(d.results ?? {})
-  //       setPollVotedCountry(d.myVote ?? null)
-  //       if (!d.myVote) {
-  //         setShowPollIntro(true)
-  //       }
-  //     })
-  // }, [activeTab])
+  useEffect(() => {
+    if (activeTab !== 'map') return
+    fetch('/api/polls/today')
+      .then(r => r.json())
+      .then(d => {
+        setPollQuestion(d.question ?? null)
+        setPollTotalVotes(d.totalVotes ?? 0)
+        setPollData(d.results ?? {})
+        setPollVotedCountry(d.myVote ?? null)
+      })
+      .catch(() => {})
+  }, [activeTab])
 
   // 실시간 투표 반영
-  // useEffect(() => {
-  //   if (activeTab !== 'map') return
-  //   const channel = supabase
-  //     .channel('page_poll_realtime')
-  //     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'poll_votes' }, () => {
-  //       fetch('/api/polls/today').then(r => r.json()).then(d => {
-  //         setPollData(d.results ?? {})
-  //         setPollTotalVotes(d.totalVotes ?? 0)
-  //       })
-  //     })
-  //     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'poll_votes' }, () => {
-  //       fetch('/api/polls/today').then(r => r.json()).then(d => {
-  //         setPollData(d.results ?? {})
-  //         setPollTotalVotes(d.totalVotes ?? 0)
-  //       })
-  //     })
-  //     .subscribe()
-  //   return () => { supabase.removeChannel(channel) }
-  // }, [activeTab])
-  /* POLL_DISABLED END */
+  useEffect(() => {
+    if (activeTab !== 'map') return
+    const channel = supabase
+      .channel('page_poll_realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'poll_votes' }, () => {
+        fetch('/api/polls/today').then(r => r.json()).then(d => {
+          setPollData(d.results ?? {})
+          setPollTotalVotes(d.totalVotes ?? 0)
+        }).catch(() => {})
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'poll_votes' }, () => {
+        fetch('/api/polls/today').then(r => r.json()).then(d => {
+          setPollData(d.results ?? {})
+          setPollTotalVotes(d.totalVotes ?? 0)
+        }).catch(() => {})
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [activeTab])
+
+  const handlePollVote = useCallback(async (alpha2: string, name: string) => {
+    const res = await fetch('/api/polls/vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alpha2 }),
+    })
+    const data = await res.json() as { ok: boolean }
+    if (data.ok) {
+      setPollMode(false)
+      setPollVotedCountry(alpha2)
+      setVoteModal({ alpha2, name })
+      fetch('/api/polls/today').then(r => r.json()).then(d => {
+        setPollData(d.results ?? {})
+        setPollTotalVotes(d.totalVotes ?? 0)
+      }).catch(() => {})
+    }
+  }, [])
+
+  const handleCancelPollVote = useCallback(async () => {
+    await fetch('/api/polls/vote', { method: 'DELETE' })
+    setPollVotedCountry(null)
+    fetch('/api/polls/today').then(r => r.json()).then(d => {
+      setPollData(d.results ?? {})
+      setPollTotalVotes(d.totalVotes ?? 0)
+      setPollVotedCountry(d.myVote ?? null)
+    }).catch(() => {})
+  }, [])
 
   return (
     <main className="h-screen bg-zinc-950 text-white flex flex-col overflow-hidden">
@@ -139,23 +156,24 @@ function HomeContent() {
       {/* 탭 콘텐츠 */}
       {activeTab === 'map' && (
         <div className="flex-1 overflow-hidden relative">
-          <WorldMap />
-
-          {/* POLL_DISABLED START */}
-          {/* 인트로 오버레이 */}
-          {/* {showPollIntro && (
-            <div style={{ position: 'absolute', inset: 0, zIndex: 1050, background: 'rgba(5,10,16,0.5)' }} />
-          )} */}
-
-          {/* 인트로 카드 */}
-          {/* {showPollIntro && pollQuestion && ( ... )} */}
-
-          {/* 하단 투표 입장 버튼 (미투표 시만) */}
-          {/* {!pollMode && !showPollIntro && pollQuestion && !pollVotedCountry && ( ... )} */}
-
-          {/* 투표 후 이유 입력 → 축하 → 일반 모드 복귀 */}
-          {/* {voteModal && ( <VoteReasonModal ... /> )} */}
-          {/* POLL_DISABLED END */}
+          <WorldMap
+            pollMode={pollMode}
+            onPollVote={handlePollVote}
+            pollVotedCountry={pollVotedCountry}
+            pollData={pollData}
+            pollQuestion={pollQuestion}
+            pollTotalVotes={pollTotalVotes}
+            pollMyVote={pollVotedCountry}
+            onCancelPollVote={handleCancelPollVote}
+            onStartPoll={() => setPollMode(true)}
+          />
+          {voteModal && (
+            <VoteReasonModal
+              alpha2={voteModal.alpha2}
+              countryName={voteModal.name}
+              onDone={() => setVoteModal(null)}
+            />
+          )}
         </div>
       )}
 

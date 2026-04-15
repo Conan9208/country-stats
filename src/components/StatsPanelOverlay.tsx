@@ -56,7 +56,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
 
   const top5Poll = Object.entries(pollData ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 5)
   const myVoteInTop5 = top5Poll.some(([a]) => a === pollMyVote)
-  const showPollSection = (pollTotalVotes ?? 0) > 0 && pollQuestion
+  const showPollSection = pollQuestion != null
 
   const buildShareText = () => {
     const topLines = top5Poll.map(([a2, count], i) => {

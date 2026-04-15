@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "../globals.css";
 import { NextIntlClientProvider } from 'next-intl';
+import Script from 'next/script';
 import AdSenseLoader from '@/components/AdSenseLoader';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import { routing } from '@/i18n/routing';
@@ -113,6 +114,14 @@ export default async function RootLayout({
           {children}
         </NextIntlClientProvider>
         <AdSenseLoader />
+        {/* Google Analytics 4 */}
+        <Script src="https://www.googletagmanager.com/gtag/js?id=G-G8DS3NGS65" strategy="afterInteractive" />
+        <Script id="ga4-init" strategy="afterInteractive">{`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-G8DS3NGS65');
+        `}</Script>
       </body>
     </html>
   );

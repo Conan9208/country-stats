@@ -213,7 +213,7 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
           overlayRef.current?.setRouletteSlot(null)
           overlayRef.current?.setLandingFacts(null)
           setIsSpinning(false)
-        }, 3000)
+        }, 6000)
 
         return
       }
