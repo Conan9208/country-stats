@@ -6,12 +6,38 @@ import SiteHeader from '@/components/SiteHeader'
 
 type Props = { params: Promise<{ locale: string }> }
 
+const BASE_URL = 'https://postmyglobe.com'
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params
   const t = await getTranslations({ locale, namespace: 'Contact' })
+  const title = t('metaTitle')
+  const description = t('metaDesc')
+  const pageUrl = `${BASE_URL}/${locale}/contact`
   return {
-    title: t('metaTitle'),
-    description: t('metaDesc'),
+    title,
+    description,
+    alternates: {
+      canonical: pageUrl,
+      languages: {
+        ko: `${BASE_URL}/ko/contact`,
+        en: `${BASE_URL}/en/contact`,
+      },
+    },
+    openGraph: {
+      title,
+      description,
+      url: pageUrl,
+      siteName: 'PostMyGlobe',
+      images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: ['/og-image.png'],
+    },
   }
 }
 

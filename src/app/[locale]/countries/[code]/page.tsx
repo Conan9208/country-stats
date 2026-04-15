@@ -192,7 +192,9 @@ export default async function CountryDebtPage({
   const data = await fetchCountryData(code)
   const isKo = locale === 'ko'
 
-  const jsonLd = data
+  const pageUrl = `${BASE_URL}/${locale}/countries/${code.toLowerCase()}`
+
+  const datasetJsonLd = data
     ? {
         '@context': 'https://schema.org',
         '@type': 'Dataset',
@@ -200,7 +202,7 @@ export default async function CountryDebtPage({
         description: isKo
           ? `${data.name}의 국가 부채 실시간 추산. GDP 대비 ${data.debtRatio.toFixed(1)}%.`
           : `Real-time national debt estimate for ${data.name}. Debt-to-GDP: ${data.debtRatio.toFixed(1)}%.`,
-        url: `${BASE_URL}/${locale}/countries/${code.toLowerCase()}`,
+        url: pageUrl,
         variableMeasured: [
           { '@type': 'PropertyValue', name: 'GDP (USD)',              value: data.gdpUSD },
           { '@type': 'PropertyValue', name: 'Debt-to-GDP Ratio (%)', value: data.debtRatio },
@@ -209,13 +211,31 @@ export default async function CountryDebtPage({
       }
     : null
 
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'PostMyGlobe', item: BASE_URL },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: data ? (isKo ? `${data.name} 국가 부채` : `${data.name} National Debt`) : code.toUpperCase(),
+        item: pageUrl,
+      },
+    ],
+  }
+
   return (
     <main style={{ minHeight: '100vh', background: '#050a10', color: '#f1f5f9', fontFamily: 'inherit' }}>
       {/* JSON-LD 구조화 데이터 */}
-      {jsonLd && (
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+      {datasetJsonLd && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(datasetJsonLd) }}
         />
       )}
 
