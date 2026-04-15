@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "../globals.css";
-import Script from 'next/script';
 import { NextIntlClientProvider } from 'next-intl';
+import AdSenseLoader from '@/components/AdSenseLoader';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import { routing } from '@/i18n/routing';
 import { notFound } from 'next/navigation';
@@ -112,12 +112,7 @@ export default async function RootLayout({
         <NextIntlClientProvider messages={messages} locale={locale}>
           {children}
         </NextIntlClientProvider>
-        <Script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8766166885849764"
-          crossOrigin="anonymous"
-          strategy="afterInteractive"
-        />
+        <AdSenseLoader />
       </body>
     </html>
   );
