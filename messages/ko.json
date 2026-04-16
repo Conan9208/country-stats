@@ -25,7 +25,10 @@
     "twitterShare": "🐦 X 공유",
     "shareOnX": "𝕏",
     "voteNow": "🗳️ 지금 투표하기 →",
-    "cancelVote": "투표 취소"
+    "cancelVote": "투표 취소",
+    "rank4": "4위",
+    "rank5": "5위",
+    "closeTitle": "투표 모드 끄기"
   },
   "Stats": {
     "totalClicks": "총 클릭",

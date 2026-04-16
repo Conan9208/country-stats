@@ -25,7 +25,10 @@
     "twitterShare": "🐦 X Share",
     "shareOnX": "𝕏",
     "voteNow": "🗳️ Vote Now →",
-    "cancelVote": "Cancel vote"
+    "cancelVote": "Cancel vote",
+    "rank4": "4th",
+    "rank5": "5th",
+    "closeTitle": "Close vote mode"
   },
   "Stats": {
     "totalClicks": "Total Clicks",

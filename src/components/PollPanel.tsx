@@ -6,11 +6,13 @@ import type { PollTodayResponse } from '@/types/poll'
 import { glass } from '@/lib/mapConstants'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
+import localeEn from 'i18n-iso-countries/langs/en.json'
+import { useTranslations, useLocale } from 'next-intl'
 import { Medal, Globe, Check, Clipboard, Share2 } from 'lucide-react'
 
 isoCountries.registerLocale(localeKo as Parameters<typeof isoCountries.registerLocale>[0])
+isoCountries.registerLocale(localeEn as Parameters<typeof isoCountries.registerLocale>[0])
 
-const MEDAL = ['🥇', '🥈', '🥉', '4위', '5위']
 const RANK_COLORS = ['#facc15', '#a78bfa', '#60a5fa', '#94a3b8', '#94a3b8']
 
 function flagEmoji(alpha2: string): string {
@@ -21,10 +23,6 @@ function flagEmoji(alpha2: string): string {
     .join('')
 }
 
-function countryName(alpha2: string): string {
-  return isoCountries.getName(alpha2.toUpperCase(), 'ko') ?? alpha2
-}
-
 interface PollPanelProps {
   votedCountry: string | null
   onVote: (alpha2: string, name: string) => void
@@ -33,10 +31,18 @@ interface PollPanelProps {
 }
 
 export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose }: PollPanelProps) {
+  const t = useTranslations('Poll')
+  const locale = useLocale()
   const [poll, setPoll] = useState<PollTodayResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+
+  const MEDAL = ['🥇', '🥈', '🥉', t('rank4'), t('rank5')]
+
+  function countryName(alpha2: string): string {
+    return isoCountries.getName(alpha2.toUpperCase(), locale) ?? alpha2
+  }
 
   const fetchPoll = useCallback(async () => {
     const res = await fetch('/api/polls/today')
@@ -84,6 +90,7 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
   // 공유 — 결과 + "너도 투표해봐" 유도
   const buildShareText = useCallback(() => {
     if (!poll) return ''
+    const questionText = poll.question.text[locale as 'ko' | 'en'] ?? poll.question.text.en
     const topLines = top5
       .map(([alpha2, count], i) => {
         const pct = poll.totalVotes > 0 ? Math.round((count / poll.totalVotes) * 100) : 0
@@ -91,17 +98,25 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
       })
       .join('\n')
     const myLine = myVote
-      ? `\n나는 ${flagEmoji(myVote)} ${countryName(myVote)}에 투표했어!`
+      ? locale === 'ko'
+        ? `\n나는 ${flagEmoji(myVote)} ${countryName(myVote)}에 투표했어!`
+        : `\nI voted for ${flagEmoji(myVote)} ${countryName(myVote)}!`
       : ''
+    const participantsText = locale === 'ko'
+      ? `전 세계 ${poll.totalVotes.toLocaleString()}명 참여${myLine}`
+      : `${poll.totalVotes.toLocaleString()} votes worldwide${myLine}`
+    const ctaText = locale === 'ko'
+      ? '너도 투표해봐 👉 postmyglobe.com'
+      : 'Cast your vote 👉 postmyglobe.com'
     return [
-      `🗳️ ${poll.question.emoji} ${poll.question.text}`,
-      `전 세계 ${poll.totalVotes.toLocaleString()}명 참여${myLine}`,
+      `🗳️ ${poll.question.emoji} ${questionText}`,
+      participantsText,
       '',
       topLines,
       '',
-      '너도 투표해봐 👉 postmyglobe.com',
+      ctaText,
     ].join('\n')
-  }, [poll, top5, myVote])
+  }, [poll, top5, myVote, locale])
 
   const handleCopyShare = useCallback(async () => {
     const text = buildShareText()
@@ -141,12 +156,12 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#a78bfa', display: 'inline-block' }} className="animate-pulse" />
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.07em' }}>오늘의 투표</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.07em' }}>{t('badge')}</span>
         </div>
         <button
           onClick={onClose}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', fontSize: 18, lineHeight: 1, padding: '0 2px' }}
-          title="투표 모드 끄기"
+          title={t('closeTitle')}
         >×</button>
       </div>
 
@@ -161,11 +176,11 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
         }}>
           <div style={{ fontSize: 20, marginBottom: 4 }}>{poll.question.emoji}</div>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', lineHeight: 1.4 }}>
-            {poll.question.text}
+            {poll.question.text[locale as 'ko' | 'en'] ?? poll.question.text.en}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
             <span style={{ fontSize: 11, color: '#64748b' }}>
-              {poll.totalVotes.toLocaleString()}명 참여
+              {t('participating', { count: poll.totalVotes.toLocaleString() })}
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#22c55e', fontWeight: 600 }}>
               <span className="animate-pulse" style={{ width: 5, height: 5, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
@@ -194,7 +209,7 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
             <div style={{ fontSize: 12, fontWeight: 700, color: '#34d399', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {countryName(myVote)}
             </div>
-            <div style={{ fontSize: 10, color: '#475569', display: 'flex', alignItems: 'center', gap: 2 }}>내 투표 <Check size={9} /></div>
+            <div style={{ fontSize: 10, color: '#475569', display: 'flex', alignItems: 'center', gap: 2 }}>{t('myVote')} <Check size={9} /></div>
           </div>
           <button
             onClick={handleCancel}
@@ -211,13 +226,13 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
               whiteSpace: 'nowrap',
             }}
           >
-            {cancelling ? '취소 중…' : '취소'}
+            {cancelling ? t('cancelling') : t('cancel')}
           </button>
         </div>
       ) : (
         !loading && (
           <div style={{ fontSize: 12, color: '#475569', marginBottom: 12, textAlign: 'center', padding: '4px 0' }}>
-            <Globe size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />지구본에서 나라를 클릭해 투표하세요
+            <Globe size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t('voteOnGlobe')}
           </div>
         )
       )}
@@ -231,7 +246,7 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
         </div>
       ) : top5.length === 0 ? (
         <div style={{ fontSize: 12, color: '#334155', textAlign: 'center', padding: '16px 0' }}>
-          아직 투표가 없어요 — 첫 번째로 투표해보세요!
+          {t('noVotesYet')}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -292,8 +307,8 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
             }}
           >
             {copied
-              ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Check size={11} /> 복사됨!</span>
-              : <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clipboard size={11} /> 결과 공유</span>}
+              ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Check size={11} /> {t('copied')}</span>
+              : <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clipboard size={11} /> {t('share')}</span>}
           </button>
           <button
             onClick={handleTwitterShare}
@@ -309,13 +324,13 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
               cursor: 'pointer',
             }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Share2 size={11} /> X 공유</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Share2 size={11} /> {t('twitterShare')}</span>
           </button>
         </div>
       )}
 
       <div style={{ marginTop: 12, fontSize: 10, color: '#1e293b', textAlign: 'center' }}>
-        하루 1회 · 매일 자정(UTC) 새 질문
+        {t('dailyInfo')}
       </div>
     </div>
   )

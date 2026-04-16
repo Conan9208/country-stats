@@ -2,11 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { PartyPopper, Check, MessageCircle } from 'lucide-react'
-import isoCountries from 'i18n-iso-countries'
-import localeKo from 'i18n-iso-countries/langs/ko.json'
+import { useTranslations } from 'next-intl'
 import { glass } from '@/lib/mapConstants'
-
-isoCountries.registerLocale(localeKo as Parameters<typeof isoCountries.registerLocale>[0])
 
 function flagEmoji(alpha2: string): string {
   return alpha2.toUpperCase().split('').map(c =>
@@ -21,6 +18,7 @@ interface Props {
 }
 
 export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) {
+  const t = useTranslations('VoteModal')
   const [step, setStep] = useState<'reason' | 'celebration'>('reason')
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -82,7 +80,7 @@ export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) 
 
           {/* 타이틀 */}
           <div style={{ fontFamily: "'Pacifico', cursive", fontSize: 26, color: '#facc15', marginBottom: 8, letterSpacing: '0.02em' }}>
-            투표 완료! <PartyPopper size={20} style={{ display: 'inline', verticalAlign: 'middle' }} />
+            {t('voteComplete')} <PartyPopper size={20} style={{ display: 'inline', verticalAlign: 'middle' }} />
           </div>
 
           <div style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', marginBottom: reason.trim() ? 16 : 24 }}>
@@ -107,7 +105,7 @@ export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) 
           )}
 
           <div style={{ fontSize: 12, color: '#475569', marginBottom: 20 }}>
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>오늘의 투표에 참여했어요 <Check size={11} /></span>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>{t('participated')} <Check size={11} /></span>
           </div>
 
           <button
@@ -120,11 +118,11 @@ export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) 
               cursor: 'pointer',
             }}
           >
-            확인 ({countdown})
+            {t('confirm', { countdown })}
           </button>
 
           <div style={{ fontSize: 11, color: '#1e293b', marginTop: 10 }}>
-            닫히면 일반 지구본으로 돌아가요
+            {t('backToGlobe')}
           </div>
         </div>
       </>
@@ -141,10 +139,10 @@ export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) 
           {flagEmoji(alpha2)}
         </div>
         <div style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
-          {countryName}에 투표했어요!
+          {t('votedFor', { country: countryName })}
         </div>
         <div style={{ fontSize: 12, color: '#64748b', marginBottom: 24 }}>
-          선택한 이유를 남겨보세요 (선택)
+          {t('leaveReason')}
         </div>
 
         {/* 텍스트 영역 */}
@@ -153,7 +151,7 @@ export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) 
           onChange={e => setReason(e.target.value)}
           maxLength={200}
           rows={3}
-          placeholder="이 나라를 선택한 이유를 적어보세요..."
+          placeholder={t('reasonPlaceholder')}
           style={{
             width: '100%', boxSizing: 'border-box',
             background: 'rgba(255,255,255,0.05)',
@@ -168,7 +166,7 @@ export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) 
           }}
         />
         <div style={{ fontSize: 11, color: '#334155', textAlign: 'right', marginTop: 4, marginBottom: 20 }}>
-          {reason.length} / 200자
+          {t('charCount', { current: reason.length })}
         </div>
 
         {/* 버튼들 */}
@@ -182,7 +180,7 @@ export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) 
               color: '#64748b', fontSize: 13, cursor: 'pointer',
             }}
           >
-            건너뛰기
+            {t('skip')}
           </button>
           <button
             onClick={handleComplete}
@@ -203,10 +201,10 @@ export default function VoteReasonModal({ alpha2, countryName, onDone }: Props) 
             }}
           >
             {submitting
-              ? '저장 중…'
+              ? t('saving')
               : reason.trim()
-                ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><MessageCircle size={14} /> 이유 저장하고 완료!</span>
-                : <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><PartyPopper size={14} /> 투표 완료!</span>}
+                ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><MessageCircle size={14} /> {t('saveAndDone')}</span>
+                : <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><PartyPopper size={14} /> {t('voteDone')}</span>}
           </button>
         </div>
       </div>

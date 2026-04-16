@@ -1,6 +1,6 @@
 export interface PollQuestion {
   emoji: string
-  text: string
+  text: { ko: string; en: string }
 }
 
 export interface PollTodayResponse {
