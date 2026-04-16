@@ -9,6 +9,7 @@ import { Globe, Send } from 'lucide-react'
 import VoteReasonModal from '@/components/VoteReasonModal'
 import { supabase } from '@/lib/supabase'
 import CommentFeed from '@/components/CommentFeed'
+import type { PollQuestion } from '@/types/poll'
 
 const WorldMap = dynamic(() => import('@/components/WorldMap'), {
   ssr: false,
@@ -37,7 +38,7 @@ function HomeContent() {
   const [voteModal, setVoteModal] = useState<{ alpha2: string; name: string } | null>(null)
   const [pollVotedCountry, setPollVotedCountry] = useState<string | null>(null)
   const [pollData, setPollData] = useState<Record<string, number>>({})
-  const [pollQuestion, setPollQuestion] = useState<{ emoji: string; text: string } | null>(null)
+  const [pollQuestion, setPollQuestion] = useState<PollQuestion | null>(null)
   const [pollTotalVotes, setPollTotalVotes] = useState(0)
 
   // 페이지 진입 시 방문 기록 (1회)

@@ -15,6 +15,7 @@ import CountryInfoModal from '@/components/CountryInfoModal'
 import StatsPanelOverlay from '@/components/StatsPanelOverlay'
 import { WorldMapOverlay, type OverlayHandle } from '@/components/WorldMapOverlay'
 import type { ClickData, ClickEntry } from '@/types/map'
+import type { PollQuestion } from '@/types/poll'
 import { TIERS, glass } from '@/lib/mapConstants'
 import { countryColor, pollVoteColor, topN, topNToday } from '@/lib/mapUtils'
 import { supabase } from '@/lib/supabase'
@@ -35,7 +36,7 @@ type WorldMapProps = {
   onPollVote?: (alpha2: string, name: string) => void
   pollVotedCountry?: string | null
   pollData?: Record<string, number>
-  pollQuestion?: { emoji: string; text: string } | null
+  pollQuestion?: PollQuestion | null
   pollTotalVotes?: number
   pollMyVote?: string | null
   onCancelPollVote?: () => void

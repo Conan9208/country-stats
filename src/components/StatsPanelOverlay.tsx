@@ -10,6 +10,7 @@ import { formatCount } from '@/lib/mapUtils'
 import { flagEmoji } from '@/lib/geoData'
 import RankList from '@/components/RankList'
 import { useTranslations, useLocale } from 'next-intl'
+import type { PollQuestion } from '@/types/poll'
 
 isoCountries.registerLocale(localeKo)
 isoCountries.registerLocale(localeEn)
@@ -28,7 +29,7 @@ type StatsPanelOverlayProps = {
   todayTop: RankEntry[]
   onSelectCountry: (c: CountryRef) => void
   pollTotalVotes?: number
-  pollQuestion?: { emoji: string; text: string } | null
+  pollQuestion?: PollQuestion | null
   pollData?: Record<string, number>
   pollMyVote?: string | null
   onCancelPollVote?: () => void
@@ -68,7 +69,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
       ? `\n${tPoll('myVote')} ${flagEmoji(pollMyVote)} ${isoCountries.getName(pollMyVote.toUpperCase(), locale) ?? pollMyVote}!`
       : ''
     return [
-      `🗳️ ${pollQuestion!.emoji} ${pollQuestion!.text}`,
+      `🗳️ ${pollQuestion!.emoji} ${pollQuestion!.text[locale as 'ko' | 'en'] ?? pollQuestion!.text.en}`,
       `${pollTotalVotes} participating worldwide${myLine}`,
       '',
       topLines,
@@ -121,7 +122,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
           </div>
           {/* 질문 */}
           <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10, lineHeight: 1.45 }}>
-            {pollQuestion!.emoji} {pollQuestion!.text}
+            {pollQuestion!.emoji} {pollQuestion!.text[locale as 'ko' | 'en'] ?? pollQuestion!.text.en}
           </div>
           {/* TOP5 랭킹 */}
           {top5Poll.map(([alpha2, count], i) => {
