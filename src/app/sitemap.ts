@@ -61,5 +61,23 @@ export default function sitemap(): MetadataRoute.Sitemap {
     }
   }
 
+  // 인기 여행 루트 (from × to 조합, 자국 제외) × 2 locale ≈ 380 entries
+  const POPULAR_FROM = ['KR', 'US', 'JP', 'CN', 'GB', 'DE', 'FR', 'AU', 'IN', 'CA']
+  const POPULAR_TO   = ['US', 'JP', 'KR', 'CN', 'TH', 'VN', 'FR', 'DE', 'GB', 'AU',
+                        'IT', 'ES', 'TR', 'GR', 'ID', 'PH', 'MY', 'SG', 'TW', 'CA']
+  for (const locale of LOCALES) {
+    for (const from of POPULAR_FROM) {
+      for (const to of POPULAR_TO) {
+        if (from === to) continue
+        entries.push({
+          url: `${BASE_URL}/${locale}/travel/${from}/${to}`,
+          lastModified: new Date(),
+          changeFrequency: 'weekly',
+          priority: from === 'KR' ? 0.9 : 0.7,
+        })
+      }
+    }
+  }
+
   return entries
 }
