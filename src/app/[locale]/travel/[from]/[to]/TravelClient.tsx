@@ -452,7 +452,7 @@ function TravelClientContent({ fromData, toData, visa }: TravelClientProps) {
         </div>
 
         {/* 국가 선택 */}
-        <div style={{ ...glass, borderRadius: 14, padding: '20px 20px 16px', marginBottom: 16 }}>
+        <div style={{ ...glass, borderRadius: 14, padding: '20px 20px 16px', marginBottom: 16, position: 'relative', zIndex: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
 
             {/* FROM */}

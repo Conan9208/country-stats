@@ -1357,7 +1357,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
               info: t('contextInfo'),
               comment: t('contextComment'),
               promote: t('contextPin'),
-              travel: '✈ 여행 정보',
+              travel: t('contextTravel'),
             }
             return (
               <button
