@@ -1,13 +1,20 @@
 'use client'
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight, ArrowLeftRight, RefreshCw } from 'lucide-react'
+import { useLocale } from 'next-intl'
+import isoCountries from 'i18n-iso-countries'
+import localeKo from 'i18n-iso-countries/langs/ko.json'
+import localeEn from 'i18n-iso-countries/langs/en.json'
 import { COUNTRY_REGIONS } from '@/data/countryRegions'
 import { getWeatherLabel } from '@/lib/weatherCodes'
 import { getElectrical, getAdapterStatus, PLUG_TYPE_LABELS } from '@/data/electricalStandards'
 import type { CountryBasic, WeatherInfo, Region, VisaRequirement } from '@/types/travel'
+
+isoCountries.registerLocale(localeKo)
+isoCountries.registerLocale(localeEn)
 
 // ─── REST Countries 응답 → CountryBasic 변환 ────────────────────────────────
 
@@ -190,9 +197,149 @@ const selectStyle: React.CSSProperties = {
   colorScheme: 'dark',
 }
 
-// ─── 국가 목록 (드롭다운용) ─────────────────────────────────────────────────
+// ─── 국가 목록 (검색용) ─────────────────────────────────────────────────────
 
-interface CountryOption { cca2: string; name: string }
+interface CountryOption { cca2: string; nameEn: string; nameKo: string; flag: string }
+
+// ─── 국가 검색 컴포넌트 ──────────────────────────────────────────────────────
+
+function CountrySearchInput({
+  value,
+  onChange,
+  options,
+  label,
+}: {
+  value: string
+  onChange: (code: string) => void
+  options: CountryOption[]
+  label: string
+}) {
+  const locale = useLocale()
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node))
+        setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return options
+    const q = query.toLowerCase()
+    return options.filter(o =>
+      o.nameEn.toLowerCase().includes(q) ||
+      o.nameKo.toLowerCase().includes(q) ||
+      o.cca2.toLowerCase() === q
+    ).slice(0, 80)
+  }, [query, options])
+
+  const selected = options.find(o => o.cca2 === value)
+  const displayName = selected
+    ? (locale === 'ko' ? selected.nameKo : selected.nameEn)
+    : (locale === 'ko' ? '선택...' : 'Select...')
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#475569', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 4 }}>
+        {label}
+      </label>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          ...selectStyle,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+          width: '100%',
+          cursor: 'pointer',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
+          {selected && (
+            <img src={selected.flag} alt="" style={{ width: 20, height: 13, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} />
+          )}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+        </span>
+        <span style={{ color: '#64748b', fontSize: 10, flexShrink: 0 }}>▾</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: 0,
+          width: '100%',
+          minWidth: 220,
+          zIndex: 200,
+          background: '#18181b',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 8,
+          overflow: 'hidden',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+        }}>
+          <input
+            autoFocus
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder={locale === 'ko' ? '국가 검색 (한/영)...' : 'Search country (KO/EN)...'}
+            style={{
+              width: '100%',
+              background: '#27272a',
+              border: 'none',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              color: '#f1f5f9',
+              padding: '9px 12px',
+              fontSize: 13,
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+          <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+            {filtered.length === 0 && (
+              <div style={{ padding: '12px 16px', fontSize: 12, color: '#475569', textAlign: 'center' }}>
+                {locale === 'ko' ? '결과 없음' : 'No results'}
+              </div>
+            )}
+            {filtered.map(o => (
+              <button
+                key={o.cca2}
+                onClick={() => { onChange(o.cca2); setOpen(false); setQuery('') }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  padding: '7px 12px',
+                  fontSize: 13,
+                  color: o.cca2 === value ? '#a78bfa' : '#e2e8f0',
+                  background: o.cca2 === value ? 'rgba(167,139,250,0.1)' : 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = o.cca2 === value ? 'rgba(167,139,250,0.1)' : 'none' }}
+              >
+                <img src={o.flag} alt="" style={{ width: 20, height: 13, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} />
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {locale === 'ko' ? o.nameKo : o.nameEn}
+                </span>
+                <span style={{ fontSize: 10, color: '#475569', flexShrink: 0 }}>{o.cca2}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── 메인 컴포넌트 ───────────────────────────────────────────────────────────
 
@@ -227,14 +374,19 @@ function TravelPageContent() {
     if (exchangeRate !== null) setRateSwapped(exchangeRate < 1)
   }, [exchangeRate])
 
-  // 국가 목록 로드 (드롭다운용)
+  // 국가 목록 로드 (검색용 — 국기 + 한/영 이름)
   useEffect(() => {
-    fetch('https://restcountries.com/v3.1/all?fields=cca2,name')
+    fetch('https://restcountries.com/v3.1/all?fields=cca2,name,flags')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         const list: CountryOption[] = data
-          .map(c => ({ cca2: c.cca2 as string, name: (c.name as { common: string }).common }))
-          .sort((a, b) => a.name.localeCompare(b.name))
+          .map(c => ({
+            cca2: c.cca2 as string,
+            nameEn: (c.name as { common: string }).common,
+            nameKo: isoCountries.getName(c.cca2 as string, 'ko') ?? (c.name as { common: string }).common,
+            flag: (c.flags as { svg: string }).svg,
+          }))
+          .sort((a, b) => a.nameEn.localeCompare(b.nameEn))
         setCountryList(list)
       })
       .catch(() => {})
@@ -502,21 +654,25 @@ function TravelPageContent() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
 
             {/* FROM */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 140 }}>
-              <label style={{ fontSize: 10, fontWeight: 700, color: '#475569', letterSpacing: '0.07em', textTransform: 'uppercase' }}>출발 국가</label>
-              <select value={fromCode} onChange={e => setFromCode(e.target.value)} style={selectStyle}>
-                {countryList.map(c => <option key={c.cca2} value={c.cca2}>{c.name}</option>)}
-              </select>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <CountrySearchInput
+                value={fromCode}
+                onChange={setFromCode}
+                options={countryList}
+                label="출발 국가"
+              />
             </div>
 
             <ArrowRight size={18} style={{ color: '#475569', marginTop: 18, flexShrink: 0 }} />
 
             {/* TO */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 140 }}>
-              <label style={{ fontSize: 10, fontWeight: 700, color: '#475569', letterSpacing: '0.07em', textTransform: 'uppercase' }}>목적지</label>
-              <select value={toCode} onChange={e => { setToCode(e.target.value); setToRegionId('') }} style={selectStyle}>
-                {countryList.map(c => <option key={c.cca2} value={c.cca2}>{c.name}</option>)}
-              </select>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <CountrySearchInput
+                value={toCode}
+                onChange={v => { setToCode(v); setToRegionId('') }}
+                options={countryList}
+                label="목적지"
+              />
             </div>
 
             {/* 지역 선택 (대형 국가만) */}

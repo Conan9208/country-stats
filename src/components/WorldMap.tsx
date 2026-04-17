@@ -1239,7 +1239,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     if (action === 'debt')     setDebtCountry({ code: alpha2, name })
     if (action === 'comment')  setCommentCountry({ code: alpha2, name })
     if (action === 'promote')  setPinSubmitCountry({ code: alpha2, name })
-    if (action === 'travel')   window.open(`/${locale}/travel?from=KR&to=${alpha2}`, '_blank')
+    if (action === 'travel')   window.open(`/${locale}/travel?from=${alpha2}`, '_blank')
   }, [closeContextMenu, locale])
 
   const allTimeTop = useMemo(() => topN(clickData, locale), [clickData, locale])
