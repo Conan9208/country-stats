@@ -1233,13 +1233,14 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     setContextMenu(menu)
   }, [getAlpha2AtPoint, locale])
 
-  const handleMenuSelect = useCallback((action: 'info' | 'debt' | 'comment' | 'promote', alpha2: string, name: string) => {
+  const handleMenuSelect = useCallback((action: 'info' | 'debt' | 'comment' | 'promote' | 'travel', alpha2: string, name: string) => {
     closeContextMenu()
     if (action === 'info')     setInfoCountry({ code: alpha2, name })
     if (action === 'debt')     setDebtCountry({ code: alpha2, name })
     if (action === 'comment')  setCommentCountry({ code: alpha2, name })
     if (action === 'promote')  setPinSubmitCountry({ code: alpha2, name })
-  }, [closeContextMenu])
+    if (action === 'travel')   window.open(`/${locale}/travel?from=KR&to=${alpha2}`, '_blank')
+  }, [closeContextMenu, locale])
 
   const allTimeTop = useMemo(() => topN(clickData, locale), [clickData, locale])
   const todayTop = useMemo(() => topNToday(clickData, locale), [clickData, locale])
@@ -1353,8 +1354,13 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
             {contextMenu.name}
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '4px 0' }} />
-          {(['info', 'comment', 'promote'] as const).map((action) => {
-            const labels = { info: t('contextInfo'), comment: t('contextComment'), promote: t('contextPin') }
+          {(['info', 'comment', 'promote', 'travel'] as const).map((action) => {
+            const labels: Record<string, string> = {
+              info: t('contextInfo'),
+              comment: t('contextComment'),
+              promote: t('contextPin'),
+              travel: '✈ 여행 정보',
+            }
             return (
               <button
                 key={action}

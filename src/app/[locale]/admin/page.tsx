@@ -7,10 +7,17 @@ import { Globe, BarChart2, MessageCircle, Pin, RefreshCw, LogOut, Trash2, X } fr
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+interface DailyStatRow {
+  date: string
+  visitors: number
+  countries: Array<{ country: string; count: number }>
+}
+
 interface Stats {
   todayVisitors: number
   totalVisitors: number
   topCountries: Array<{ country: string; count: number }>
+  dailyStats: DailyStatRow[]
 }
 
 interface ReportedComment {
@@ -69,6 +76,7 @@ export default function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false)
 
   const [tab, setTab] = useState<Tab>('stats')
+  const [statsRange, setStatsRange] = useState<'7d' | '30d'>('7d')
   const [stats, setStats] = useState<Stats | null>(null)
   const [statsError, setStatsError] = useState<string | null>(null)
   const [comments, setComments] = useState<ReportedComment[]>([])
@@ -84,9 +92,9 @@ export default function AdminPage() {
 
   // ── 데이터 로드 ──────────────────────────────────────────────────────────
 
-  const loadStats = useCallback(async (token: string) => {
+  const loadStats = useCallback(async (token: string, range: '7d' | '30d' = '7d') => {
     setStatsError(null)
-    const res = await fetch('/api/admin/stats', {
+    const res = await fetch(`/api/admin/stats?range=${range}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) {
@@ -115,10 +123,10 @@ export default function AdminPage() {
     setPins(json.data ?? [])
   }, [])
 
-  const loadTab = useCallback(async (t: Tab, token: string) => {
+  const loadTab = useCallback(async (t: Tab, token: string, range: '7d' | '30d' = '7d') => {
     setLoading(true)
     try {
-      if (t === 'stats') await loadStats(token)
+      if (t === 'stats') await loadStats(token, range)
       if (t === 'comments') await loadComments(token)
       if (t === 'pins') await loadPins(token)
     } finally {
@@ -128,8 +136,8 @@ export default function AdminPage() {
 
   // 탭 변경 시 해당 데이터 로드
   useEffect(() => {
-    if (accessToken) loadTab(tab, accessToken)
-  }, [tab, accessToken, loadTab])
+    if (accessToken) loadTab(tab, accessToken, statsRange)
+  }, [tab, accessToken, loadTab, statsRange])
 
   // ── 로그인 ────────────────────────────────────────────────────────────────
 
@@ -260,7 +268,7 @@ export default function AdminPage() {
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button
-              onClick={() => loadTab(tab, accessToken)}
+              onClick={() => loadTab(tab, accessToken, statsRange)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', display: 'flex', alignItems: 'center', gap: 5, fontSize: 13 }}
             >
               <RefreshCw size={14} /> 새로고침
@@ -326,10 +334,81 @@ export default function AdminPage() {
               ))}
             </div>
 
+            {/* 일별 국가 통계 */}
+            <div style={{ ...card, marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+                  일별 국가 통계
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {(['7d', '30d'] as const).map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setStatsRange(r)}
+                      style={{
+                        background: statsRange === r ? 'rgba(167,139,250,0.15)' : 'rgba(255,255,255,0.04)',
+                        border: `1px solid ${statsRange === r ? 'rgba(167,139,250,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                        borderRadius: 6,
+                        color: statsRange === r ? '#a78bfa' : '#64748b',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '3px 10px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      최근 {r === '7d' ? '7일' : '30일'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {stats.dailyStats.length === 0 ? (
+                <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', padding: '16px 0' }}>데이터 없음</div>
+              ) : (
+                <div>
+                  {/* 헤더 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '100px 60px 1fr', gap: 8, fontSize: 10, fontWeight: 700, color: '#475569', letterSpacing: '0.06em', textTransform: 'uppercase', paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>
+                    <span>날짜</span>
+                    <span style={{ textAlign: 'right' }}>방문자</span>
+                    <span style={{ paddingLeft: 8 }}>국가 TOP 5</span>
+                  </div>
+                  {stats.dailyStats.map(row => (
+                    <div key={row.date} style={{ display: 'grid', gridTemplateColumns: '100px 60px 1fr', gap: 8, alignItems: 'center', padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                      <span style={{ fontSize: 12, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                        {row.date.slice(5)}  {/* MM-DD */}
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', textAlign: 'right' }}>
+                        {row.visitors.toLocaleString()}
+                      </span>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', paddingLeft: 8 }}>
+                        {row.countries.map(({ country, count }) => (
+                          <span
+                            key={country}
+                            style={{
+                              fontSize: 10,
+                              color: '#94a3b8',
+                              background: 'rgba(255,255,255,0.05)',
+                              border: '1px solid rgba(255,255,255,0.07)',
+                              borderRadius: 4,
+                              padding: '1px 6px',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {country === 'XX' ? '???' : country} {count}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 전체 국가 TOP 10 */}
             {stats.topCountries.length > 0 && (
               <div style={card}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 12, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
-                  방문자 출신 국가 TOP {stats.topCountries.length}
+                  방문자 출신 국가 TOP {stats.topCountries.length} (전체)
                 </div>
                 {stats.topCountries.map(({ country, count }, i) => {
                   const maxCount = stats.topCountries[0]?.count ?? 1
