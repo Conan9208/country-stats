@@ -105,7 +105,6 @@ function HomeContent() {
     fetch('/api/polls/today').then(r => r.json()).then(d => {
       setPollData(d.results ?? {})
       setPollTotalVotes(d.totalVotes ?? 0)
-      setPollVotedCountry(d.myVote ?? null)
     }).catch(() => {})
   }, [])
 

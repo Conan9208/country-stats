@@ -42,7 +42,7 @@ export interface OverlayHandle {
   setToast: (toast: { message: string, sub: string } | null) => void;
 }
 
-export const WorldMapOverlay = forwardRef<OverlayHandle>((_, ref) => {
+export const WorldMapOverlay = forwardRef<OverlayHandle, { onSpinClose?: () => void }>(({ onSpinClose }, ref) => {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const [floatNums, setFloatNums] = useState<FloatNumData[]>([])
   const [rouletteSlot, setRouletteSlot] = useState<RouletteSlotData | null>(null)
@@ -134,7 +134,28 @@ export const WorldMapOverlay = forwardRef<OverlayHandle>((_, ref) => {
             animation: 'rouletteLand 0.4s cubic-bezier(0.22,1,0.36,1)',
             minWidth: 280,
             pointerEvents: 'auto',
+            position: 'relative',
           }}>
+            <button
+              onClick={() => {
+                setRouletteSlot(null)
+                setLandingFacts(null)
+                onSpinClose?.()
+              }}
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 14,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#475569',
+                fontSize: 20,
+                lineHeight: 1,
+                padding: '2px 4px',
+              }}
+              title="닫기"
+            >×</button>
             <div style={{ fontSize: 11, color: '#a78bfa', fontWeight: 700, letterSpacing: '0.16em', marginBottom: 16 }}>
               {t('spinResult')}
             </div>

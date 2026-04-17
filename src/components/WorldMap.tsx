@@ -112,7 +112,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   // 자동 회전
   const autoRotateRef = useRef(true)
 
-  const { isSpinning, landingMarkerRef, spinningRef, spinStartRef, spinTargetRef, spinProgressRef, spinJourneyRef, fireworkParticlesRef, handleRandomSpin } = useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef, overlayRef })
+  const { isSpinning, setIsSpinning, landingMarkerRef, spinningRef, spinStartRef, spinTargetRef, spinProgressRef, spinJourneyRef, fireworkParticlesRef, handleRandomSpin } = useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef, overlayRef })
   const { viewersByCountryRef, lastBroadcastCountryRef, presenceChannelRef, mySessionId, channelSubscribedRef } = useRealtimeViewers()
 
   // 이펙트
@@ -1074,14 +1074,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     if (!alpha2) return
     const name = hoveredNameRef.current ?? alpha2
 
-    // 투표 모드: 즉시 모달 오픈 → API는 백그라운드 처리
+    // 투표 모드: onPollVote 핸들러가 API 호출 포함 처리
     if (pollModeRef.current) {
       onPollVoteRef.current?.(alpha2, name)
-      fetch('/api/polls/vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alpha2 }),
-      }).catch(() => { /* 네트워크 오류는 조용히 무시 */ })
       return
     }
 
@@ -1263,7 +1258,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         onContextMenu={onContextMenu}
       />
 
-      <WorldMapOverlay ref={overlayRef} />
+      <WorldMapOverlay ref={overlayRef} onSpinClose={() => setIsSpinning(false)} />
 
       {/* 핀 hover 툴팁 */}
       {pinHoverTooltip && (
