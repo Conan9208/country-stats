@@ -174,7 +174,9 @@
     "tierTag4": "🔥전설",
     "tierTag5": "⚡신화",
     "tierTag6": "💫불멸",
-    "tierTag7": "👑레전드"
+    "tierTag7": "👑레전드",
+    "clickToSeeDetails": "클릭해서 상세보기",
+    "pollModeGuide": "나라를 클릭해 투표하세요"
   },
   "CountryInfo": {
     "loading": "불러오는 중...",

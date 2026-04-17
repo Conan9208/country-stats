@@ -174,7 +174,9 @@
     "tierTag4": "🔥Legend",
     "tierTag5": "⚡Myth",
     "tierTag6": "💫Immortal",
-    "tierTag7": "👑King"
+    "tierTag7": "👑King",
+    "clickToSeeDetails": "Click for details",
+    "pollModeGuide": "Click a country to vote"
   },
   "CountryInfo": {
     "loading": "Loading...",

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
-import { Globe, Send } from 'lucide-react'
+import { Globe, Send, Coffee } from 'lucide-react'
 import VoteReasonModal from '@/components/VoteReasonModal'
 import { supabase } from '@/lib/supabase'
 import CommentFeed from '@/components/CommentFeed'
@@ -20,12 +20,15 @@ const WorldMap = dynamic(() => import('@/components/WorldMap'), {
   ),
 })
 
+// 모바일 탭에서 인라인으로 렌더링할 Donate 페이지
+const DonatePage = dynamic(() => import('@/app/[locale]/donate/page'), { ssr: false })
+
 const tabs = [
   { id: 'map', labelKey: 'globe' },
   { id: 'feed', labelKey: 'feed' },
 ]
 
-type TabId = 'map' | 'feed'
+type TabId = 'map' | 'feed' | 'donate'
 
 function HomeContent() {
   const searchParams = useSearchParams()
@@ -171,6 +174,15 @@ function HomeContent() {
 
       {activeTab === 'feed' && <CommentFeed />}
 
+      {/* 모바일 전용 donate 인라인 탭 */}
+      {activeTab === 'donate' && (
+        <div className="flex-1 overflow-y-auto bg-zinc-950">
+          <Suspense fallback={<div className="h-screen bg-zinc-950" />}>
+            <DonatePage />
+          </Suspense>
+        </div>
+      )}
+
       {/* 모바일 하단 네비게이션 — sm 미만에서만 표시 */}
       <div className="sm:hidden flex border-t border-zinc-800 bg-zinc-950/95 backdrop-blur z-20">
         {tabs.map(tab => (
@@ -185,13 +197,16 @@ function HomeContent() {
             <span>{t(tab.labelKey as any)}</span>
           </button>
         ))}
-        <Link
-          href="/donate"
-          className="flex-1 flex flex-col items-center justify-center h-14 gap-1 text-xs font-medium text-amber-300/70 transition-all"
+        {/* donate 탭 — Link 대신 button으로 인라인 전환 (모바일) */}
+        <button
+          onClick={() => setActiveTab('donate')}
+          className={`flex-1 flex flex-col items-center justify-center h-14 gap-1 text-xs font-medium transition-all ${
+            activeTab === 'donate' ? 'text-amber-300' : 'text-amber-300/70'
+          }`}
         >
-          <span className="text-lg">☕</span>
+          <Coffee size={20} />
           <span>{t('donate')}</span>
-        </Link>
+        </button>
       </div>
     </main>
   )

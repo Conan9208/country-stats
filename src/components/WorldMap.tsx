@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable react-hooks/preserve-manual-memoization */
 
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { Heart, Search, Link2 } from 'lucide-react'
 import type { Feature, Geometry, GeoJsonProperties } from 'geojson'
 import isoCountries from 'i18n-iso-countries'
@@ -51,7 +51,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const pollModeRef         = useRef(pollMode)
   const pollVotedCountryRef = useRef(pollVotedCountry)
   const pollDataRef         = useRef(pollData)
-  useEffect(() => { pollModeRef.current = pollMode }, [pollMode])
+  useLayoutEffect(() => { pollModeRef.current = pollMode }, [pollMode])
   useEffect(() => { pollVotedCountryRef.current = pollVotedCountry }, [pollVotedCountry])
   useEffect(() => { pollDataRef.current = pollData }, [pollData])
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -137,6 +137,11 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     key: string
     ocean: CanvasGradient
     shine: CanvasGradient
+  } | null>(null)
+  // 프로젝션 캐시 — rotation/scale/size가 바뀔 때만 재생성 (매 frame 신규 객체 생성 방지)
+  const projCacheRef = useRef<{
+    key: string
+    proj: ReturnType<typeof geoOrthographic>
   } | null>(null)
 
   useEffect(() => {
@@ -255,11 +260,19 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     // 화면보다 훨씬 큰 지구본 → 가까이서 보는 거대한 지구 느낌
     const baseScale = size * 1.6
     const scale = baseScale * Math.pow(1.3, scaleRef.current)
-    return geoOrthographic()
+    // 모바일(≤640px)에서는 지구본을 정중앙에, 데스크탑에서는 왼쪽으로 오프셋
+    const isMobile = canvas.width <= 640
+    const translateX = isMobile ? canvas.width / 2 : canvas.width / 2 - 128
+    // 프로젝션 캐시: rotation/scale/size/translate가 모두 같으면 기존 인스턴스 재사용
+    const projKey = `${canvas.width},${canvas.height},${scale.toFixed(2)},${rotationRef.current[0].toFixed(4)},${rotationRef.current[1].toFixed(4)}`
+    if (projCacheRef.current?.key === projKey) return projCacheRef.current.proj
+    const proj = geoOrthographic()
       .scale(scale)
-      .translate([canvas.width / 2 - 128, canvas.height / 2])
+      .translate([translateX, canvas.height / 2])
       .rotate([rotationRef.current[0], rotationRef.current[1], 0])
       .clipAngle(90)
+    projCacheRef.current = { key: projKey, proj }
+    return proj
   }, [])
 
   const draw = useCallback(() => {
@@ -443,7 +456,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       ctx.fill()
     }
 
-    // 커서 — 드래그 중에는 단순 도트(그라디언트 생성 비용 절감), 평시에는 글로우 링
+    // 커서 — 드래그 중에는 단순 도트, 평시에는 글로우 링
     const mp = mousePosRef.current
     if (mp) {
       if (isDragging) {
@@ -458,7 +471,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         const outerA = 0.35 + pulse * 0.25                     // 0.35~0.60
         const cr = onCountry ? '250,204,21' : '255,255,255'
 
-        // 소프트 글로우
+        // 소프트 글로우 (드래그 아닐 때만)
         const glow = ctx.createRadialGradient(mp.x, mp.y, 0, mp.x, mp.y, outerR * 2)
         glow.addColorStop(0,   `rgba(${cr},${onCountry ? 0.18 : 0.08})`)
         glow.addColorStop(1,   'rgba(0,0,0,0)')
@@ -1435,28 +1448,36 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
               <Link2 size={10} style={{ verticalAlign: 'middle', marginRight: 3, flexShrink: 0 }} />{pinHoverTooltip.website.replace(/^https?:\/\//, '')}
             </div>
           )}
-          <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>클릭해서 상세보기</div>
+          <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>{t('clickToSeeDetails')}</div>
         </div>
       )}
 
       {/* 안내 — 좌상단 */}
-      <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 12, padding: '10px 16px', lineHeight: 1.35 }}>
-        {/* POLL_DISABLED: pollMode 분기 제거, 항상 일반 안내 표시 */}
-        <>
-          <div style={{ fontSize: 15, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ color: '#34d399', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 4 }}><Heart size={12} /> Left click</span>
-            <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
-            <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>love it &amp; climb the tiers</span>
+      <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 12, padding: '8px 12px', lineHeight: 1.35 }}>
+        {pollMode ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="animate-pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: '#a78bfa', display: 'inline-block', flexShrink: 0 }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa', whiteSpace: 'nowrap' }}>
+              {t('pollModeGuide')}
+            </span>
           </div>
-          <div style={{ fontSize: 15, color: '#f1f5f9', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ color: '#a78bfa', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 4 }}><Search size={12} /> Right click</span>
-            <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
-            <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>explore, comment, or promote here</span>
-          </div>
-          <div style={{ fontSize: 10, color: '#334155', marginTop: 6, fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", letterSpacing: '0.03em' }}>
-            drag · scroll to zoom · spin the globe
-          </div>
-        </>
+        ) : (
+          <>
+            <div style={{ fontSize: 11, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+              <span style={{ color: '#34d399', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 3 }}><Heart size={10} /> Left click</span>
+              <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
+              <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>love it &amp; climb the tiers</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#f1f5f9', marginTop: 3, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+              <span style={{ color: '#a78bfa', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 3 }}><Search size={10} /> Right click</span>
+              <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
+              <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>explore, comment, or promote here</span>
+            </div>
+            <div style={{ fontSize: 9, color: '#334155', marginTop: 5, fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", letterSpacing: '0.03em' }}>
+              drag · scroll to zoom · spin the globe
+            </div>
+          </>
+        )}
       </div>
 
       {/* 모바일 탭 배지 — 국기+이름+클릭수, 2초 후 페이드아웃 */}

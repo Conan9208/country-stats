@@ -71,7 +71,10 @@ export default function DonatePage() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
-      <SiteHeader />
+      {/* \ubaa8\ubc14\uc77c \ud0ed\uc73c\ub85c \uc778\ub77c\uc778 \ub80c\ub354\ub9c1\ub420 \ub54c\ub294 \uc0c1\ub2e8 \ud5e4\ub354 \uc228\uae40 (page.tsx\uc758 \ud5e4\ub354 \uc7ac\uc0ac\uc6a9) */}
+      <div className="hidden sm:block">
+        <SiteHeader />
+      </div>
       <div className="max-w-2xl mx-auto px-6 pt-8 pb-16 flex flex-col gap-12">
 
         {/* 헤더 */}

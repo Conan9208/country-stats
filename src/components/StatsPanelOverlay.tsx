@@ -14,7 +14,8 @@ import type { PollQuestion } from '@/types/poll'
 
 isoCountries.registerLocale(localeKo)
 isoCountries.registerLocale(localeEn)
-const MEDAL = ['🥇', '🥈', '🥉', '4위', '5위']
+// MEDAL: 이모지는 share text에 사용, 4·5위 숫자는 locale-aware → medalLabel 로 별도 처리
+const MEDAL = ['\ud83e\udd47', '\ud83e\udd48', '\ud83e\udd49', '4.', '5.']
 const POLL_COLORS = ['#facc15', '#a78bfa', '#60a5fa', '#94a3b8', '#94a3b8']
 
 type RankEntry = { alpha2: string; name: string; count: number }
@@ -120,7 +121,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
         }}
       >
-        📊 Click Rank
+        📊 Rank
       </button>
     )
   }
@@ -174,7 +175,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: '50%', background: '#a78bfa', display: 'inline-block', flexShrink: 0 }} />
             <span style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.07em' }}>{tPoll('todayVote')}</span>
-            <span style={{ fontSize: 10, color: '#334155', marginLeft: 'auto' }}>{(pollTotalVotes ?? 0).toLocaleString()}명</span>
+            <span style={{ fontSize: 10, color: '#334155', marginLeft: 'auto' }}>{tPoll('participating', { count: (pollTotalVotes ?? 0).toLocaleString() })}</span>
           </div>
           {/* 질문 */}
           <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10, lineHeight: 1.45 }}>
@@ -185,11 +186,12 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
             const pct = (pollTotalVotes ?? 0) > 0 ? Math.round(count / (pollTotalVotes ?? 1) * 100) : 0
             const isMyVote = pollMyVote === alpha2
             const name = isoCountries.getName(alpha2.toUpperCase(), locale) ?? alpha2
+            const medalLabel = i === 3 ? tPoll('rank4') : i === 4 ? tPoll('rank5') : null
             return (
               <div key={alpha2} style={{ marginBottom: 6, padding: '5px 7px', borderRadius: 8, border: isMyVote ? '1px solid rgba(167,139,250,0.5)' : '1px solid transparent', background: isMyVote ? 'rgba(167,139,250,0.08)' : 'transparent' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
                   <span style={{ minWidth: 20, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                    {i < 3 ? <Medal size={11} style={{ color: POLL_COLORS[i] }} /> : <span style={{ fontSize: 11, color: POLL_COLORS[i] }}>{MEDAL[i]}</span>}
+                    {i < 3 ? <Medal size={11} style={{ color: POLL_COLORS[i] }} /> : <span style={{ fontSize: 11, color: POLL_COLORS[i] }}>{medalLabel}</span>}
                   </span>
                   <span style={{ fontSize: 13 }}>{flagEmoji(alpha2)}</span>
                   <span style={{ fontSize: 11, color: '#cbd5e1', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
@@ -205,7 +207,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
           {pollMyVote && !myVoteInTop5 && (
             <div style={{ marginBottom: 6, padding: '5px 7px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.5)', background: 'rgba(167,139,250,0.08)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ fontSize: 11, color: '#a78bfa', minWidth: 20 }}>내</span>
+                <span style={{ fontSize: 11, color: '#a78bfa', minWidth: 20 }}>{tPoll('myVote')}</span>
                 <span style={{ fontSize: 13 }}>{flagEmoji(pollMyVote)}</span>
                 <span style={{ fontSize: 11, color: '#a78bfa', flex: 1 }}>{isoCountries.getName(pollMyVote.toUpperCase(), locale) ?? pollMyVote}</span>
               </div>
@@ -230,7 +232,11 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
               </>
             ) : (
               <button
-                onClick={onStartPoll}
+                onClick={() => {
+                  onStartPoll?.()
+                  // 모바일: 패널을 닫아야 backdrop이 사라져 canvas touch가 작동함
+                  if (isMobile) setIsOpen(false)
+                }}
                 style={{ flex: 1, padding: '7px 0', borderRadius: 8, background: 'linear-gradient(135deg,rgba(124,58,237,0.2),rgba(168,85,247,0.2))', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
               >{tPoll('voteNow')}</button>
             )}
