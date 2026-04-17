@@ -30,6 +30,7 @@ export async function GET(
         feels_like_c: Number(current.FeelsLikeC),
         description: current.weatherDesc?.[0]?.value ?? '',
         icon_url: current.weatherIconUrl?.[0]?.value ?? '',
+        weather_code: Number(current.weatherCode ?? 0),
       },
       { headers: { 'Cache-Control': 's-maxage=1800, stale-while-revalidate=300' } }
     )

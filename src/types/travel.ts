@@ -25,6 +25,14 @@ export interface WeatherInfo {
   feels_like_c: number
   description: string
   icon_url: string
+  weather_code: number
+}
+
+export interface VisaRequirement {
+  type: 'visa-free' | 'voa' | 'evisa' | 'required' | 'no-admission' | 'unknown'
+  label_ko: string
+  days?: number
+  color: string
 }
 
 export interface TravelData {
