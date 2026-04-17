@@ -29,12 +29,16 @@ export async function GET(req: NextRequest) {
   const totalVisitors = new Set(allData.map(r => r.ip_hash)).size
   const todayVisitors = new Set(todayData.map(r => r.ip_hash)).size
 
-  // 나라별 집계 (전체 방문 횟수 기준)
-  const countryCount: Record<string, number> = {}
+  // 나라별 집계 (유니크 ip_hash 기준)
+  const countryIps: Record<string, Set<string>> = {}
   for (const row of allData) {
     const c = row.visitor_country ?? 'XX'
-    countryCount[c] = (countryCount[c] ?? 0) + 1
+    if (!countryIps[c]) countryIps[c] = new Set()
+    countryIps[c].add(row.ip_hash)
   }
+  const countryCount = Object.fromEntries(
+    Object.entries(countryIps).map(([c, ips]) => [c, ips.size])
+  )
 
   // 정렬: 내림차순, 'XX'는 맨 아래
   const countries = Object.entries(countryCount)
