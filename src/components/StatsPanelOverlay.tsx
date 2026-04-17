@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, memo } from 'react'
+import { useState, memo, useEffect } from 'react'
 import { Medal } from 'lucide-react'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
@@ -54,6 +54,19 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
   const tStats = useTranslations('Stats')
   const tPoll = useTranslations('Poll')
   const [pollCopied, setPollCopied] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [isOpen, setIsOpen] = useState(true)
+
+  useEffect(() => {
+    const check = () => {
+      const mobile = window.innerWidth < 640
+      setIsMobile(mobile)
+      if (mobile) setIsOpen(false)
+    }
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const top5Poll = Object.entries(pollData ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 5)
   const myVoteInTop5 = top5Poll.some(([a]) => a === pollMyVote)
@@ -94,8 +107,51 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
   }
 
+  // 모바일 접힌 상태: 토글 버튼만 표시
+  if (isMobile && !isOpen) {
+    return (
+      <button
+        onClick={() => setIsOpen(true)}
+        style={{
+          position: 'absolute', bottom: 80, right: 16, zIndex: 1100,
+          ...glass, borderRadius: 24, padding: '10px 16px',
+          border: '1px solid rgba(167,139,250,0.35)',
+          color: '#a78bfa', fontSize: 13, fontWeight: 700,
+          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+        }}
+      >
+        📊 Click Rank
+      </button>
+    )
+  }
+
+  const containerStyle = isMobile
+    ? { position: 'fixed' as const, bottom: 0, left: 0, right: 0, zIndex: 1900, ...glass, borderRadius: '20px 20px 0 0' as const, padding: '0 16px 24px', maxHeight: '72vh', overflowY: 'auto' as const, scrollbarWidth: 'none' as const }
+    : { ...glass, position: 'absolute' as const, top: 16, right: commentCountry ? 324 : 16, zIndex: 1000, borderRadius: 16, padding: 16, width: 240, maxWidth: 'calc(100vw - 32px)', transition: 'right 0.35s cubic-bezier(0.4,0,0.2,1)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' as const, scrollbarWidth: 'none' as const }
+
+  const handleClose = isMobile ? () => setIsOpen(false) : undefined
+  const handleSelectCountry = isMobile ? (c: CountryRef) => { onSelectCountry(c); setIsOpen(false) } : onSelectCountry
+
   return (
-    <div style={{ ...glass, position: 'absolute', top: 16, right: commentCountry ? 324 : 16, zIndex: 1000, borderRadius: 16, padding: 16, width: 240, transition: 'right 0.35s cubic-bezier(0.4,0,0.2,1)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', scrollbarWidth: 'none' }}>
+    <>
+      {/* 모바일 백드롭 — 바깥 클릭 시 닫기 */}
+      {isMobile && (
+        <div
+          onClick={() => setIsOpen(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1899 }}
+        />
+      )}
+    <div style={containerStyle}>
+      {/* 모바일 핸들바 + 닫기 */}
+      {isMobile && (
+        <div style={{ position: 'sticky', top: 0, background: 'rgba(9,9,11,0.95)', padding: '12px 0 10px', display: 'flex', alignItems: 'center', zIndex: 1 }}>
+          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.12)' }} />
+          <button
+            onClick={handleClose}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#475569', fontSize: 22, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
+          >×</button>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <div style={{ flex: 1, background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#a78bfa', lineHeight: 1 }}>{formatCount(totalClicks)}</div>
@@ -107,9 +163,9 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
         </div>
       </div>
 
-      <RankList title={tStats('allTimeRank')} entries={allTimeTop} emptyMsg={tStats('noClickData')} onSelect={onSelectCountry} />
+      <RankList title={tStats('allTimeRank')} entries={allTimeTop} emptyMsg={tStats('noClickData')} onSelect={handleSelectCountry} visibleCount={5} />
       <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '12px 0' }} />
-      <RankList title={tStats('todayRank')} entries={todayTop} emptyMsg={tStats('noClicksToday')} live onSelect={onSelectCountry} />
+      <RankList title={tStats('todayRank')} entries={todayTop} emptyMsg={tStats('noClicksToday')} live onSelect={handleSelectCountry} visibleCount={5} />
 
       {showPollSection && (
         <>
@@ -182,6 +238,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
         </>
       )}
     </div>
+    </>
   )
 })
 

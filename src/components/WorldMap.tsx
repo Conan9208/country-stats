@@ -101,6 +101,15 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const [debtCountry, setDebtCountry]   = useState<{ code: string; name: string } | null>(null)
   const [infoCountry, setInfoCountry]   = useState<{ code: string; name: string } | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 모바일 탭 배지
+  const [tapBadge, setTapBadge] = useState<{ id: number; alpha2: string; name: string; count: number } | null>(null)
+  const tapBadgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 터치 전용 ref — 마우스 ref와 분리
+  const longPressTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFiredRef  = useRef(false)
+  const touchDragActiveRef = useRef(false)
+  const pinchStartDistRef  = useRef<number | null>(null)
+  const pinchStartScaleRef = useRef<number>(0)
   // 클라이언트 사이드 rate limit (서버와 동일: 1분에 10회)
   const clientClickTimestampsRef = useRef<number[]>([])
   const CLIENT_RATE_LIMIT = 10
@@ -166,11 +175,15 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     } catch { /* ignore */ }
   }, [])
 
-  // 캔버스 밖 클릭 시 컨텍스트 메뉴 닫기
+  // 캔버스 밖 클릭/터치 시 컨텍스트 메뉴 닫기
   useEffect(() => {
     const handler = () => { if (contextMenuRef.current) closeContextMenu() }
     window.addEventListener('mousedown', handler)
-    return () => window.removeEventListener('mousedown', handler)
+    window.addEventListener('touchstart', handler)
+    return () => {
+      window.removeEventListener('mousedown', handler)
+      window.removeEventListener('touchstart', handler)
+    }
   }, [closeContextMenu])
 
   // Esc 키로 팝업/모달 닫기
@@ -1188,9 +1201,6 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       setMyClickCount(myClicksRef.current.size)
       try { localStorage.setItem('my_clicked_countries', JSON.stringify([...myClicksRef.current])) } catch { /* ignore */ }
     }
-
-    // 댓글 패널 열기
-    setCommentCountry({ code: alpha2, name })
   }, [closeContextMenu, t])
 
   // 스크롤 줌 — passive: false로 직접 등록 (React onWheel은 passive라 preventDefault 불가)
@@ -1204,6 +1214,148 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     canvas.addEventListener('wheel', handler, { passive: false })
     return () => canvas.removeEventListener('wheel', handler)
   }, [])
+
+  // 터치 이벤트 — 마우스 핸들러와 완전 분리, 기존 JSX 마우스 props 미수정
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (spinningRef.current) return
+      longPressFiredRef.current = false
+      touchDragActiveRef.current = false
+
+      if (e.touches.length === 1) {
+        const touch = e.touches[0]
+        hasDraggedRef.current = false
+        autoRotateRef.current = false
+        dragStartRef.current = {
+          x: touch.clientX,
+          y: touch.clientY,
+          rotation: [...rotationRef.current] as [number, number],
+        }
+        // 롱프레스 500ms → 컨텍스트 메뉴 (우클릭 대체)
+        longPressTimerRef.current = setTimeout(() => {
+          if (!hasDraggedRef.current) {
+            longPressFiredRef.current = true
+            const rect = canvas.getBoundingClientRect()
+            const cx = touch.clientX - rect.left
+            const cy = touch.clientY - rect.top
+            let alpha2 = hoveredAlpha2Ref.current
+            let name   = hoveredNameRef.current
+            if (!alpha2) {
+              const hit = getAlpha2AtPoint(cx, cy)
+              if (hit?.alpha2) {
+                alpha2 = hit.alpha2
+                name = isoCountries.getName(hit.alpha2.toUpperCase(), locale) ?? hit.alpha2
+              }
+            }
+            if (alpha2 && name) {
+              selectedAlpha2Ref.current = alpha2
+              const menu = { x: touch.clientX, y: touch.clientY, alpha2, name }
+              contextMenuRef.current = menu
+              setContextMenu(menu)
+            }
+          }
+        }, 500)
+      } else if (e.touches.length === 2) {
+        clearTimeout(longPressTimerRef.current!)
+        dragStartRef.current = null
+        const dx = e.touches[0].clientX - e.touches[1].clientX
+        const dy = e.touches[0].clientY - e.touches[1].clientY
+        pinchStartDistRef.current = Math.sqrt(dx * dx + dy * dy)
+        pinchStartScaleRef.current = scaleRef.current
+      }
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault()
+      if (spinningRef.current) return
+
+      if (e.touches.length === 1 && dragStartRef.current) {
+        const touch = e.touches[0]
+        const dx = touch.clientX - dragStartRef.current.x
+        const dy = touch.clientY - dragStartRef.current.y
+        if (Math.sqrt(dx * dx + dy * dy) > 6) {
+          touchDragActiveRef.current = true
+          hasDraggedRef.current = true
+          clearTimeout(longPressTimerRef.current!)
+          hoveredAlpha2Ref.current = null
+          overlayRef.current?.setTooltip(null)
+        }
+        const proj = getProjection()
+        const sensitivity = proj ? (180 / Math.PI) / proj.scale() : 0.05
+        rotationRef.current = [
+          dragStartRef.current.rotation[0] + dx * sensitivity,
+          Math.max(-90, Math.min(90, dragStartRef.current.rotation[1] - dy * sensitivity)),
+        ]
+        const now = performance.now()
+        const last = lastMouseRef.current
+        if (last) {
+          const dt = Math.max(1, now - last.t)
+          velocityRef.current = [
+            (touch.clientX - last.x) / dt * sensitivity,
+            (touch.clientY - last.y) / dt * sensitivity,
+          ]
+        }
+        lastMouseRef.current = { x: touch.clientX, y: touch.clientY, t: now }
+      } else if (e.touches.length === 2 && pinchStartDistRef.current !== null) {
+        clearTimeout(longPressTimerRef.current!)
+        const dx = e.touches[0].clientX - e.touches[1].clientX
+        const dy = e.touches[0].clientY - e.touches[1].clientY
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        const ratio = dist / pinchStartDistRef.current
+        scaleRef.current = Math.max(-3, Math.min(7,
+          pinchStartScaleRef.current + Math.log(ratio) / Math.log(1.3)
+        ))
+      }
+    }
+
+    const onTouchEnd = (e: TouchEvent) => {
+      e.preventDefault()
+      clearTimeout(longPressTimerRef.current!)
+      pinchStartDistRef.current = null
+      dragStartRef.current = null
+
+      // 탭 처리: 드래그도 롱프레스도 아닌 순수 탭
+      if (!hasDraggedRef.current && !longPressFiredRef.current && e.changedTouches.length === 1) {
+        const touch = e.changedTouches[0]
+        const rect = canvas.getBoundingClientRect()
+        const cx = touch.clientX - rect.left
+        const cy = touch.clientY - rect.top
+
+        const pinHit = getPinsAtPoint(cx, cy)
+        if (pinHit) {
+          setActivePinPopup({ alpha2: pinHit.alpha2, pins: pinHit.pins, countryName: pinHit.countryName, x: touch.clientX, y: touch.clientY })
+        } else {
+          const hit = getAlpha2AtPoint(cx, cy)
+          if (hit?.alpha2) {
+            hoveredAlpha2Ref.current = hit.alpha2
+            const countryName = isoCountries.getName(hit.alpha2.toUpperCase(), locale) ?? hit.alpha2
+            hoveredNameRef.current = countryName
+            // 탭 정보 배지 표시 (국기 + 국가명 + 클릭수, 2초 후 자동 사라짐)
+            const currentCount = confirmedCountRef.current[hit.alpha2] ?? clickDataRef.current[hit.alpha2]?.total ?? 0
+            if (tapBadgeTimerRef.current) clearTimeout(tapBadgeTimerRef.current)
+            setTapBadge({ id: Date.now(), alpha2: hit.alpha2, name: countryName, count: currentCount })
+            tapBadgeTimerRef.current = setTimeout(() => setTapBadge(null), 2000)
+            onClick({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => {} } as React.MouseEvent)
+          }
+        }
+      }
+      hasDraggedRef.current = false
+      longPressFiredRef.current = false
+      touchDragActiveRef.current = false
+    }
+
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true })
+    canvas.addEventListener('touchmove',  onTouchMove,  { passive: false })
+    canvas.addEventListener('touchend',   onTouchEnd,   { passive: false })
+    return () => {
+      canvas.removeEventListener('touchstart', onTouchStart)
+      canvas.removeEventListener('touchmove',  onTouchMove)
+      canvas.removeEventListener('touchend',   onTouchEnd)
+    }
+  }, [getAlpha2AtPoint, getProjection, getPinsAtPoint, locale, onClick, setTapBadge, spinningRef])
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -1307,6 +1459,49 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         </>
       </div>
 
+      {/* 모바일 탭 배지 — 국기+이름+클릭수, 2초 후 페이드아웃 */}
+      {tapBadge && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1200,
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            key={tapBadge.id}
+            className="tap-badge"
+            style={{
+              ...glass,
+              borderRadius: 16,
+              padding: '10px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              border: '1px solid rgba(255,255,255,0.12)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              minWidth: 180,
+            }}
+          >
+            <img
+              src={`https://flagcdn.com/48x36/${tapBadge.alpha2.toLowerCase()}.png`}
+              alt=""
+              style={{ width: 36, height: 27, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }}
+            />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', whiteSpace: 'nowrap' }}>{tapBadge.name}</div>
+              <div style={{ fontSize: 11, color: '#a78bfa', marginTop: 2 }}>
+                👆 {tapBadge.count.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 댓글 패널 */}
       {commentCountry && (
         <CommentPanel
@@ -1336,6 +1531,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       {contextMenu && (
         <div
           onMouseDown={e => e.stopPropagation()}
+          onTouchStart={e => e.stopPropagation()}
           style={{
             position: 'fixed',
             left: contextMenu.x,

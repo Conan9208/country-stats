@@ -42,7 +42,15 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice]       = useState<{ msg: string; ok: boolean } | null>(null)
   const [reported, setReported]   = useState<Set<number>>(new Set())
+  const [isMobile, setIsMobile]   = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const fetchComments = useCallback(async (p: number, reset = false) => {
     setLoading(true)
@@ -119,17 +127,11 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
   }
 
   return (
-    <div style={{
-      ...glass,
-      position: 'absolute',
-      top: 16, right: 16, bottom: 16,
-      width: 300,
-      borderRadius: 18,
-      display: 'flex',
-      flexDirection: 'column',
-      zIndex: 1100,
-      overflow: 'hidden',
-    }}>
+    <div style={
+      isMobile
+        ? { ...glass, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1950, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+        : { ...glass, position: 'absolute', top: 16, right: 16, bottom: 16, width: 300, maxWidth: 'calc(100vw - 32px)', borderRadius: 18, display: 'flex', flexDirection: 'column', zIndex: 1100, overflow: 'hidden' }
+    }>
       {/* 헤더 */}
       <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

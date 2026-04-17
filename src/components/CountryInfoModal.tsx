@@ -82,7 +82,7 @@ export default function CountryInfoModal({ code, name, onClose }: Props) {
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ ...glass, borderRadius: 20, width: 480, maxHeight: '85vh', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,0.3) transparent' }}
+        style={{ ...glass, borderRadius: 20, width: 480, maxWidth: '95vw', maxHeight: '85vh', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,0.3) transparent' }}
       >
         {/* 헤더 */}
         <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'rgba(9,9,11,0.95)', borderRadius: '20px 20px 0 0' }}>

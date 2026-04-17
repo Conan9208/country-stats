@@ -195,6 +195,17 @@
   animation-duration: 1.4s;
 }
 
+/* 모바일 탭 국가 정보 배지 */
+@keyframes tapBadgeFade {
+  0%   { opacity: 0; transform: translateY(-10px); }
+  12%  { opacity: 1; transform: translateY(0); }
+  72%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+.tap-badge {
+  animation: tapBadgeFade 2s ease-out forwards;
+}
+
 /* 룰렛 슬롯 카드 애니메이션 */
 @keyframes rouletteLand {
   0%   { opacity: 0; transform: translateY(8px) scale(0.85); }

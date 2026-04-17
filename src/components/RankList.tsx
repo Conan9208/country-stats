@@ -4,14 +4,17 @@ import { formatCount } from '@/lib/mapUtils'
 
 export type RankEntry = { alpha2: string; name: string; count: number }
 
-export default function RankList({ title, entries, emptyMsg, live, onSelect }: {
+export default function RankList({ title, entries, emptyMsg, live, onSelect, visibleCount = 20 }: {
   title: string
   entries: RankEntry[]
   emptyMsg: string
   live?: boolean
   onSelect: (c: { code: string; name: string }) => void
+  visibleCount?: number
 }) {
   const max = entries[0]?.count ?? 1
+  // 각 항목: 텍스트(18px) + 바(3px) + gap(8px) ≈ 29px, 약간의 여유
+  const listMaxHeight = visibleCount * 30
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -26,7 +29,7 @@ export default function RankList({ title, entries, emptyMsg, live, onSelect }: {
       {entries.length === 0 ? (
         <p style={{ color: '#334155', fontSize: 12, margin: 0 }}>{emptyMsg}</p>
       ) : (
-        <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto', paddingRight: 14, marginRight: -4, scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,0.3) transparent', overscrollBehavior: 'contain' }}>
+        <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: listMaxHeight, overflowY: 'auto', paddingRight: 14, marginRight: -4, scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,0.3) transparent', overscrollBehavior: 'contain' }}>
           {entries.map((e, i) => {
             const tier = TIERS.find(t => e.count >= t.min && e.count <= t.max)
             return (

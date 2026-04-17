@@ -79,7 +79,7 @@ export const WorldMapOverlay = forwardRef<OverlayHandle, { onSpinClose?: () => v
         <div style={{
           position: 'absolute',
           top: '38%',
-          left: 'calc(50% - 128px)',
+          left: '50%',
           transform: 'translate(-50%, -50%)',
           zIndex: 1500,
           pointerEvents: 'none',
@@ -210,9 +210,29 @@ export const WorldMapOverlay = forwardRef<OverlayHandle, { onSpinClose?: () => v
                     transition: 'all 0.2s',
                   }}
                 >
-                  {spinShareCopied
-                    ? <><Check size={12} /> 복사됨!</>
-                    : <><Clipboard size={12} /> 공유하기</>}
+                  {spinShareCopied ? t('spinCopied') : t('spinShare')}
+                </button>
+                <button
+                  onClick={() => {
+                    setRouletteSlot(null)
+                    setLandingFacts(null)
+                    onSpinClose?.()
+                  }}
+                  style={{
+                    marginTop: 2,
+                    padding: '10px 0',
+                    borderRadius: 10,
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#94a3b8',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    width: '100%',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {t('spinClose')}
                 </button>
               </div>
             ) : (

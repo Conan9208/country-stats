@@ -112,21 +112,13 @@ function HomeContent() {
     <main className="h-screen bg-zinc-950 text-white flex flex-col overflow-hidden">
       {/* 헤더 */}
       <div className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 flex items-center gap-6 h-12">
-          {activeTab === 'feed' ? (
-            <button
-              onClick={() => setActiveTab('map')}
-              className="text-base font-bold tracking-tight whitespace-nowrap flex items-center gap-1.5 text-white hover:text-zinc-300 transition-colors"
-            >
-              <Send size={16} /> PostMyGlobe
-            </button>
-          ) : (
-            <span className="text-base font-bold tracking-tight whitespace-nowrap flex items-center gap-1.5"><Globe size={16} /> PostMyGlobe</span>
-          )}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center gap-4 sm:gap-6 h-12">
+          <span className="text-base font-bold tracking-tight whitespace-nowrap flex items-center gap-1.5"><Globe size={16} /> PostMyGlobe</span>
 
-          <div className="w-px h-5 bg-zinc-700" />
+          <div className="hidden sm:block w-px h-5 bg-zinc-700" />
 
-          <div className="flex gap-0">
+          {/* 탭 버튼 — 데스크탑만 표시 */}
+          <div className="hidden sm:flex gap-0">
             {tabs.map(tab => (
               <button
                 key={tab.id}
@@ -178,6 +170,29 @@ function HomeContent() {
       )}
 
       {activeTab === 'feed' && <CommentFeed />}
+
+      {/* 모바일 하단 네비게이션 — sm 미만에서만 표시 */}
+      <div className="sm:hidden flex border-t border-zinc-800 bg-zinc-950/95 backdrop-blur z-20">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as TabId)}
+            className={`flex-1 flex flex-col items-center justify-center h-14 gap-1 text-xs font-medium transition-all ${
+              activeTab === tab.id ? 'text-white' : 'text-zinc-500'
+            }`}
+          >
+            {tab.id === 'map' ? <Globe size={20} /> : <Send size={20} />}
+            <span>{t(tab.labelKey as any)}</span>
+          </button>
+        ))}
+        <Link
+          href="/donate"
+          className="flex-1 flex flex-col items-center justify-center h-14 gap-1 text-xs font-medium text-amber-300/70 transition-all"
+        >
+          <span className="text-lg">☕</span>
+          <span>{t('donate')}</span>
+        </Link>
+      </div>
     </main>
   )
 }
