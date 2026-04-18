@@ -36,7 +36,8 @@
     "allTimeRank": "🏆 전체클릭 순위",
     "todayRank": "📅 오늘클릭 순위",
     "noClickData": "아직 클릭 데이터가 없어요",
-    "noClicksToday": "오늘 아직 클릭 없어요"
+    "noClicksToday": "오늘 아직 클릭 없어요",
+    "rankButton": "📊 순위"
   },
   "Feed": {
     "title": "💬 실시간 피드",
@@ -166,6 +167,8 @@
     "contextPin": "🚀 이 나라에 홍보하기",
     "contextTravel": "✈ 여행 정보",
     "visitorStats": "📊 방문자 통계",
+    "loadingGlobe": "지구 데이터 로딩 중...",
+    "tierButton": "티어",
     "clickTier": "클릭 수 티어",
     "tierTag0": "입문",
     "tierTag1": "활발",

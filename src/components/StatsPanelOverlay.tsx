@@ -114,14 +114,14 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
       <button
         onClick={() => setIsOpen(true)}
         style={{
-          position: 'absolute', bottom: 80, right: 16, zIndex: 1100,
+          position: 'absolute', bottom: 32, left: 16, zIndex: 1100,
           ...glass, borderRadius: 24, padding: '10px 16px',
           border: '1px solid rgba(167,139,250,0.35)',
           color: '#a78bfa', fontSize: 13, fontWeight: 700,
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
         }}
       >
-        📊 Rank
+        {tStats('rankButton')}
       </button>
     )
   }

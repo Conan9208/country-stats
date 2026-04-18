@@ -36,7 +36,8 @@
     "allTimeRank": "🏆 All-Time Rank",
     "todayRank": "📅 Today's Rank",
     "noClickData": "No click data yet",
-    "noClicksToday": "No clicks today yet"
+    "noClicksToday": "No clicks today yet",
+    "rankButton": "📊 Rank"
   },
   "Feed": {
     "title": "💬 Live Feed",
@@ -166,6 +167,8 @@
     "contextPin": "🚀 Promote Here",
     "contextTravel": "✈ Travel Info",
     "visitorStats": "📊 Visitor Stats",
+    "loadingGlobe": "Loading globe data...",
+    "tierButton": "Tier",
     "clickTier": "CLICK TIER",
     "tierTag0": "Novice",
     "tierTag1": "Active",

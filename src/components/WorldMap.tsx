@@ -56,6 +56,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   useEffect(() => { pollDataRef.current = pollData }, [pollData])
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const [isDataReady, setIsDataReady] = useState(false)
   const [clickData, setClickData] = useState<ClickData>({})
   const clickDataRef = useRef<ClickData>({})
   // 서버 확정 클릭수만 보관 — 낙관적 값 절대 들어오지 않음 → tooltip이 이 값을 읽음
@@ -120,6 +121,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const animFrameRef = useRef<number>(0)
   // 자동 회전
   const autoRotateRef = useRef(true)
+  const [isMobileUI, setIsMobileUI] = useState(false)
+  const [showTierPopup, setShowTierPopup] = useState(false)
 
   const { isSpinning, setIsSpinning, landingMarkerRef, spinningRef, spinStartRef, spinTargetRef, spinProgressRef, spinJourneyRef, fireworkParticlesRef, handleRandomSpin } = useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef, overlayRef })
   const { viewersByCountryRef, lastBroadcastCountryRef, presenceChannelRef, mySessionId, channelSubscribedRef } = useRealtimeViewers()
@@ -153,6 +156,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           confirmedCountRef.current[k] = v.total ?? 0
         }
         setClickData(data)
+        setIsDataReady(true)
       })
   }, [])
 
@@ -180,9 +184,12 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     } catch { /* ignore */ }
   }, [])
 
-  // 캔버스 밖 클릭/터치 시 컨텍스트 메뉴 닫기
+  // 캔버스 밖 클릭/터치 시 컨텍스트 메뉴 + 티어 팝업 닫기
   useEffect(() => {
-    const handler = () => { if (contextMenuRef.current) closeContextMenu() }
+    const handler = () => {
+      if (contextMenuRef.current) closeContextMenu()
+      setShowTierPopup(false)
+    }
     window.addEventListener('mousedown', handler)
     window.addEventListener('touchstart', handler)
     return () => {
@@ -190,6 +197,14 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       window.removeEventListener('touchstart', handler)
     }
   }, [closeContextMenu])
+
+  // 모바일 여부 감지
+  useEffect(() => {
+    const check = () => setIsMobileUI(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   // Esc 키로 팝업/모달 닫기
   useEffect(() => {
@@ -766,9 +781,15 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
   // 자동 회전 + 관성 + 스핀 루프
   useEffect(() => {
+    const MIN_FRAME_MS = 1000 / 60 // 60fps 상한선 (144Hz 모니터 대응)
     let last = performance.now()
     const loop = (now: number) => {
       const dt = now - last
+      // 프레임 간격이 목표치보다 짧으면 스킵 (draw 비용 절감)
+      if (dt < MIN_FRAME_MS) {
+        animFrameRef.current = requestAnimationFrame(loop)
+        return
+      }
       last = now
       if (spinningRef.current) {
         // 스핀 애니메이션: 고속 선형(55%) → ease-out cubic 감속(45%), 총 3000ms
@@ -810,7 +831,21 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       animFrameRef.current = requestAnimationFrame(loop)
     }
     animFrameRef.current = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(animFrameRef.current)
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(animFrameRef.current)
+      } else {
+        last = performance.now() // dt 스파이크 방지
+        animFrameRef.current = requestAnimationFrame(loop)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      cancelAnimationFrame(animFrameRef.current)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [draw, spinJourneyRef, spinProgressRef, spinStartRef, spinTargetRef, spinningRef])
 
   // 캔버스 크기 맞추기
@@ -1624,8 +1659,23 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         />
       )}
 
-      {/* 좌하단: 랜덤 스핀 버튼 + 범례 */}
-      <div style={{ position: 'absolute', bottom: 32, left: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+      {/* 초기 데이터 로딩 오버레이 */}
+      <div style={{
+        position: 'absolute', inset: 0, zIndex: 900,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(9,9,11,0.55)',
+        backdropFilter: 'blur(2px)',
+        opacity: isDataReady ? 0 : 1,
+        pointerEvents: isDataReady ? 'none' : 'all',
+        transition: 'opacity 0.5s ease',
+      }}>
+        <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid rgba(167,139,250,0.2)', borderTopColor: '#a78bfa', animation: 'spin 0.8s linear infinite' }} />
+        <div style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>🌍 {t('loadingGlobe')}</div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+
+      {/* 좌하단: 랜덤 스핀 버튼 + 범례 (bottom: 80 — Rank 버튼이 bottom: 32에 위치) */}
+      <div style={{ position: 'absolute', bottom: 80, left: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
         {!pollMode && (
           <button
             onClick={handleRandomSpin}
@@ -1646,20 +1696,65 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
             {isSpinning ? t('spinning') : t('randomSpin')}
           </button>
         )}
-        <div style={{ ...glass, borderRadius: 12, padding: '10px 14px', display: pollMode ? 'none' : undefined }}>
-          <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
-            {t('clickTier')}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {TIERS.map((tier, tierIdx) => (
-              <div key={tier.tag} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <div style={{ width: 10, height: 10, borderRadius: 3, background: tier.color, flexShrink: 0 }} />
-                <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72 }}>{tier.label}</span>
-                <span style={{ fontSize: 10, color: tier.color, fontWeight: 600 }}>{t(`tierTag${tierIdx}`)}</span>
+        {!pollMode && (
+          isMobileUI ? (
+            <div style={{ position: 'relative' }}>
+              {showTierPopup && (
+                <div
+                  onMouseDown={e => e.stopPropagation()}
+                  onTouchStart={e => e.stopPropagation()}
+                  style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 1001, ...glass, borderRadius: 12, padding: '10px 14px', minWidth: 160 }}
+                >
+                  <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
+                    {t('clickTier')}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {TIERS.map((tier, tierIdx) => (
+                      <div key={tier.tag} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: 3, background: tier.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72 }}>{tier.label}</span>
+                        <span style={{ fontSize: 10, color: tier.color, fontWeight: 600 }}>{t(`tierTag${tierIdx}`)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={() => setShowTierPopup(p => !p)}
+                onMouseDown={e => e.stopPropagation()}
+                onTouchStart={e => e.stopPropagation()}
+                style={{
+                  ...glass,
+                  borderRadius: 12,
+                  padding: '8px 16px',
+                  border: `1px solid ${showTierPopup ? 'rgba(167,139,250,0.6)' : 'rgba(167,139,250,0.35)'}`,
+                  color: showTierPopup ? '#c4b5fd' : '#a78bfa',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                🎖️ {t('tierButton')}
+              </button>
+            </div>
+          ) : (
+            <div style={{ ...glass, borderRadius: 12, padding: '10px 14px' }}>
+              <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
+                {t('clickTier')}
               </div>
-            ))}
-          </div>
-        </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {TIERS.map((tier, tierIdx) => (
+                  <div key={tier.tag} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 3, background: tier.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72 }}>{tier.label}</span>
+                    <span style={{ fontSize: 10, color: tier.color, fontWeight: 600 }}>{t(`tierTag${tierIdx}`)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        )}
       </div>
     </div>
   )
