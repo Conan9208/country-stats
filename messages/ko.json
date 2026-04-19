@@ -43,7 +43,7 @@
     "title": "💬 실시간 피드",
     "loading": "불러오는 중...",
     "noComments": "아직 댓글이 없어요",
-    "noCommentsDesc": "지구본 탭에서 나라를 우클릭하면\n첫 댓글을 남길 수 있어요!",
+    "noCommentsDesc": "지구본 탭에서 나라를 눌러\n첫 댓글을 남길 수 있어요!",
     "commentCount": "{count}개"
   },
   "PollReasonFeed": {
@@ -186,7 +186,17 @@
     "tierTag6": "💫불멸",
     "tierTag7": "👑레전드",
     "clickToSeeDetails": "클릭해서 상세보기",
-    "pollModeGuide": "나라를 클릭해 투표하세요"
+    "pollModeGuide": "나라를 클릭해 투표하세요",
+    "guideLeftClick": "왼쪽 클릭",
+    "guideLeftClickDesc": "좋아요 & 티어 올리기",
+    "guideRightClick": "오른쪽 클릭",
+    "guideRightClickDesc": "정보·댓글·핀 남기기",
+    "guideDrag": "드래그 · 스크롤로 확대 · 지구본 회전",
+    "guideTap": "탭",
+    "guideTapDesc": "좋아요 & 티어 올리기",
+    "guideLongPress": "길게 누르기",
+    "guideLongPressDesc": "정보·댓글·핀 남기기",
+    "guideDragMobile": "드래그 · 핀치로 확대 · 지구본 회전"
   },
   "CountryInfo": {
     "loading": "불러오는 중...",

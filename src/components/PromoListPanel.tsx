@@ -183,7 +183,7 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
             src={lightboxUrl}
             crossOrigin="anonymous"
             style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, objectFit: 'contain' }}
-            onClick={e => e.stopPropagation()}
+            onClick={() => setLightboxUrl(null)}
           />
         </div>
       )}

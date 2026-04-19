@@ -43,7 +43,7 @@
     "title": "💬 Live Feed",
     "loading": "Loading...",
     "noComments": "No comments yet",
-    "noCommentsDesc": "Right-click a country on the globe\nto leave the first comment!",
+    "noCommentsDesc": "Press a country on the globe\nto leave the first comment!",
     "commentCount": "{count} comments"
   },
   "PollReasonFeed": {
@@ -186,7 +186,17 @@
     "tierTag6": "💫Immortal",
     "tierTag7": "👑King",
     "clickToSeeDetails": "Click for details",
-    "pollModeGuide": "Click a country to vote"
+    "pollModeGuide": "Click a country to vote",
+    "guideLeftClick": "Left click",
+    "guideLeftClickDesc": "love it & climb the tiers",
+    "guideRightClick": "Right click",
+    "guideRightClickDesc": "explore, comment, or promote",
+    "guideDrag": "drag · scroll to zoom · spin the globe",
+    "guideTap": "Tap",
+    "guideTapDesc": "love it & climb the tiers",
+    "guideLongPress": "Long press",
+    "guideLongPressDesc": "explore, comment, or promote",
+    "guideDragMobile": "drag · pinch to zoom · spin the globe"
   },
   "CountryInfo": {
     "loading": "Loading...",

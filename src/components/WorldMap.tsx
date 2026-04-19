@@ -46,6 +46,8 @@ type WorldMapProps = {
 export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollData, pollQuestion, pollTotalVotes, pollMyVote, onCancelPollVote, onStartPoll }: WorldMapProps = {}) {
   const locale = useLocale()
   const t = useTranslations('Map')
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => { setIsMobile(window.matchMedia('(pointer: coarse)').matches) }, [])
 
   // refs so draw() can read latest props without being a dependency
   const pollModeRef         = useRef(pollMode)
@@ -1269,6 +1271,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     if (!canvas) return
 
     const onTouchStart = (e: TouchEvent) => {
+      e.preventDefault()
       if (spinningRef.current) return
       longPressFiredRef.current = false
       touchDragActiveRef.current = false
@@ -1395,7 +1398,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       touchDragActiveRef.current = false
     }
 
-    canvas.addEventListener('touchstart', onTouchStart, { passive: true })
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false })
     canvas.addEventListener('touchmove',  onTouchMove,  { passive: false })
     canvas.addEventListener('touchend',   onTouchEnd,   { passive: false })
     return () => {
@@ -1445,11 +1448,11 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const totalClicks = useMemo(() => Object.values(clickData).reduce((s, e) => s + (Number(e.total) || 0), 0), [clickData])
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', height: '100%', width: '100%', background: '#050a10', overflow: 'hidden' }}>
+    <div ref={containerRef} style={{ position: 'relative', height: '100%', width: '100%', background: '#050a10', overflow: 'hidden', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}>
       <StarField />
       <canvas
         ref={canvasRef}
-        style={{ display: 'block', width: '100%', height: '100%', cursor: pinHoverTooltip ? 'pointer' : 'none', position: 'relative', zIndex: 1, background: 'transparent' }}
+        style={{ display: 'block', width: '100%', height: '100%', cursor: pinHoverTooltip ? 'pointer' : 'none', position: 'relative', zIndex: 1, background: 'transparent', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -1498,19 +1501,39 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           </div>
         ) : (
           <>
-            <div style={{ fontSize: 11, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
-              <span style={{ color: '#34d399', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 3 }}><Heart size={10} /> Left click</span>
-              <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
-              <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>love it &amp; climb the tiers</span>
-            </div>
-            <div style={{ fontSize: 11, color: '#f1f5f9', marginTop: 3, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
-              <span style={{ color: '#a78bfa', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 3 }}><Search size={10} /> Right click</span>
-              <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
-              <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>explore, comment, or promote here</span>
-            </div>
-            <div style={{ fontSize: 9, color: '#334155', marginTop: 5, fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", letterSpacing: '0.03em' }}>
-              drag · scroll to zoom · spin the globe
-            </div>
+            {isMobile ? (
+              <>
+                <div style={{ fontSize: 11, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+                  <span style={{ color: '#34d399', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 3 }}><Heart size={10} /> {t('guideTap')}</span>
+                  <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
+                  <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>{t('guideTapDesc')}</span>
+                </div>
+                <div style={{ fontSize: 11, color: '#f1f5f9', marginTop: 3, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+                  <span style={{ color: '#a78bfa', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 3 }}><Search size={10} /> {t('guideLongPress')}</span>
+                  <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
+                  <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>{t('guideLongPressDesc')}</span>
+                </div>
+                <div style={{ fontSize: 9, color: '#334155', marginTop: 5, fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", letterSpacing: '0.03em' }}>
+                  {t('guideDragMobile')}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 11, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+                  <span style={{ color: '#34d399', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 3 }}><Heart size={10} /> {t('guideLeftClick')}</span>
+                  <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
+                  <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>{t('guideLeftClickDesc')}</span>
+                </div>
+                <div style={{ fontSize: 11, color: '#f1f5f9', marginTop: 3, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+                  <span style={{ color: '#a78bfa', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 3 }}><Search size={10} /> {t('guideRightClick')}</span>
+                  <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
+                  <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>{t('guideRightClickDesc')}</span>
+                </div>
+                <div style={{ fontSize: 9, color: '#334155', marginTop: 5, fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", letterSpacing: '0.03em' }}>
+                  {t('guideDrag')}
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
