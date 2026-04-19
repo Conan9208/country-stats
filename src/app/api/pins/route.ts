@@ -10,6 +10,7 @@ const MAX_BUSINESS_NAME = 60
 const MAX_DESCRIPTION = 100
 const RATE_WINDOW_MS = 24 * 60 * 60 * 1000
 const MAX_PINS_PER_DAY = 3
+const PIN_FREE_DAYS = 3
 const DISABLE_RATE_LIMIT = process.env.DISABLE_PIN_RATE_LIMIT === 'true'
 
 function hashIp(ip: string): string {
@@ -232,7 +233,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+  const expiresAt = new Date(Date.now() + PIN_FREE_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
   const { data, error } = await supabaseAdmin
     .from('globe_pins')

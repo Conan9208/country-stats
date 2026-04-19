@@ -22,6 +22,7 @@ function getDaysLeft(expiresAt: string): number {
 export default function PromoListPanel({ countryName, pins, x, y, onClose, onAddPin }: Props) {
   const t = useTranslations('Pin')
   const [reportedIds, setReportedIds] = useState<Set<string>>(new Set())
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   async function handleReport(id: string) {
     await fetch(`/api/pins/${id}/report`, { method: 'POST' })
@@ -84,7 +85,13 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
                 border: '1.5px solid rgba(167,139,250,0.3)',
               }}>
                 {pin.logo_url
-                  ? <img src={pin.logo_url} alt={pin.business_name} crossOrigin="anonymous" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ? <img
+                      src={pin.logo_url}
+                      alt={pin.business_name}
+                      crossOrigin="anonymous"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }}
+                      onClick={e => { e.stopPropagation(); setLightboxUrl(pin.logo_url!) }}
+                    />
                   : <span style={{ fontSize: 14, fontWeight: 700, color: '#a78bfa' }}>
                       {pin.business_name.charAt(0).toUpperCase()}
                     </span>
@@ -160,6 +167,26 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
       >
         + {t('addPromo', { country: countryName })}
       </button>
+
+      {/* 이미지 라이트박스 */}
+      {lightboxUrl && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          onClick={() => setLightboxUrl(null)}
+          onMouseDown={e => e.stopPropagation()}
+        >
+          <img
+            src={lightboxUrl}
+            crossOrigin="anonymous"
+            style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, objectFit: 'contain' }}
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   )
 }

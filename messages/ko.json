@@ -1,7 +1,7 @@
 {
   "Nav": {
     "globe": "🌍 지구본",
-    "feed": "💬 실시간 피드",
+    "feed": "💬 피드",
     "donate": "on a good day ✨",
     "about": "About",
     "privacy": "Privacy",
@@ -45,6 +45,13 @@
     "noComments": "아직 댓글이 없어요",
     "noCommentsDesc": "지구본 탭에서 나라를 우클릭하면\n첫 댓글을 남길 수 있어요!",
     "commentCount": "{count}개"
+  },
+  "PollReasonFeed": {
+    "title": "🗳️ 투표 이유",
+    "loading": "불러오는 중...",
+    "empty": "아직 투표 이유가 없어요",
+    "emptyDesc": "오늘의 투표에 참여하고\n이유를 남겨보세요!",
+    "count": "{count}개"
   },
   "CommentPanel": {
     "commentCount": "댓글 {count}개",
@@ -237,7 +244,7 @@
     "pinRulesTitle": "지구본 홍보",
     "pinRule1": "실제로 존재하는 웹사이트만 등록할 수 있습니다 (DNS 검증 자동 처리).",
     "pinRule2": "bit.ly 등 단축 URL은 허용되지 않습니다.",
-    "pinRule3": "홍보는 등록 후 7일이 지나면 자동으로 삭제됩니다.",
+    "pinRule3": "홍보는 등록 후 3일이 지나면 자동으로 삭제됩니다.",
     "pinRule4": "허위 정보, 악성 사이트, 불법 콘텐츠 홍보는 금지합니다.",
     "pinRule5": "하루 최대 3개까지 등록할 수 있습니다.",
     "sanctionNotice": "신고가 누적되거나 운영자가 부적절하다고 판단한 콘텐츠는 사전 통보 없이 삭제될 수 있습니다. 문의 사항은 ",

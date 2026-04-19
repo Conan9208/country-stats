@@ -1,7 +1,7 @@
 {
   "Nav": {
     "globe": "🌍 Globe",
-    "feed": "💬 Live Feed",
+    "feed": "💬 Feed",
     "donate": "on a good day ✨",
     "about": "About",
     "privacy": "Privacy",
@@ -45,6 +45,13 @@
     "noComments": "No comments yet",
     "noCommentsDesc": "Right-click a country on the globe\nto leave the first comment!",
     "commentCount": "{count} comments"
+  },
+  "PollReasonFeed": {
+    "title": "🗳️ Why They Voted",
+    "loading": "Loading...",
+    "empty": "No vote reasons yet",
+    "emptyDesc": "Vote in today's poll\nand share your reason!",
+    "count": "{count}"
   },
   "CommentPanel": {
     "commentCount": "{count} comments",
@@ -237,7 +244,7 @@
     "pinRulesTitle": "Globe Promos",
     "pinRule1": "Only real, accessible websites can be registered (automatic DNS verification).",
     "pinRule2": "URL shorteners (e.g. bit.ly) are not allowed.",
-    "pinRule3": "Promos are automatically removed 7 days after posting.",
+    "pinRule3": "Promos are automatically removed 3 days after posting.",
     "pinRule4": "Misinformation, malicious sites, and illegal content promotion are prohibited.",
     "pinRule5": "You can register up to 3 promos per day.",
     "sanctionNotice": "Content that accumulates reports or is deemed inappropriate by the operator may be removed without prior notice. For inquiries, please use the ",

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getTodayQuestion } from '@/lib/pollQuestions'
 import { createHash } from 'crypto'
 
@@ -22,7 +23,7 @@ export async function PATCH(req: NextRequest) {
   const { date } = getTodayQuestion()
   const { reason } = await req.json() as { reason?: string }
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('poll_votes')
     .update({ reason: reason?.slice(0, 200) ?? null })
     .eq('poll_date', date)
@@ -38,7 +39,7 @@ export async function DELETE(req: NextRequest) {
   const ipHash = hashIp(ip)
   const { date } = getTodayQuestion()
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('poll_votes')
     .delete()
     .eq('poll_date', date)

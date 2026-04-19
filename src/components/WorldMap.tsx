@@ -1581,6 +1581,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         pollMyVote={pollMyVote}
         onCancelPollVote={onCancelPollVote}
         onStartPoll={onStartPoll}
+        pollMode={pollMode}
       />
 
       {/* 우클릭 컨텍스트 메뉴 */}
@@ -1644,7 +1645,13 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         />
       )}
 
-      {/* 홍보 핀 리스트 패널 */}
+      {/* 홍보 핀 리스트 패널 — 백드롭: 외부 클릭 시 팝업 닫기 + 지구본 클릭 차단 */}
+      {activePinPopup && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 2499 }}
+          onClick={e => { e.stopPropagation(); setActivePinPopup(null) }}
+        />
+      )}
       {activePinPopup && (
         <PromoListPanel
           countryName={activePinPopup.countryName}

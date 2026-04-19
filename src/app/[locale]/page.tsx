@@ -8,7 +8,7 @@ import { useTranslations } from 'next-intl'
 import { Globe, Send, Coffee } from 'lucide-react'
 import VoteReasonModal from '@/components/VoteReasonModal'
 import { supabase } from '@/lib/supabase'
-import CommentFeed from '@/components/CommentFeed'
+import CombinedFeed from '@/components/CombinedFeed'
 import type { PollQuestion } from '@/types/poll'
 
 const WorldMap = dynamic(() => import('@/components/WorldMap'), {
@@ -85,6 +85,7 @@ function HomeContent() {
   }, [activeTab])
 
   const handlePollVote = useCallback(async (alpha2: string, name: string) => {
+    setPollMode(false)
     const res = await fetch('/api/polls/vote', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -92,7 +93,6 @@ function HomeContent() {
     })
     const data = await res.json() as { ok: boolean }
     if (data.ok) {
-      setPollMode(false)
       setPollVotedCountry(alpha2)
       setVoteModal({ alpha2, name })
       fetch('/api/polls/today').then(r => r.json()).then(d => {
@@ -172,7 +172,7 @@ function HomeContent() {
         </div>
       )}
 
-      {activeTab === 'feed' && <CommentFeed />}
+      {activeTab === 'feed' && <CombinedFeed />}
 
       {/* 모바일 전용 donate 인라인 탭 */}
       {activeTab === 'donate' && (

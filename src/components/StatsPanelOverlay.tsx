@@ -35,6 +35,7 @@ type StatsPanelOverlayProps = {
   pollMyVote?: string | null
   onCancelPollVote?: () => void
   onStartPoll?: () => void
+  pollMode?: boolean
 }
 
 const StatsPanelOverlay = memo(function StatsPanelOverlay({
@@ -50,6 +51,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
   pollMyVote,
   onCancelPollVote,
   onStartPoll,
+  pollMode,
 }: StatsPanelOverlayProps) {
   const locale = useLocale()
   const tStats = useTranslations('Stats')
@@ -237,7 +239,8 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
                   // 모바일: 패널을 닫아야 backdrop이 사라져 canvas touch가 작동함
                   if (isMobile) setIsOpen(false)
                 }}
-                style={{ flex: 1, padding: '7px 0', borderRadius: 8, background: 'linear-gradient(135deg,rgba(124,58,237,0.2),rgba(168,85,247,0.2))', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                disabled={pollMode}
+                style={{ flex: 1, padding: '7px 0', borderRadius: 8, background: pollMode ? 'rgba(124,58,237,0.08)' : 'linear-gradient(135deg,rgba(124,58,237,0.2),rgba(168,85,247,0.2))', border: '1px solid rgba(167,139,250,0.3)', color: pollMode ? '#6d28d9' : '#a78bfa', fontSize: 12, fontWeight: 600, cursor: pollMode ? 'not-allowed' : 'pointer', opacity: pollMode ? 0.5 : 1 }}
               >{tPoll('voteNow')}</button>
             )}
           </div>
