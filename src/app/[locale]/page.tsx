@@ -112,7 +112,7 @@ function HomeContent() {
   }, [])
 
   return (
-    <main className="h-screen bg-zinc-950 text-white flex flex-col overflow-hidden">
+    <main className="h-dvh bg-zinc-950 text-white flex flex-col overflow-hidden">
       {/* 헤더 */}
       <div className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center gap-4 sm:gap-6 h-12">
@@ -177,14 +177,14 @@ function HomeContent() {
       {/* 모바일 전용 donate 인라인 탭 */}
       {activeTab === 'donate' && (
         <div className="flex-1 overflow-y-auto bg-zinc-950">
-          <Suspense fallback={<div className="h-screen bg-zinc-950" />}>
+          <Suspense fallback={<div className="h-dvh bg-zinc-950" />}>
             <DonatePage />
           </Suspense>
         </div>
       )}
 
       {/* 모바일 하단 네비게이션 — sm 미만에서만 표시 */}
-      <div className="sm:hidden flex border-t border-zinc-800 bg-zinc-950/95 backdrop-blur z-20">
+      <div className="sm:hidden flex border-t border-zinc-800 bg-zinc-950/95 backdrop-blur z-20" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -214,7 +214,7 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div className="h-screen bg-zinc-950" />}>
+    <Suspense fallback={<div className="h-dvh bg-zinc-950" />}>
       <HomeContent />
     </Suspense>
   )
