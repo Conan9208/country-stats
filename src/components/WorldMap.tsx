@@ -113,6 +113,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const touchDragActiveRef = useRef(false)
   const pinchStartDistRef  = useRef<number | null>(null)
   const pinchStartScaleRef = useRef<number>(0)
+  const wasPinchingRef     = useRef(false)
   // 클라이언트 사이드 rate limit (서버와 동일: 1분에 10회)
   const clientClickTimestampsRef = useRef<number[]>([])
   const CLIENT_RATE_LIMIT = 10
@@ -1312,6 +1313,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       } else if (e.touches.length === 2) {
         clearTimeout(longPressTimerRef.current!)
         dragStartRef.current = null
+        hasDraggedRef.current = true
+        wasPinchingRef.current = true
         const dx = e.touches[0].clientX - e.touches[1].clientX
         const dy = e.touches[0].clientY - e.touches[1].clientY
         pinchStartDistRef.current = Math.sqrt(dx * dx + dy * dy)
@@ -1368,8 +1371,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       pinchStartDistRef.current = null
       dragStartRef.current = null
 
-      // 탭 처리: 드래그도 롱프레스도 아닌 순수 탭
-      if (!hasDraggedRef.current && !longPressFiredRef.current && e.changedTouches.length === 1) {
+      // 탭 처리: 드래그도 롱프레스도 핀치줌도 아닌 순수 탭
+      if (!hasDraggedRef.current && !longPressFiredRef.current && !wasPinchingRef.current && e.changedTouches.length === 1) {
         const touch = e.changedTouches[0]
         const rect = canvas.getBoundingClientRect()
         const cx = touch.clientX - rect.left
@@ -1396,6 +1399,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       hasDraggedRef.current = false
       longPressFiredRef.current = false
       touchDragActiveRef.current = false
+      if (e.touches.length === 0) wasPinchingRef.current = false
     }
 
     canvas.addEventListener('touchstart', onTouchStart, { passive: false })

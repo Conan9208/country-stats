@@ -56,6 +56,64 @@ function ElectricalCell({ elec }: { elec: ElectricalStandard | null }) {
   )
 }
 
+// ─── 옷차림 추천 ─────────────────────────────────────────────────────────────
+
+function getClothingAdvice(weather: WeatherInfo | null): { items: string[]; urgentNote?: string } | null {
+  if (!weather) return null
+  const temp = weather.temp_c
+  const code = weather.weather_code
+
+  const items: string[] = []
+
+  if (temp < 0) {
+    items.push('두꺼운 패딩 또는 다운 재킷 (필수)')
+    items.push('히트텍·울 내복 등 레이어링')
+    items.push('방한 장갑, 귀마개, 털모자')
+    items.push('방한 방수 부츠')
+    items.push('두꺼운 머플러')
+  } else if (temp < 5) {
+    items.push('두꺼운 코트 또는 패딩')
+    items.push('스웨터나 후리스 레이어링')
+    items.push('장갑, 목도리, 모자')
+    items.push('보온 부츠')
+  } else if (temp < 10) {
+    items.push('두꺼운 자켓 또는 코트')
+    items.push('니트 스웨터')
+    items.push('목도리')
+    items.push('가벼운 부츠 또는 방한 신발')
+  } else if (temp < 15) {
+    items.push('가을용 자켓 또는 트렌치코트')
+    items.push('얇은 스웨터 또는 긴팔')
+    items.push('긴바지 (청바지 등)')
+  } else if (temp < 20) {
+    items.push('가디건 또는 얇은 자켓')
+    items.push('긴팔 티셔츠')
+    items.push('면 바지 또는 얇은 긴바지')
+  } else if (temp < 25) {
+    items.push('반팔 티셔츠')
+    items.push('얇은 긴팔 (저녁·냉방 대비)')
+    items.push('면 바지 또는 가벼운 긴바지')
+  } else if (temp < 30) {
+    items.push('반팔·반바지 등 여름 의류')
+    items.push('자외선 차단 모자·선글라스')
+    items.push('냉방 대비 얇은 카디건')
+  } else {
+    items.push('통기성 좋은 가벼운 여름 의류')
+    items.push('자외선 차단 필수 (모자, 선글라스, 선크림)')
+    items.push('수분 보충 위한 물통 지참')
+  }
+
+  const isRain = [176, 182, 263, 266, 281, 284, 293, 296, 299, 302, 305, 308, 311, 314, 317, 320, 353, 356, 359, 362, 365].includes(code)
+  const isSnow = [179, 227, 230, 323, 326, 329, 332, 335, 338, 350, 368, 371, 374, 377].includes(code)
+  const isThunder = [200, 386, 389, 392, 395].includes(code)
+
+  if (isRain) items.push('우산 또는 방수 재킷 필지')
+  if (isSnow) items.push('미끄럼 방지 방수 부츠')
+  const urgentNote = isThunder ? '⚡ 뇌우 예보 — 실외 활동 자제 권장' : undefined
+
+  return { items, urgentNote }
+}
+
 // ─── 스타일 ──────────────────────────────────────────────────────────────────
 
 const glass: React.CSSProperties = {
@@ -523,6 +581,34 @@ function TravelClientContent({ fromData, toData, visa }: TravelClientProps) {
             </div>
           ))}
         </div>
+
+        {/* 옷차림 추천 */}
+        {(() => {
+          const advice = getClothingAdvice(toWeather)
+          if (!advice) return null
+          const regionLabel = selectedToRegion?.label_ko ?? toData.name
+          return (
+            <div style={{ ...glass, borderRadius: 14, padding: '16px 20px', marginTop: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 10 }}>
+                👗 옷차림 추천
+                <span style={{ marginLeft: 8, fontSize: 10, color: '#64748b', textTransform: 'none', fontWeight: 400, letterSpacing: 0 }}>
+                  ({regionLabel} 현재 날씨 기준)
+                </span>
+              </div>
+              {advice.urgentNote && (
+                <div style={{ marginBottom: 10, padding: '6px 10px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 8, fontSize: 12, color: '#fbbf24' }}>
+                  {advice.urgentNote}
+                </div>
+              )}
+              <ul style={{ margin: 0, padding: '0 0 0 16px', listStyle: 'disc', color: '#94a3b8', fontSize: 13, lineHeight: 1.8 }}>
+                {advice.items.map((item, i) => <li key={i}>{item}</li>)}
+              </ul>
+              {weatherLoading && (
+                <div style={{ marginTop: 8, fontSize: 11, color: '#475569' }}>날씨 데이터 로딩 중...</div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* 여행 팁 */}
         <div style={{ ...glass, borderRadius: 14, padding: '16px 20px', marginTop: 12 }}>
