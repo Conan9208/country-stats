@@ -122,6 +122,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const myClicksRef = useRef<Set<string>>(new Set())
   const [myClickCount, setMyClickCount] = useState(0)
   const animFrameRef = useRef<number>(0)
+  // 마우스 히트 테스트 rAF throttle (250Hz 마우스 → 60fps로 제한)
+  const pendingHitRef = useRef<{ x: number; y: number } | null>(null)
+  const hitTestScheduledRef = useRef(false)
   // 자동 회전
   const autoRotateRef = useRef(true)
   const [isMobileUI, setIsMobileUI] = useState(false)
@@ -489,13 +492,14 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         const outerA = 0.35 + pulse * 0.25                     // 0.35~0.60
         const cr = onCountry ? '250,204,21' : '255,255,255'
 
-        // 소프트 글로우 (드래그 아닐 때만)
-        const glow = ctx.createRadialGradient(mp.x, mp.y, 0, mp.x, mp.y, outerR * 2)
-        glow.addColorStop(0,   `rgba(${cr},${onCountry ? 0.18 : 0.08})`)
-        glow.addColorStop(1,   'rgba(0,0,0,0)')
+        // 소프트 글로우 — layered arc (RadialGradient 객체 생성 없이 동일 효과)
         ctx.beginPath()
         ctx.arc(mp.x, mp.y, outerR * 2, 0, Math.PI * 2)
-        ctx.fillStyle = glow
+        ctx.fillStyle = `rgba(${cr},${onCountry ? 0.06 : 0.025})`
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(mp.x, mp.y, outerR, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(${cr},${onCountry ? 0.12 : 0.05})`
         ctx.fill()
 
         // 외곽 링
@@ -533,14 +537,15 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       if (!isFinite(px) || !isFinite(py)) continue
       const pulse = (Math.sin(now * 0.005 + px * 0.01) + 1) / 2
       const dotR = 2.5 + pulse * 1.5
-      // 글로우 (드래그 중에는 생략 — RadialGradient 생성 비용 절감)
-      if (!isDragging) {
-        const vGlow = ctx.createRadialGradient(px, py, 0, px, py, dotR * 4)
-        vGlow.addColorStop(0, `rgba(192,132,252,${0.25 + pulse * 0.15})`)
-        vGlow.addColorStop(1, 'rgba(0,0,0,0)')
+      // 글로우 (드래그·스핀 중에는 생략, layered arc로 gradient 객체 생성 제거)
+      if (!isDragging && !spinningRef.current) {
         ctx.beginPath()
         ctx.arc(px, py, dotR * 4, 0, Math.PI * 2)
-        ctx.fillStyle = vGlow
+        ctx.fillStyle = `rgba(192,132,252,${(0.10 + pulse * 0.06).toFixed(2)})`
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(px, py, dotR * 2, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(192,132,252,${(0.20 + pulse * 0.10).toFixed(2)})`
         ctx.fill()
       }
       // 점
@@ -588,15 +593,15 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       if (!isFinite(px) || !isFinite(py)) continue
       const pulse2 = (Math.sin(now * 0.004 + py * 0.02) + 1) / 2
 
-      // 글로우 (드래그 중에는 생략)
+      // 글로우 (드래그 중에는 생략, layered arc로 gradient 객체 생성 제거)
       if (!isDragging) {
-        const glowRadius = pinDiameter
-        const pinGlow = ctx.createRadialGradient(px, py, 0, px, py, glowRadius)
-        pinGlow.addColorStop(0, `rgba(167,139,250,${0.18 + pulse2 * 0.12})`)
-        pinGlow.addColorStop(1, 'rgba(0,0,0,0)')
         ctx.beginPath()
-        ctx.arc(px, py, glowRadius, 0, Math.PI * 2)
-        ctx.fillStyle = pinGlow
+        ctx.arc(px, py, pinDiameter, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(167,139,250,${(0.08 + pulse2 * 0.06).toFixed(2)})`
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(px, py, pinDiameter * 0.6, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(167,139,250,${(0.14 + pulse2 * 0.08).toFixed(2)})`
         ctx.fill()
       }
 
@@ -873,14 +878,24 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     if (!canvas) return null
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
-    // geoPath 인스턴스를 루프 밖에서 한 번만 생성 (기존: 매 feature마다 새로 생성)
     const pathInCtx = geoPath(proj, ctx)
     const features = worldGeo.features
+    // 가시 반구 pre-filter: dot product ≤ 0인 피처는 isPointInPath 없이 스킵 (~50% 절감)
+    const cLng = -rotationRef.current[0] * Math.PI / 180
+    const cLat = -rotationRef.current[1] * Math.PI / 180
     for (let i = features.length - 1; i >= 0; i--) {
       const feature = features[i]
       const numericId = String((feature as Feature & { id?: string | number }).id ?? '')
       const alpha2 = alpha2Map.get(numericId) ?? null
       if (!alpha2) continue
+      const geo = centroidByAlpha2.get(alpha2)
+      if (geo) {
+        const pLng = geo[0] * Math.PI / 180
+        const pLat = geo[1] * Math.PI / 180
+        const dot = Math.cos(pLat) * Math.cos(cLat) * Math.cos(pLng - cLng)
+                  + Math.sin(pLat) * Math.sin(cLat)
+        if (dot <= 0) continue
+      }
       ctx.beginPath()
       pathInCtx(feature)
       if (ctx.isPointInPath(x, y)) {
@@ -991,6 +1006,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
+    // 커서 렌더링용으로는 즉시 업데이트
     mousePosRef.current = { x, y }
 
     if (dragStartRef.current) {
@@ -1022,69 +1038,77 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       return
     }
 
-    // 핀 hover 감지 (나라 hover보다 우선 — 클릭 동작과 일치)
-    const pinHit = getPinsAtPoint(x, y)
-    if (pinHit) {
-      isOverPinRef.current = true
-      const topPin = pinHit.pins[0]
-      const newTooltip = {
-        name: topPin.business_name,
-        website: topPin.website_url ?? undefined,
-        x, y,
-      }
-      // 값이 바뀔 때만 setState (rAF 60fps → 리렌더 최소화)
-      if (
-        pinHoverTooltipRef.current?.name !== newTooltip.name ||
-        Math.abs((pinHoverTooltipRef.current?.x ?? 0) - x) > 4 ||
-        Math.abs((pinHoverTooltipRef.current?.y ?? 0) - y) > 4
-      ) {
-        pinHoverTooltipRef.current = newTooltip
-        setPinHoverTooltip(newTooltip)
-      }
-      overlayRef.current?.setTooltip(null)  // 핀 위에서는 나라 툴팁 숨김
-      return
-    }
-    // 핀 hover 해제
-    if (isOverPinRef.current) {
-      isOverPinRef.current = false
-      pinHoverTooltipRef.current = null
-      setPinHoverTooltip(null)
-    }
+    // 히트 테스트를 rAF로 throttle — 마우스는 250Hz로 쏘지만 화면은 60fps
+    pendingHitRef.current = { x, y }
+    if (!hitTestScheduledRef.current) {
+      hitTestScheduledRef.current = true
+      requestAnimationFrame(() => {
+        hitTestScheduledRef.current = false
+        // 드래그·스핀 중이면 건너뜀
+        if (dragStartRef.current || spinningRef.current) return
+        const pos = pendingHitRef.current
+        if (!pos) return
+        const { x: hx, y: hy } = pos
 
-    // hover 감지
-    const hit = getAlpha2AtPoint(x, y)
-    if (hit?.alpha2) {
-      // confirmedCountRef: 서버 확정값만 — 낙관적 값 절대 안 들어옴
-      const count = confirmedCountRef.current[hit.alpha2] ?? 0
-      const name = isoCountries.getName(hit.alpha2.toUpperCase(), locale)
-        ?? clickDataRef.current[hit.alpha2]?.name
-        ?? hit.alpha2
-      hoveredAlpha2Ref.current = hit.alpha2
-      hoveredNameRef.current   = name
-      overlayRef.current?.setTooltip({ name, count, x: e.clientX - rect.left, y: e.clientY - rect.top, alpha2: hit.alpha2, viewers: viewersByCountryRef.current[hit.alpha2] ?? 0 })
-      // 뷰어 broadcast — 나라가 바뀔 때만 전송
-      if (hit.alpha2 !== lastBroadcastCountryRef.current) {
-        lastBroadcastCountryRef.current = hit.alpha2
-        if (channelSubscribedRef.current) {
-          presenceChannelRef.current?.send({
-            type: 'broadcast', event: 'hover',
-            payload: { sessionId: mySessionId.current, countryCode: hit.alpha2, ts: Date.now() },
-          })
+        // 핀 hover 감지 (나라 hover보다 우선 — 클릭 동작과 일치)
+        const pinHit = getPinsAtPoint(hx, hy)
+        if (pinHit) {
+          isOverPinRef.current = true
+          const topPin = pinHit.pins[0]
+          const newTooltip = { name: topPin.business_name, website: topPin.website_url ?? undefined, x: hx, y: hy }
+          if (
+            pinHoverTooltipRef.current?.name !== newTooltip.name ||
+            Math.abs((pinHoverTooltipRef.current?.x ?? 0) - hx) > 4 ||
+            Math.abs((pinHoverTooltipRef.current?.y ?? 0) - hy) > 4
+          ) {
+            pinHoverTooltipRef.current = newTooltip
+            setPinHoverTooltip(newTooltip)
+          }
+          overlayRef.current?.setTooltip(null)
+          return
         }
-      }
-    } else {
-      hoveredAlpha2Ref.current = null
-      hoveredNameRef.current   = null
-      overlayRef.current?.setTooltip(null)
-      if (lastBroadcastCountryRef.current !== null) {
-        lastBroadcastCountryRef.current = null
-        if (channelSubscribedRef.current) {
-          presenceChannelRef.current?.send({
-            type: 'broadcast', event: 'hover',
-            payload: { sessionId: mySessionId.current, countryCode: null, ts: Date.now() },
-          })
+        if (isOverPinRef.current) {
+          isOverPinRef.current = false
+          pinHoverTooltipRef.current = null
+          setPinHoverTooltip(null)
         }
-      }
+
+        // 나라 hover 감지
+        const hit = getAlpha2AtPoint(hx, hy)
+        if (hit?.alpha2) {
+          // confirmedCountRef: 서버 확정값만 — 낙관적 값 절대 안 들어옴
+          const count = confirmedCountRef.current[hit.alpha2] ?? 0
+          const name = isoCountries.getName(hit.alpha2.toUpperCase(), locale)
+            ?? clickDataRef.current[hit.alpha2]?.name
+            ?? hit.alpha2
+          hoveredAlpha2Ref.current = hit.alpha2
+          hoveredNameRef.current   = name
+          overlayRef.current?.setTooltip({ name, count, x: hx, y: hy, alpha2: hit.alpha2, viewers: viewersByCountryRef.current[hit.alpha2] ?? 0 })
+          // 뷰어 broadcast — 나라가 바뀔 때만 전송
+          if (hit.alpha2 !== lastBroadcastCountryRef.current) {
+            lastBroadcastCountryRef.current = hit.alpha2
+            if (channelSubscribedRef.current) {
+              presenceChannelRef.current?.send({
+                type: 'broadcast', event: 'hover',
+                payload: { sessionId: mySessionId.current, countryCode: hit.alpha2, ts: Date.now() },
+              })
+            }
+          }
+        } else {
+          hoveredAlpha2Ref.current = null
+          hoveredNameRef.current   = null
+          overlayRef.current?.setTooltip(null)
+          if (lastBroadcastCountryRef.current !== null) {
+            lastBroadcastCountryRef.current = null
+            if (channelSubscribedRef.current) {
+              presenceChannelRef.current?.send({
+                type: 'broadcast', event: 'hover',
+                payload: { sessionId: mySessionId.current, countryCode: null, ts: Date.now() },
+              })
+            }
+          }
+        }
+      })
     }
   }, [getAlpha2AtPoint, getPinsAtPoint, getProjection, lastBroadcastCountryRef, mySessionId, presenceChannelRef, viewersByCountryRef, locale])
 
@@ -1096,6 +1120,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const onMouseLeave = useCallback(() => {
     dragStartRef.current = null
     mousePosRef.current = null
+    pendingHitRef.current = null  // 대기 중인 히트 테스트 취소
     lastMouseRef.current = null
     hoveredAlpha2Ref.current = null
     overlayRef.current?.setTooltip(null)

@@ -132,9 +132,10 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
           const canvas = canvasRef.current
           if (!canvas) return
           const size = Math.min(canvas.width, canvas.height)
+          const isMobile = canvas.width <= 640
           const proj = geoOrthographic()
             .scale(size * 1.6 * Math.pow(1.3, scaleRef.current))
-            .translate([canvas.width / 2 - 128, canvas.height / 2])
+            .translate([isMobile ? canvas.width / 2 : canvas.width / 2 - 128, canvas.height / 2])
             .rotate([rotationRef.current[0], rotationRef.current[1], 0])
             .clipAngle(90)
           const geo = centroidByAlpha2.get(country.code)
