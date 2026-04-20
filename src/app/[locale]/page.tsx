@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
-import { Globe, Send, Coffee } from 'lucide-react'
+import { Globe, Send, Coffee, Mail } from 'lucide-react'
 import VoteReasonModal from '@/components/VoteReasonModal'
 import { supabase } from '@/lib/supabase'
 import CombinedFeed from '@/components/CombinedFeed'
@@ -207,6 +207,13 @@ function HomeContent() {
           <Coffee size={20} />
           <span>{t('donate')}</span>
         </button>
+        <Link
+          href="/contact"
+          className="flex-1 flex flex-col items-center justify-center h-14 gap-1 text-xs font-medium transition-all text-zinc-500 hover:text-zinc-300"
+        >
+          <Mail size={20} />
+          <span>{t('contact')}</span>
+        </Link>
       </div>
     </main>
   )
