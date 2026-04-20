@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = await getTranslations({ locale, namespace: 'Contact' })
   const title = t('metaTitle')
   const description = t('metaDesc')
-  const pageUrl = `${BASE_URL}/${locale}/contact`
+  const pageUrl = locale === 'en' ? `${BASE_URL}/contact` : `${BASE_URL}/${locale}/contact`
   return {
     title,
     description,
@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       canonical: pageUrl,
       languages: {
         ko: `${BASE_URL}/ko/contact`,
-        en: `${BASE_URL}/en/contact`,
+        en: `${BASE_URL}/contact`,
       },
     },
     openGraph: {

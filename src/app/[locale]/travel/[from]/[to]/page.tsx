@@ -59,7 +59,9 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
   const fromUpper = from.toUpperCase()
   const toUpper   = to.toUpperCase()
-  const pageUrl   = `${BASE_URL}/${locale}/travel/${fromUpper}/${toUpper}`
+  const pageUrl   = locale === 'en'
+    ? `${BASE_URL}/travel/${fromUpper}/${toUpper}`
+    : `${BASE_URL}/${locale}/travel/${fromUpper}/${toUpper}`
 
   return {
     title,
@@ -68,7 +70,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       canonical: pageUrl,
       languages: {
         ko: `${BASE_URL}/ko/travel/${fromUpper}/${toUpper}`,
-        en: `${BASE_URL}/en/travel/${fromUpper}/${toUpper}`,
+        en: `${BASE_URL}/travel/${fromUpper}/${toUpper}`,
       },
     },
     openGraph: {
@@ -157,13 +159,15 @@ export default async function TravelPage({ params }: { params: Params }) {
         '@type': 'ListItem',
         position: 2,
         name: isKo ? '여행 정보' : 'Travel Info',
-        item: `${BASE_URL}/${locale}/travel`,
+        item: locale === 'en' ? `${BASE_URL}/travel` : `${BASE_URL}/${locale}/travel`,
       },
       {
         '@type': 'ListItem',
         position: 3,
         name: `${fromDisplay} → ${toDisplay}`,
-        item: `${BASE_URL}/${locale}/travel/${from.toUpperCase()}/${to.toUpperCase()}`,
+        item: locale === 'en'
+          ? `${BASE_URL}/travel/${from.toUpperCase()}/${to.toUpperCase()}`
+          : `${BASE_URL}/${locale}/travel/${from.toUpperCase()}/${to.toUpperCase()}`,
       },
     ],
   }

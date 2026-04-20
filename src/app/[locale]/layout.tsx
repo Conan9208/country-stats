@@ -38,7 +38,7 @@ export async function generateMetadata({
     ? '3D 지구본으로 세계 195개 국가를 탐험하세요. 국가 부채 실시간, GDP, 환율, 국가 비교 정보를 한눈에.'
     : 'Explore 195 countries on an interactive 3D globe. Real-time national debt, GDP, exchange rates, and country comparisons.'
 
-  const url = `${BASE_URL}/${locale}`
+  const url = locale === 'en' ? BASE_URL : `${BASE_URL}/${locale}`
 
   return {
     title,
@@ -48,7 +48,7 @@ export async function generateMetadata({
       canonical: url,
       languages: {
         ko: `${BASE_URL}/ko`,
-        en: `${BASE_URL}/en`,
+        en: BASE_URL,
         'x-default': BASE_URL,
       },
     },

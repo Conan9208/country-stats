@@ -133,7 +133,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { code, locale } = await params
   const data = await fetchCountryData(code)
-  const pageUrl = `${BASE_URL}/${locale}/countries/${code.toLowerCase()}`
+  const pageUrl = locale === 'en'
+    ? `${BASE_URL}/countries/${code.toLowerCase()}`
+    : `${BASE_URL}/${locale}/countries/${code.toLowerCase()}`
 
   if (!data) {
     return {
@@ -161,7 +163,7 @@ export async function generateMetadata({
       canonical: pageUrl,
       languages: {
         ko: `${BASE_URL}/ko/countries/${code.toLowerCase()}`,
-        en: `${BASE_URL}/en/countries/${code.toLowerCase()}`,
+        en: `${BASE_URL}/countries/${code.toLowerCase()}`,
       },
     },
     openGraph: {
@@ -192,7 +194,9 @@ export default async function CountryDebtPage({
   const data = await fetchCountryData(code)
   const isKo = locale === 'ko'
 
-  const pageUrl = `${BASE_URL}/${locale}/countries/${code.toLowerCase()}`
+  const pageUrl = locale === 'en'
+    ? `${BASE_URL}/countries/${code.toLowerCase()}`
+    : `${BASE_URL}/${locale}/countries/${code.toLowerCase()}`
 
   const datasetJsonLd = data
     ? {

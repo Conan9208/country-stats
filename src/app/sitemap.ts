@@ -5,6 +5,11 @@ const LOCALES = ['ko', 'en']
 
 const STATIC_ROUTES = ['', '/about', '/privacy', '/contact', '/donate']
 
+// localePrefix: 'as-needed' → en has no prefix, ko has /ko prefix
+function sitemapUrl(locale: string, path: string): string {
+  return locale === 'en' ? `${BASE_URL}${path}` : `${BASE_URL}/${locale}${path}`
+}
+
 // ISO 3166-1 alpha-2 codes for sovereign states with World Bank coverage
 const COUNTRY_CODES = [
   'AF', 'AL', 'DZ', 'AD', 'AO', 'AG', 'AR', 'AM', 'AU', 'AT', 'AZ',
@@ -41,7 +46,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   for (const locale of LOCALES) {
     for (const route of STATIC_ROUTES) {
       entries.push({
-        url: `${BASE_URL}/${locale}${route}`,
+        url: sitemapUrl(locale, route),
         lastModified: new Date(),
         changeFrequency: route === '' ? 'daily' : 'monthly',
         priority: route === '' ? 1.0 : 0.7,
@@ -53,7 +58,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   for (const locale of LOCALES) {
     for (const code of COUNTRY_CODES) {
       entries.push({
-        url: `${BASE_URL}/${locale}/countries/${code.toLowerCase()}`,
+        url: sitemapUrl(locale, `/countries/${code.toLowerCase()}`),
         lastModified: new Date(),
         changeFrequency: 'weekly',
         priority: 0.8,
@@ -70,7 +75,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       for (const to of POPULAR_TO) {
         if (from === to) continue
         entries.push({
-          url: `${BASE_URL}/${locale}/travel/${from}/${to}`,
+          url: sitemapUrl(locale, `/travel/${from}/${to}`),
           lastModified: new Date(),
           changeFrequency: 'weekly',
           priority: from === 'KR' ? 0.9 : 0.7,
