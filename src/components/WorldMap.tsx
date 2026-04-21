@@ -122,6 +122,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const myClicksRef = useRef<Set<string>>(new Set())
   const [myClickCount, setMyClickCount] = useState(0)
   const animFrameRef = useRef<number>(0)
+  const globalDragCleanupRef = useRef<(() => void) | null>(null)
   // 마우스 히트 테스트 rAF throttle (250Hz 마우스 → 60fps로 제한)
   const pendingHitRef = useRef<{ x: number; y: number } | null>(null)
   const hitTestScheduledRef = useRef(false)
@@ -822,7 +823,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           spinningRef.current = false
           autoRotateRef.current = true
         }
-      } else if (!dragStartRef.current) {
+      } else if (!dragStartRef.current || !hasDraggedRef.current) {
+        // drag 누름 but 아직 이동 없음 → 자동회전/관성 유지, dragStart.rotation도 같이 따라옴
         const [vx, vy] = velocityRef.current
         if (Math.abs(vx) > 0.0001 || Math.abs(vy) > 0.0001) {
           rotationRef.current = [
@@ -830,9 +832,11 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
             Math.max(-90, Math.min(90, rotationRef.current[1] - vy * dt)),
           ]
           velocityRef.current = [vx * 0.88, vy * 0.88]
+          if (dragStartRef.current) dragStartRef.current.rotation = [...rotationRef.current] as [number, number]
         } else if (autoRotateRef.current && !contextMenuRef.current) {
           rotationRef.current = [rotationRef.current[0] + dt * 0.00133, rotationRef.current[1]]
           velocityRef.current = [0, 0]
+          if (dragStartRef.current) dragStartRef.current.rotation = [...rotationRef.current] as [number, number]
         }
       }
       draw()
@@ -989,15 +993,60 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
   // 드래그
   const onMouseDown = useCallback((e: React.MouseEvent) => {
+    // eslint-disable-next-line react-hooks/immutability
     hasDraggedRef.current = false   // spin 여부와 무관하게 항상 초기화
     if (spinningRef.current) return
-    autoRotateRef.current = false
     dragStartRef.current = {
       x: e.clientX,
       y: e.clientY,
       rotation: [...rotationRef.current] as [number, number],
     }
-  }, [spinningRef])
+
+    // 캔버스 밖으로 커서가 나가도 드래그 유지 (mouseleave 끊김 방지)
+    const handleWindowMove = (ev: MouseEvent) => {
+      if (!dragStartRef.current) return
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const dx = ev.clientX - dragStartRef.current.x
+      const dy = ev.clientY - dragStartRef.current.y
+      const proj = getProjection()
+      const sensitivity = proj ? (180 / Math.PI) / proj.scale() : 0.05
+      rotationRef.current = [
+        dragStartRef.current.rotation[0] + dx * sensitivity,
+        Math.max(-90, Math.min(90, dragStartRef.current.rotation[1] - dy * sensitivity)),
+      ]
+      const now = performance.now()
+      const last = lastMouseRef.current
+      if (last) {
+        const dt = Math.max(1, now - last.t)
+        velocityRef.current = [
+          (ev.clientX - last.x) / dt * sensitivity,
+          (ev.clientY - last.y) / dt * sensitivity,
+        ]
+      }
+      lastMouseRef.current = { x: ev.clientX, y: ev.clientY, t: now }
+      if (Math.sqrt(dx * dx + dy * dy) > 6) {
+        hasDraggedRef.current = true
+        autoRotateRef.current = false  // 실제 이동 시작 시점에 자동회전 중단
+        hoveredAlpha2Ref.current = null
+        overlayRef.current?.setTooltip(null)
+      }
+      const rect = canvas.getBoundingClientRect()
+      mousePosRef.current = { x: ev.clientX - rect.left, y: ev.clientY - rect.top }
+    }
+
+    const handleWindowUp = () => {
+      dragStartRef.current = null
+      lastMouseRef.current = null
+      window.removeEventListener('mousemove', handleWindowMove)
+      window.removeEventListener('mouseup', handleWindowUp)
+      globalDragCleanupRef.current = null
+    }
+
+    globalDragCleanupRef.current = handleWindowUp
+    window.addEventListener('mousemove', handleWindowMove)
+    window.addEventListener('mouseup', handleWindowUp)
+  }, [spinningRef, getProjection])
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     const canvas = canvasRef.current
@@ -1009,34 +1058,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     // 커서 렌더링용으로는 즉시 업데이트
     mousePosRef.current = { x, y }
 
-    if (dragStartRef.current) {
-      const dx = e.clientX - dragStartRef.current.x
-      const dy = e.clientY - dragStartRef.current.y
-      const proj = getProjection()
-      const sensitivity = proj ? (180 / Math.PI) / proj.scale() : 0.05
-      rotationRef.current = [
-        dragStartRef.current.rotation[0] + dx * sensitivity,
-        Math.max(-90, Math.min(90, dragStartRef.current.rotation[1] - dy * sensitivity)),
-      ]
-      // velocity 추적
-      const now = performance.now()
-      const last = lastMouseRef.current
-      if (last) {
-        const dt = Math.max(1, now - last.t)
-        velocityRef.current = [
-          (e.clientX - last.x) / dt * sensitivity,
-          (e.clientY - last.y) / dt * sensitivity,
-        ]
-      }
-      lastMouseRef.current = { x: e.clientX, y: e.clientY, t: now }
-      // 6px 임계값: 미세한 손떨림이 클릭을 막지 않도록
-      if (Math.sqrt(dx * dx + dy * dy) > 6) {
-        hasDraggedRef.current = true
-        hoveredAlpha2Ref.current = null
-        overlayRef.current?.setTooltip(null)
-      }
-      return
-    }
+    // 드래그 중이면 window 레벨 리스너가 처리 — 여기서는 건너뜀
+    if (dragStartRef.current) return
 
     // 히트 테스트를 rAF로 throttle — 마우스는 250Hz로 쏘지만 화면은 60fps
     pendingHitRef.current = { x, y }
@@ -1113,21 +1136,19 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   }, [getAlpha2AtPoint, getPinsAtPoint, getProjection, lastBroadcastCountryRef, mySessionId, presenceChannelRef, viewersByCountryRef, locale])
 
   const onMouseUp = useCallback(() => {
-    dragStartRef.current = null
-    lastMouseRef.current = null
+    globalDragCleanupRef.current?.()
   }, [])
 
   const onMouseLeave = useCallback(() => {
-    dragStartRef.current = null
+    // dragStartRef는 여기서 건드리지 않음 — window 리스너가 캔버스 밖 드래그를 담당
     mousePosRef.current = null
     pendingHitRef.current = null  // 대기 중인 히트 테스트 취소
-    lastMouseRef.current = null
     hoveredAlpha2Ref.current = null
     overlayRef.current?.setTooltip(null)
     isOverPinRef.current = false
     pinHoverTooltipRef.current = null
     setPinHoverTooltip(null)
-    autoRotateRef.current = true
+    if (!dragStartRef.current) autoRotateRef.current = true
     if (lastBroadcastCountryRef.current !== null) {
       lastBroadcastCountryRef.current = null
       if (channelSubscribedRef.current) {
@@ -1335,7 +1356,6 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       if (e.touches.length === 1) {
         const touch = e.touches[0]
         hasDraggedRef.current = false
-        autoRotateRef.current = false
         dragStartRef.current = {
           x: touch.clientX,
           y: touch.clientY,
@@ -1388,6 +1408,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         if (Math.sqrt(dx * dx + dy * dy) > 6) {
           touchDragActiveRef.current = true
           hasDraggedRef.current = true
+          autoRotateRef.current = false  // 실제 이동 시작 시점에 자동회전 중단
           clearTimeout(longPressTimerRef.current!)
           hoveredAlpha2Ref.current = null
           overlayRef.current?.setTooltip(null)
