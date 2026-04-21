@@ -1,8 +1,13 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
 import { TIERS } from '@/lib/mapConstants'
 import { Medal } from 'lucide-react'
 import { formatCount } from '@/lib/mapUtils'
 
 export type RankEntry = { alpha2: string; name: string; count: number }
+
+type RankFloat = { id: string; alpha2: string; delta: number }
 
 export default function RankList({ title, entries, emptyMsg, live, onSelect, visibleCount = 20 }: {
   title: string
@@ -13,8 +18,33 @@ export default function RankList({ title, entries, emptyMsg, live, onSelect, vis
   visibleCount?: number
 }) {
   const max = entries[0]?.count ?? 1
-  // 각 항목: 텍스트(18px) + 바(3px) + gap(8px) ≈ 29px, 약간의 여유
   const listMaxHeight = visibleCount * 30
+
+  const prevEntriesRef = useRef<RankEntry[]>([])
+  const [rankFloats, setRankFloats] = useState<RankFloat[]>([])
+
+  useEffect(() => {
+    const prev = prevEntriesRef.current
+    if (prev.length > 0) {
+      const newFloats: RankFloat[] = []
+      entries.slice(0, visibleCount).forEach((entry, newIdx) => {
+        const prevIdx = prev.findIndex(e => e.alpha2 === entry.alpha2)
+        if (prevIdx === -1) {
+          newFloats.push({ id: `${entry.alpha2}-${Date.now()}`, alpha2: entry.alpha2, delta: 0 })
+        } else if (prevIdx > newIdx) {
+          newFloats.push({ id: `${entry.alpha2}-${Date.now()}`, alpha2: entry.alpha2, delta: prevIdx - newIdx })
+        }
+      })
+      if (newFloats.length > 0) {
+        setRankFloats(prev => [...prev, ...newFloats])
+        newFloats.forEach(f => {
+          setTimeout(() => setRankFloats(p => p.filter(x => x.id !== f.id)), 1000)
+        })
+      }
+    }
+    prevEntriesRef.current = [...entries]
+  }, [entries, visibleCount])
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -32,8 +62,9 @@ export default function RankList({ title, entries, emptyMsg, live, onSelect, vis
         <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: listMaxHeight, overflowY: 'auto', paddingRight: 14, marginRight: -4, scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,0.3) transparent', overscrollBehavior: 'contain' }}>
           {entries.map((e, i) => {
             const tier = TIERS.find(t => e.count >= t.min && e.count <= t.max)
+            const floats = rankFloats.filter(f => f.alpha2 === e.alpha2)
             return (
-              <li key={e.alpha2} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <li key={e.alpha2} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {i < 3
                     ? <Medal size={13} style={{ color: ['#facc15','#94a3b8','#cd7f32'][i] }} />
@@ -55,6 +86,15 @@ export default function RankList({ title, entries, emptyMsg, live, onSelect, vis
                     <div style={{ height: '100%', width: `${(e.count / max) * 100}%`, background: `linear-gradient(90deg, ${tier?.color ?? '#818cf8'}, #c084fc)`, borderRadius: 2 }} />
                   </div>
                 </div>
+                {floats.map(f => (
+                  <span
+                    key={f.id}
+                    className={f.delta === 0 ? 'float-rank float-rank--new' : 'float-rank'}
+                    style={{ left: 0, top: 0 }}
+                  >
+                    {f.delta === 0 ? 'NEW' : `↑${f.delta}`}
+                  </span>
+                ))}
               </li>
             )
           })}

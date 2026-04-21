@@ -23,6 +23,7 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
   const t = useTranslations('Pin')
   const [reportedIds, setReportedIds] = useState<Set<string>>(new Set())
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const [hoveredName, setHoveredName] = useState<{ id: string; x: number; y: number } | null>(null)
 
   async function handleReport(id: string) {
     await fetch(`/api/pins/${id}/report`, { method: 'POST' })
@@ -101,8 +102,14 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
               {/* 사업명 + 소개 */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
-                    {pin.business_name}
+                  <div
+                    style={{ flex: 1, minWidth: 0 }}
+                    onMouseEnter={(e) => setHoveredName({ id: pin.id, x: e.clientX, y: e.clientY })}
+                    onMouseLeave={() => setHoveredName(null)}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {pin.business_name}
+                    </div>
                   </div>
                   {pin.expires_at && (() => {
                     const d = getDaysLeft(pin.expires_at)
@@ -167,6 +174,27 @@ export default function PromoListPanel({ countryName, pins, x, y, onClose, onAdd
       >
         + {t('addPromo', { country: countryName })}
       </button>
+
+      {/* 사업명 툴팁 */}
+      {hoveredName && (
+        <div
+          style={{
+            position: 'fixed',
+            left: hoveredName.x,
+            top: hoveredName.y - 36,
+            transform: 'translateX(-50%)',
+            background: 'rgba(15,23,42,0.97)',
+            border: '1px solid rgba(167,139,250,0.3)',
+            borderRadius: 6, padding: '5px 9px',
+            fontSize: 12, color: '#f1f5f9', fontWeight: 600,
+            whiteSpace: 'nowrap', zIndex: 3000,
+            boxShadow: '0 4px 14px rgba(0,0,0,0.6)',
+            pointerEvents: 'none',
+          }}
+        >
+          {pins.find(p => p.id === hoveredName.id)?.business_name}
+        </div>
+      )}
 
       {/* 이미지 라이트박스 */}
       {lightboxUrl && (

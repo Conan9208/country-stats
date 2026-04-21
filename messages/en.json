@@ -118,7 +118,8 @@
   "Pin": {
     "title": "🌍 Promote on the Globe",
     "logoLabel": "Logo Image (optional)",
-    "logoUploadBtn": "Choose image (JPG · PNG · WebP · GIF)",
+    "logoUploadBtn": "Choose image or drag & drop here",
+    "logoDropHint": "Drop it here!",
     "logoRemoveBtn": "Remove image",
     "logoUploadedMsg": "Image selected",
     "logoHint": "Max 2MB · Square image recommended",

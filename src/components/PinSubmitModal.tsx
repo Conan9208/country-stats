@@ -31,10 +31,9 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [status, setStatus] = useState<'idle' | 'uploading' | 'submitting' | 'done' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function applyFile(file: File) {
     if (!ALLOWED_TYPES.includes(file.type)) {
       setErrorMsg(t('fileTypeError'))
       return
@@ -48,6 +47,18 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
     const reader = new FileReader()
     reader.onload = () => setLogoPreview(reader.result as string)
     reader.readAsDataURL(file)
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) applyFile(file)
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) applyFile(file)
   }
 
   function removeLogo() {
@@ -157,22 +168,28 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
             {/* 로고 업로드 */}
             <div>
               <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8, fontWeight: 600, letterSpacing: '0.05em' }}>{t('logoLabel')}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                onDragOver={e => { e.preventDefault(); if (!logoPreview) setIsDragging(true) }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                style={{ display: 'flex', alignItems: 'center', gap: 12 }}
+              >
                 {/* 원형 미리보기 */}
                 <div
                   onClick={() => !logoPreview && fileInputRef.current?.click()}
                   style={{
                     width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
-                    background: logoPreview ? 'transparent' : 'rgba(255,255,255,0.06)',
-                    border: '2px dashed rgba(255,255,255,0.15)',
+                    background: logoPreview ? 'transparent' : isDragging ? 'rgba(167,139,250,0.12)' : 'rgba(255,255,255,0.06)',
+                    border: isDragging ? '2px dashed rgba(167,139,250,0.6)' : '2px dashed rgba(255,255,255,0.15)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     cursor: logoPreview ? 'default' : 'pointer',
                     overflow: 'hidden', position: 'relative',
+                    transition: 'border-color 0.15s, background 0.15s',
                   }}
                 >
                   {logoPreview
                     ? <img src={logoPreview} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <Building size={22} style={{ color: '#475569' }} />
+                    : <Building size={22} style={{ color: isDragging ? '#a78bfa' : '#475569' }} />
                   }
                 </div>
 
@@ -181,12 +198,13 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       style={{
-                        background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
-                        borderRadius: 8, color: '#94a3b8', fontSize: 12, padding: '7px 12px',
-                        cursor: 'pointer', textAlign: 'left',
+                        background: isDragging ? 'rgba(167,139,250,0.1)' : 'rgba(255,255,255,0.05)',
+                        border: `1px ${isDragging ? 'dashed' : 'solid'} ${isDragging ? 'rgba(167,139,250,0.5)' : 'rgba(255,255,255,0.12)'}`,
+                        borderRadius: 8, color: isDragging ? '#a78bfa' : '#94a3b8', fontSize: 12, padding: '7px 12px',
+                        cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
                       }}
                     >
-                      {t('logoUploadBtn')}
+                      {isDragging ? t('logoDropHint') : t('logoUploadBtn')}
                     </button>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -301,7 +319,7 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
             </div>
 
             {/* 에러 */}
-            {(status === 'error') && errorMsg && (
+            {errorMsg && (
               <div style={{ fontSize: 12, color: '#f87171', background: 'rgba(248,113,113,0.1)', borderRadius: 8, padding: '8px 12px' }}>
                 {errorMsg}
               </div>

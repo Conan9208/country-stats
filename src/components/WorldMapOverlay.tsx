@@ -32,11 +32,22 @@ export interface FloatNumData {
   isRateLimit?: boolean
 }
 
+export interface RankFloatData {
+  id: number
+  x: number
+  y: number
+  text: string
+  kind: 'alltime' | 'today'
+  rank: number
+}
+
 export interface OverlayHandle {
   setTooltip: (t: TooltipState | null) => void;
   addFloatNum: (id: number, x: number, y: number, value: number) => void;
   rateLimitFloatNum: (id: number) => void;
   removeFloatNum: (id: number) => void;
+  addRankFloat: (id: number, x: number, y: number, text: string, kind: 'alltime' | 'today', rank: number) => void;
+  removeRankFloat: (id: number) => void;
   setRouletteSlot: (slot: RouletteSlotData | null) => void;
   setLandingFacts: (facts: LandingFactsData | null) => void;
   setToast: (toast: { message: string, sub: string } | null) => void;
@@ -45,6 +56,7 @@ export interface OverlayHandle {
 export const WorldMapOverlay = forwardRef<OverlayHandle, { onSpinClose?: () => void }>(({ onSpinClose }, ref) => {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const [floatNums, setFloatNums] = useState<FloatNumData[]>([])
+  const [rankFloats, setRankFloats] = useState<RankFloatData[]>([])
   const [rouletteSlot, setRouletteSlot] = useState<RouletteSlotData | null>(null)
   const [landingFacts, setLandingFacts] = useState<LandingFactsData | null>(null)
   const [toast, setToast] = useState<{ message: string; sub: string } | null>(null)
@@ -67,6 +79,8 @@ export const WorldMapOverlay = forwardRef<OverlayHandle, { onSpinClose?: () => v
     addFloatNum: (id, x, y, value) => setFloatNums(prev => [...prev, { id, x, y, value, isRateLimit: false }]),
     rateLimitFloatNum: (id) => setFloatNums(prev => prev.map(n => n.id === id ? { ...n, isRateLimit: true } : n)),
     removeFloatNum: (id) => setFloatNums(prev => prev.filter(n => n.id !== id)),
+    addRankFloat: (id, x, y, text, kind, rank) => setRankFloats(prev => [...prev, { id, x, y, text, kind, rank }]),
+    removeRankFloat: (id) => setRankFloats(prev => prev.filter(n => n.id !== id)),
     setRouletteSlot,
     setLandingFacts,
     setToast,
@@ -250,6 +264,21 @@ export const WorldMapOverlay = forwardRef<OverlayHandle, { onSpinClose?: () => v
           style={{ left: n.x - 16, top: n.y - 24 }}
         >
           {n.isRateLimit ? <Ban size={14} /> : `+${n.value.toLocaleString()}`}
+        </div>
+      ))}
+
+      {/* 순위 변경 플로팅 */}
+      {rankFloats.map(n => (
+        <div
+          key={n.id}
+          className={n.kind === 'alltime' ? 'float-rank float-rank--alltime' : 'float-rank'}
+          style={{
+            left: n.x - 16,
+            top: n.y - 8,
+            fontSize: n.rank <= 3 ? 22 : n.rank <= 10 ? 17 : 13,
+          }}
+        >
+          {n.text}
         </div>
       ))}
 

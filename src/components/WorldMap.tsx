@@ -1217,6 +1217,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
     // 낙관적 업데이트: 지구본 색상만 즉시 반영 (confirmedCountRef/tooltip은 건드리지 않음)
     const prevTotal = clickDataRef.current[alpha2]?.total ?? 0
+    const prevAllTimeRank = topN(clickDataRef.current, locale, 20).findIndex(e => e.alpha2 === alpha2)
+    const prevTodayRank = topNToday(clickDataRef.current, locale, 20).findIndex(e => e.alpha2 === alpha2)
     clickDataRef.current = {
       ...clickDataRef.current,
       [alpha2]: { ...clickDataRef.current[alpha2], name, total: prevTotal + 1 },
@@ -1271,13 +1273,41 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     setClickData({ ...clickDataRef.current })
     // +1 float은 이미 떠있음, floatCleanup 타이머가 1초 후 자동 제거
 
+    // 순위 변경 float (클릭 후 순위 상승 시 마우스 근처에 표시)
+    const newAllTimeRank = topN(clickDataRef.current, locale, 20).findIndex(e => e.alpha2 === alpha2)
+    const newTodayRank = topNToday(clickDataRef.current, locale, 20).findIndex(e => e.alpha2 === alpha2)
+
+    const allTimeDelta: number | 'NEW' | null =
+      prevAllTimeRank === -1
+        ? (newAllTimeRank !== -1 ? 'NEW' : null)
+        : (newAllTimeRank !== -1 && prevAllTimeRank > newAllTimeRank ? prevAllTimeRank - newAllTimeRank : null)
+    const todayDelta: number | 'NEW' | null =
+      prevTodayRank === -1
+        ? (newTodayRank !== -1 ? 'NEW' : null)
+        : (newTodayRank !== -1 && prevTodayRank > newTodayRank ? prevTodayRank - newTodayRank : null)
+
+    if (todayDelta !== null) {
+      const rank = newTodayRank + 1
+      const text = todayDelta === 'NEW' ? `📅 #${rank}` : `📅 #${rank} +${todayDelta}`
+      const rid = Date.now() + Math.random() + 0.2
+      overlayRef.current?.addRankFloat(rid, fx, fy + 18, text, 'today', rank)
+      setTimeout(() => overlayRef.current?.removeRankFloat(rid), 1200)
+    }
+    if (allTimeDelta !== null) {
+      const rank = newAllTimeRank + 1
+      const text = allTimeDelta === 'NEW' ? `🏆 #${rank}` : `🏆 #${rank} +${allTimeDelta}`
+      const rid = Date.now() + Math.random() + 0.3
+      overlayRef.current?.addRankFloat(rid, fx + 28, fy + 18, text, 'alltime', rank)
+      setTimeout(() => overlayRef.current?.removeRankFloat(rid), 1200)
+    }
+
     // 내 클릭 기록 저장
     if (!myClicksRef.current.has(alpha2)) {
       myClicksRef.current.add(alpha2)
       setMyClickCount(myClicksRef.current.size)
       try { localStorage.setItem('my_clicked_countries', JSON.stringify([...myClicksRef.current])) } catch { /* ignore */ }
     }
-  }, [closeContextMenu, t])
+  }, [closeContextMenu, t, locale])
 
   // 스크롤 줌 — passive: false로 직접 등록 (React onWheel은 passive라 preventDefault 불가)
   useEffect(() => {
