@@ -17,7 +17,7 @@ import { WorldMapOverlay, type OverlayHandle } from '@/components/WorldMapOverla
 import type { ClickData, ClickEntry } from '@/types/map'
 import type { PollQuestion } from '@/types/poll'
 import { TIERS, glass } from '@/lib/mapConstants'
-import { countryColor, pollVoteColor, topN, topNToday } from '@/lib/mapUtils'
+import { countryColor, pollVoteColor, topN, topNToday, isVisibleOnGlobe, calcPinGrid } from '@/lib/mapUtils'
 import { supabase } from '@/lib/supabase'
 import { worldGeo, landGeo, bordersMesh, graticuleData, alpha2Map, featureByAlpha2, centroidByAlpha2, geoBBoxByAlpha2 } from '@/lib/geoData'
 import { useRealtimeViewers } from '@/hooks/useRealtimeViewers'
@@ -61,6 +61,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const [isDataReady, setIsDataReady] = useState(false)
   const [clickData, setClickData] = useState<ClickData>({})
   const clickDataRef = useRef<ClickData>({})
+  // 클릭수 > 0 인 alpha2 코드만 모아두는 캐시 — draw() 핫패스에서 매 프레임 Object.keys() 순회 방지
+  const clickedAlpha2sRef = useRef<Set<string>>(new Set())
   // 서버 확정 클릭수만 보관 — 낙관적 값 절대 들어오지 않음 → tooltip이 이 값을 읽음
   const confirmedCountRef = useRef<Record<string, number>>({})
 
@@ -91,6 +93,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const [commentCountry, setCommentCountry] = useState<{ code: string; name: string } | null>(null)
   // 핀
   const pinsRef = useRef<GlobePin[]>([])
+  // 핀 그룹핑 캐시 — draw()/getPinsAtPoint() 에서 매 호출마다 Map 재생성 방지
+  const pinsByCountryRef = useRef<Map<string, GlobePin[]>>(new Map())
   const pinImgCacheRef = useRef<Map<string, HTMLImageElement>>(new Map())
   const pinImgFailedRef = useRef<Set<string>>(new Set())
   // 핀 hover 툴팁 상태 (HTML overlay)
@@ -161,10 +165,21 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         clickDataRef.current = data
         for (const [k, v] of Object.entries(data)) {
           confirmedCountRef.current[k] = v.total ?? 0
+          if ((v.total ?? 0) > 0) clickedAlpha2sRef.current.add(k)
         }
         setClickData(data)
         setIsDataReady(true)
       })
+  }, [])
+
+  const rebuildPinsByCountry = useCallback((pins: GlobePin[]) => {
+    const map = new Map<string, GlobePin[]>()
+    for (const pin of pins) {
+      const list = map.get(pin.country_alpha2) ?? []
+      list.push(pin)
+      map.set(pin.country_alpha2, list)
+    }
+    pinsByCountryRef.current = map
   }, [])
 
   // 지구본 핀 로드 (1분마다 갱신)
@@ -172,12 +187,17 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     const load = () =>
       fetch('/api/pins?all=1')
         .then(r => r.json())
-        .then((data: GlobePin[]) => { if (Array.isArray(data)) pinsRef.current = data })
+        .then((data: GlobePin[]) => {
+          if (Array.isArray(data)) {
+            pinsRef.current = data
+            rebuildPinsByCountry(data)
+          }
+        })
         .catch(() => {})
     load()
     const iv = setInterval(load, 60_000)
     return () => clearInterval(iv)
-  }, [])
+  }, [rebuildPinsByCountry])
 
   // localStorage에서 내 클릭 기록 불러오기
   useEffect(() => {
@@ -250,6 +270,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
               name: row.name ?? clickDataRef.current[row.country_code]?.name,
             },
           }
+          if (rtTotal > 0) clickedAlpha2sRef.current.add(row.country_code)
           setClickData({ ...clickDataRef.current })
         }
       )
@@ -315,8 +336,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     const centerY = canvas.height / 2
     const radius = proj.scale()
 
-    // 그라디언트 캐시: 크기·줌이 바뀔 때만 재생성
-    const gKey = `${canvas.width},${canvas.height},${radius.toFixed(1)}`
+    // 그라디언트 캐시: 크기·줌이 바뀔 때만 재생성 (5px 단위로 반올림 → 줌 중 jitter 방지)
+    const gKey = `${canvas.width},${canvas.height},${Math.round(radius / 5)}`
     if (!gradientCacheRef.current || gradientCacheRef.current.key !== gKey) {
       const ocean = ctx.createRadialGradient(
         centerX - radius * 0.2, centerY - radius * 0.25, radius * 0.05,
@@ -359,25 +380,25 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       ? Math.max(...Object.values(pData))
       : 1
 
-    // 특수 상태(호버·선택·클릭·투표)인 나라만 Set으로 추림
-    // → path 계산이 필요 없는 나라(대다수)를 완전히 건너뜀
-    const specialAlpha2s = new Set<string>()
-    if (hoveredAlpha2Ref.current)  specialAlpha2s.add(hoveredAlpha2Ref.current)
-    if (selectedAlpha2Ref.current) specialAlpha2s.add(selectedAlpha2Ref.current)
-    if (isPoll) {
-      if (pollVotedCountryRef.current) specialAlpha2s.add(pollVotedCountryRef.current)
-      if (pData) for (const a2 of Object.keys(pData)) specialAlpha2s.add(a2)
-    } else {
-      for (const a2 of Object.keys(clickDataRef.current)) {
-        if ((clickDataRef.current[a2]?.total ?? 0) > 0) specialAlpha2s.add(a2)
-      }
-    }
+    // 호버·선택 상태를 로컬 변수에 캡처 (루프 내 ref 접근 최소화)
+    const hoveredA2  = hoveredAlpha2Ref.current
+    const selectedA2 = selectedAlpha2Ref.current
+    const votedA2    = pollVotedCountryRef.current
 
-    // 국가별 색상 — specialAlpha2s에 없는 나라는 path 계산 자체를 건너뜀
+    // 국가별 색상 — specialAlpha2s Set 생성 없이 인라인 조건으로 스킵 (매 프레임 O(n) 할당 제거)
     for (const feature of worldGeo.features) {
       const numericId = String((feature as Feature & { id?: string | number }).id ?? '')
       const alpha2 = alpha2Map.get(numericId) ?? null
-      if (!alpha2 || !specialAlpha2s.has(alpha2)) continue
+      if (!alpha2) continue
+      const isHoveredPre  = alpha2 === hoveredA2
+      const isSelectedPre = alpha2 === selectedA2
+      if (!isHoveredPre && !isSelectedPre) {
+        if (isPoll) {
+          if (alpha2 !== votedA2 && !pData?.[alpha2]) continue
+        } else {
+          if (!clickedAlpha2sRef.current.has(alpha2)) continue
+        }
+      }
 
       const count        = clickDataRef.current[alpha2]?.total ?? 0
       const isHovered    = alpha2 === hoveredAlpha2Ref.current

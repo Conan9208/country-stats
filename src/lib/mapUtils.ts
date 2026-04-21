@@ -77,3 +77,28 @@ export function formatArea(n: number): string {
   if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M km²`
   return `${n.toLocaleString()} km²`
 }
+
+export function isVisibleOnGlobe(lng: number, lat: number, rotation: [number, number], threshold = 0.05): boolean {
+  const cLng = -rotation[0] * Math.PI / 180
+  const cLat = -rotation[1] * Math.PI / 180
+  const pLng = lng * Math.PI / 180
+  const pLat = lat * Math.PI / 180
+  const dot = Math.cos(pLat) * Math.cos(cLat) * Math.cos(pLng - cLng)
+            + Math.sin(pLat) * Math.sin(cLat)
+  return dot > threshold
+}
+
+export function calcPinGrid(
+  cols: number, rows: number, pinSpacing: number,
+  px: number, py: number, shownCount: number
+): { actualCols: number; usedRows: number; gridStartX: number; gridStartY: number } {
+  const isSmall = cols === 1 && rows === 1
+  const actualCols = isSmall ? Math.max(1, shownCount) : Math.min(cols, Math.max(1, shownCount))
+  const usedRows = Math.ceil(shownCount / actualCols)
+  return {
+    actualCols,
+    usedRows,
+    gridStartX: px - ((actualCols - 1) * pinSpacing) / 2,
+    gridStartY: py - ((usedRows - 1) * pinSpacing) / 2,
+  }
+}
