@@ -1792,7 +1792,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
                 <div
                   onMouseDown={e => e.stopPropagation()}
                   onTouchStart={e => e.stopPropagation()}
-                  style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 1001, ...glass, borderRadius: 12, padding: '10px 14px', minWidth: 160 }}
+                  style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 1001, ...glass, borderRadius: 12, padding: '10px 14px', minWidth: 195 }}
                 >
                   <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
                     {t('clickTier')}
@@ -1801,8 +1801,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
                     {TIERS.map((tier, tierIdx) => (
                       <div key={tier.tag} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                         <div style={{ width: 10, height: 10, borderRadius: 3, background: tier.color, flexShrink: 0 }} />
-                        <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72 }}>{tier.label}</span>
-                        <span style={{ fontSize: 10, color: tier.color, fontWeight: 600 }}>{t(`tierTag${tierIdx}`)}</span>
+                        <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72, flexShrink: 0 }}>{tier.label}</span>
+                        <span style={{ fontSize: 10, color: tier.color, fontWeight: 600, whiteSpace: 'nowrap' }}>{t(`tierTag${tierIdx}`)}</span>
                       </div>
                     ))}
                   </div>
@@ -1836,8 +1836,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
                 {TIERS.map((tier, tierIdx) => (
                   <div key={tier.tag} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <div style={{ width: 10, height: 10, borderRadius: 3, background: tier.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72 }}>{tier.label}</span>
-                    <span style={{ fontSize: 10, color: tier.color, fontWeight: 600 }}>{t(`tierTag${tierIdx}`)}</span>
+                    <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72, flexShrink: 0 }}>{tier.label}</span>
+                    <span style={{ fontSize: 10, color: tier.color, fontWeight: 600, whiteSpace: 'nowrap' }}>{t(`tierTag${tierIdx}`)}</span>
                   </div>
                 ))}
               </div>

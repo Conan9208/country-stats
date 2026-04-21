@@ -129,7 +129,7 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
   }
 
   const containerStyle = isMobile
-    ? { position: 'fixed' as const, bottom: 0, left: 0, right: 0, zIndex: 1900, ...glass, borderRadius: '20px 20px 0 0' as const, padding: '0 16px 24px', maxHeight: '72vh', overflowY: 'auto' as const, scrollbarWidth: 'none' as const }
+    ? { position: 'fixed' as const, bottom: 0, left: 0, right: 0, zIndex: 1900, ...glass, borderRadius: '20px 20px 0 0' as const, padding: '0 16px 24px', maxHeight: '72vh', overflowY: 'auto' as const, scrollbarWidth: 'none' as const, overscrollBehavior: 'contain' as const, WebkitOverflowScrolling: 'touch' as const, willChange: 'transform' }
     : { ...glass, position: 'absolute' as const, top: 16, right: commentCountry ? 324 : 16, zIndex: 1000, borderRadius: 16, padding: 16, width: 240, maxWidth: 'calc(100vw - 32px)', transition: 'right 0.35s cubic-bezier(0.4,0,0.2,1)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' as const, scrollbarWidth: 'none' as const }
 
   const handleClose = isMobile ? () => setIsOpen(false) : undefined
@@ -141,10 +141,11 @@ const StatsPanelOverlay = memo(function StatsPanelOverlay({
       {isMobile && (
         <div
           onClick={() => setIsOpen(false)}
+          onTouchStart={e => e.stopPropagation()}
           style={{ position: 'fixed', inset: 0, zIndex: 1899 }}
         />
       )}
-    <div style={containerStyle}>
+    <div style={containerStyle} onTouchStart={e => e.stopPropagation()}>
       {/* 모바일 핸들바 + 닫기 */}
       {isMobile && (
         <div style={{ position: 'sticky', top: 0, background: 'rgba(9,9,11,0.95)', padding: '12px 0 10px', display: 'flex', alignItems: 'center', zIndex: 1 }}>

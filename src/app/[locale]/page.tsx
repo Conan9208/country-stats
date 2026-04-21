@@ -22,13 +22,15 @@ const WorldMap = dynamic(() => import('@/components/WorldMap'), {
 
 // 모바일 탭에서 인라인으로 렌더링할 Donate 페이지
 const DonatePage = dynamic(() => import('@/app/[locale]/donate/page'), { ssr: false })
+// 모바일 탭에서 인라인으로 렌더링할 Contact 컨텐츠
+const ContactContent = dynamic(() => import('@/components/ContactContent'), { ssr: false })
 
 const tabs = [
   { id: 'map', labelKey: 'globe' },
   { id: 'feed', labelKey: 'feed' },
 ]
 
-type TabId = 'map' | 'feed' | 'donate'
+type TabId = 'map' | 'feed' | 'donate' | 'contact'
 
 function HomeContent() {
   const searchParams = useSearchParams()
@@ -183,6 +185,15 @@ function HomeContent() {
         </div>
       )}
 
+      {/* 모바일 전용 contact 인라인 탭 */}
+      {activeTab === 'contact' && (
+        <div className="flex-1 overflow-y-auto bg-zinc-950 text-white">
+          <Suspense fallback={<div className="h-dvh bg-zinc-950" />}>
+            <ContactContent />
+          </Suspense>
+        </div>
+      )}
+
       {/* 모바일 하단 네비게이션 — sm 미만에서만 표시 */}
       <div className="sm:hidden flex border-t border-zinc-800 bg-zinc-950/95 backdrop-blur z-20" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {tabs.map(tab => (
@@ -207,13 +218,15 @@ function HomeContent() {
           <Coffee size={20} />
           <span>{t('donate')}</span>
         </button>
-        <Link
-          href="/contact"
-          className="flex-1 flex flex-col items-center justify-center h-14 gap-1 text-xs font-medium transition-all text-zinc-500 hover:text-zinc-300"
+        <button
+          onClick={() => setActiveTab('contact')}
+          className={`flex-1 flex flex-col items-center justify-center h-14 gap-1 text-xs font-medium transition-all ${
+            activeTab === 'contact' ? 'text-white' : 'text-zinc-500'
+          }`}
         >
           <Mail size={20} />
           <span>{t('contact')}</span>
-        </Link>
+        </button>
       </div>
     </main>
   )
