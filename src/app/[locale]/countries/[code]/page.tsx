@@ -1,9 +1,23 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
 import DebtTicker from './DebtTicker'
+import { CURATED_FACTS_KO, CURATED_FACTS_EN } from '@/data/countryFacts'
 
 const BASE_URL = 'https://postmyglobe.com'
 const WB = 'https://api.worldbank.org/v2'
+
+const POPULAR_COUNTRIES = [
+  { code: 'us', nameKo: '미국', nameEn: 'United States' },
+  { code: 'jp', nameKo: '일본', nameEn: 'Japan' },
+  { code: 'kr', nameKo: '한국', nameEn: 'South Korea' },
+  { code: 'cn', nameKo: '중국', nameEn: 'China' },
+  { code: 'gb', nameKo: '영국', nameEn: 'United Kingdom' },
+  { code: 'de', nameKo: '독일', nameEn: 'Germany' },
+  { code: 'fr', nameKo: '프랑스', nameEn: 'France' },
+  { code: 'br', nameKo: '브라질', nameEn: 'Brazil' },
+  { code: 'in', nameKo: '인도', nameEn: 'India' },
+  { code: 'au', nameKo: '호주', nameEn: 'Australia' },
+]
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -12,6 +26,11 @@ type CountryData = {
   name: string
   flag: string
   currency: { code: string; symbol: string; name: string } | null
+  population: number | null
+  area: number | null
+  capital: string | null
+  region: string | null
+  subregion: string | null
   gdpUSD: number
   gdpYear: string
   debtRatio: number
@@ -50,7 +69,7 @@ async function fetchCountryData(code: string): Promise<CountryData | null> {
     wbFetch(upper, 'GC.DOD.TOTL.GD.ZS'),
     wbFetch(upper, 'FR.INR.RINR'),
     fetch('https://open.er-api.com/v6/latest/USD', { next: { revalidate: 3600 } }),
-    fetch(`https://restcountries.com/v3.1/alpha/${upper}?fields=name,flags,currencies,region`, {
+    fetch(`https://restcountries.com/v3.1/alpha/${upper}?fields=name,flags,currencies,region,subregion,capital,population,area`, {
       next: { revalidate: 86400 },
     }),
   ])
@@ -69,6 +88,11 @@ async function fetchCountryData(code: string): Promise<CountryData | null> {
   let countryName = upper
   let flagUrl     = ''
   let currency: CurrencyInfo = null
+  let population: number | null = null
+  let area:       number | null = null
+  let capital:    string | null = null
+  let region:     string | null = null
+  let subregion:  string | null = null
 
   if (countryRes.status === 'fulfilled' && countryRes.value.ok) {
     const raw  = await countryRes.value.json()
@@ -77,6 +101,11 @@ async function fetchCountryData(code: string): Promise<CountryData | null> {
     const [cCode, cMeta] = entries[0] ?? []
     countryName = c?.name?.common ?? upper
     flagUrl     = c?.flags?.svg ?? ''
+    population  = c?.population ?? null
+    area        = c?.area ?? null
+    capital     = Array.isArray(c?.capital) ? c.capital[0] ?? null : null
+    region      = c?.region ?? null
+    subregion   = c?.subregion ?? null
     if (cCode) {
       currency = { code: cCode, symbol: cMeta?.symbol ?? cCode, name: cMeta?.name ?? cCode }
     }
@@ -103,6 +132,11 @@ async function fetchCountryData(code: string): Promise<CountryData | null> {
     name: countryName,
     flag: flagUrl,
     currency,
+    population,
+    area,
+    capital,
+    region,
+    subregion,
     gdpUSD:        gdp.value,
     gdpYear:       gdp.year,
     debtRatio:     debtRatio.value,
@@ -122,6 +156,13 @@ function formatUSD(n: number) {
   if (n >= 1e9)  return `$${(n / 1e9).toFixed(2)}B`
   if (n >= 1e6)  return `$${(n / 1e6).toFixed(2)}M`
   return `$${n.toFixed(0)}`
+}
+
+function formatPop(n: number): string {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`
+  if (n >= 1e3) return `${Math.round(n / 1e3)}K`
+  return n.toLocaleString()
 }
 
 // ─── generateMetadata ────────────────────────────────────────────────────────
@@ -436,8 +477,92 @@ export default async function CountryDebtPage({
                 ? '이 수치는 공개된 통계 기반 추산이며 실제 수치와 다를 수 있습니다.'
                 : 'These figures are estimates based on public statistics and may differ from actual values.'}
             </div>
+
+            {/* 국가 소개 섹션 */}
+            <div style={{
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 16,
+              padding: '28px 32px',
+              marginTop: 32,
+            }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: '#e2e8f0', marginBottom: 16 }}>
+                {isKo ? `${data.name}에 대해` : `About ${data.name}`}
+              </h2>
+
+              {/* 기본 정보 텍스트 (크롤 가능 콘텐츠) */}
+              {(data.capital || data.population || data.area) && (
+                <p style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.8, marginBottom: 16 }}>
+                  {isKo
+                    ? [
+                        data.capital && `${data.name}의 수도는 ${data.capital}이에요.`,
+                        data.population && `인구는 약 ${formatPop(data.population)}명이에요.`,
+                        data.area && `국토 면적은 ${data.area.toLocaleString()} km²예요.`,
+                        data.subregion && `${data.subregion} 지역에 위치해 있어요.`,
+                      ].filter(Boolean).join(' ')
+                    : [
+                        data.capital && `The capital of ${data.name} is ${data.capital}.`,
+                        data.population && `It has a population of approximately ${formatPop(data.population)}.`,
+                        data.area && `The country covers an area of ${data.area.toLocaleString()} km².`,
+                        data.subregion && `It is located in ${data.subregion}.`,
+                      ].filter(Boolean).join(' ')
+                  }
+                </p>
+              )}
+
+              {/* curated 팩트 */}
+              {(() => {
+                const fact = isKo
+                  ? CURATED_FACTS_KO[data.code]
+                  : CURATED_FACTS_EN[data.code]
+                if (!fact) return null
+                return (
+                  <div style={{
+                    background: 'rgba(139,92,246,0.08)',
+                    border: '1px solid rgba(139,92,246,0.2)',
+                    borderRadius: 10,
+                    padding: '14px 18px',
+                    display: 'flex',
+                    gap: 12,
+                    alignItems: 'flex-start',
+                  }}>
+                    <span style={{ fontSize: 18, flexShrink: 0 }}>💡</span>
+                    <p style={{ fontSize: 14, color: '#c4b5fd', lineHeight: 1.7, margin: 0 }}>
+                      {fact}
+                    </p>
+                  </div>
+                )
+              })()}
+            </div>
           </>
         )}
+
+        {/* 다른 나라 탐험 (항상 표시) */}
+        <div style={{ marginTop: 40 }}>
+          <div style={{ fontSize: 11, color: '#334155', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>
+            {isKo ? '다른 나라 부채 보기' : 'Explore Other Countries'}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {POPULAR_COUNTRIES.filter(c => c.code !== code.toLowerCase()).slice(0, 8).map(c => (
+              <Link
+                key={c.code}
+                href={isKo ? `/ko/countries/${c.code}` : `/countries/${c.code}`}
+                style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 8,
+                  padding: '6px 14px',
+                  fontSize: 13,
+                  color: '#64748b',
+                  textDecoration: 'none',
+                  transition: 'color 0.15s',
+                }}
+              >
+                {isKo ? c.nameKo : c.nameEn}
+              </Link>
+            ))}
+          </div>
+        </div>
       </div>
     </main>
   )
