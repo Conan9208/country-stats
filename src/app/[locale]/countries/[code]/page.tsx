@@ -259,8 +259,8 @@ export default async function CountryDebtPage({
         '@type': 'Dataset',
         name: isKo ? `${data.name} 국가 부채 통계` : `${data.name} National Debt Statistics`,
         description: isKo
-          ? `${data.name}의 국가 부채 실시간 추산. GDP 대비 ${data.debtRatio.toFixed(1)}%.`
-          : `Real-time national debt estimate for ${data.name}. Debt-to-GDP: ${data.debtRatio.toFixed(1)}%.`,
+          ? `${data.name}의 국가 부채를 실시간으로 추산합니다. GDP 대비 부채 비율은 ${data.debtRatio.toFixed(1)}%이며, 추산 총 부채는 ${formatUSD(data.totalDebtUSD)}입니다. World Bank 공개 데이터 기반.`
+          : `Real-time national debt estimate for ${data.name}. Debt-to-GDP ratio: ${data.debtRatio.toFixed(1)}%, estimated total debt: ${formatUSD(data.totalDebtUSD)}. Based on World Bank open data.`,
         url: pageUrl,
         variableMeasured: [
           { '@type': 'PropertyValue', name: 'GDP (USD)',              value: data.gdpUSD },
@@ -313,7 +313,7 @@ export default async function CountryDebtPage({
         zIndex: 100,
       }}>
         <Link
-          href="/?tab=map"
+          href={isKo ? '/ko?tab=map' : '/?tab=map'}
           style={{
             background: 'rgba(255,255,255,0.06)',
             border: '1px solid rgba(255,255,255,0.1)',
