@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import Link from 'next/link'
 import DebtTicker from './DebtTicker'
 import { CURATED_FACTS_KO, CURATED_FACTS_EN } from '@/data/countryFacts'
+import { routing } from '@/i18n/routing'
 
 const BASE_URL = 'https://postmyglobe.com'
 const WB = 'https://api.worldbank.org/v2'
@@ -163,6 +164,19 @@ function formatPop(n: number): string {
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`
   if (n >= 1e3) return `${Math.round(n / 1e3)}K`
   return n.toLocaleString()
+}
+
+// ─── generateStaticParams — 상위 20개국 빌드 시 프리렌더 ─────────────────────
+
+const TOP_STATIC_COUNTRIES = [
+  'us', 'jp', 'cn', 'kr', 'de', 'gb', 'fr', 'in', 'br', 'au',
+  'ca', 'it', 'es', 'mx', 'ru', 'sa', 'tr', 'id', 'nl', 'ch',
+]
+
+export function generateStaticParams() {
+  return routing.locales.flatMap(locale =>
+    TOP_STATIC_COUNTRIES.map(code => ({ locale, code }))
+  )
 }
 
 // ─── generateMetadata ────────────────────────────────────────────────────────

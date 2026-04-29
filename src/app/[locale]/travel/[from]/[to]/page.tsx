@@ -172,6 +172,15 @@ export default async function TravelPage({ params }: { params: Params }) {
     ],
   }
 
+  const timeDiffText = formatTimeDiff(timeDiff)
+  const VISA_EN: Record<string, string> = {
+    'visa-free': 'Visa-free', 'voa': 'Visa on arrival', 'evisa': 'eVisa required',
+    'required': 'Visa required', 'no-admission': 'No admission', 'unknown': 'Unknown',
+  }
+  const visaLabel = isKo
+    ? (visa?.label_ko ?? '정보 없음')
+    : (visa ? (VISA_EN[visa.type] ?? 'Check requirements') : 'Check requirements')
+
   return (
     <>
       <script
@@ -182,6 +191,31 @@ export default async function TravelPage({ params }: { params: Params }) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+      {/* SSR 요약 헤더: 구글봇·AdSense가 읽는 게시자 콘텐츠 + 사용자에게도 유용한 정보 */}
+      <header className="bg-zinc-900 border-b border-zinc-800 px-6 py-5">
+        <h1 className="text-xl font-bold text-white mb-2">
+          {fromDisplay} → {toDisplay}{' '}
+          {isKo ? '여행 정보' : 'Travel Info'}
+        </h1>
+        <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-zinc-400">
+          <div className="flex gap-1.5">
+            <dt className="text-zinc-500">{isKo ? '비자' : 'Visa'}</dt>
+            <dd className="text-zinc-200">{visaLabel}</dd>
+          </div>
+          <div className="flex gap-1.5">
+            <dt className="text-zinc-500">{isKo ? '시차' : 'Time diff'}</dt>
+            <dd className="text-zinc-200">{timeDiffText}</dd>
+          </div>
+          <div className="flex gap-1.5">
+            <dt className="text-zinc-500">{isKo ? '통화' : 'Currency'}</dt>
+            <dd className="text-zinc-200">{fromData.currency.code} → {toData.currency.code}</dd>
+          </div>
+          <div className="flex gap-1.5">
+            <dt className="text-zinc-500">{isKo ? '언어' : 'Language'}</dt>
+            <dd className="text-zinc-200">{toData.languages.slice(0, 2).join(', ')}</dd>
+          </div>
+        </dl>
+      </header>
       <TravelClient fromData={fromData} toData={toData} visa={visa} />
     </>
   )

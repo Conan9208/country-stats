@@ -19,7 +19,13 @@ export async function generateMetadata({
   return {
     title,
     description,
-    alternates: { canonical: pageUrl },
+    alternates: {
+      canonical: pageUrl,
+      languages: {
+        ko: `${BASE_URL}/ko/stats`,
+        en: `${BASE_URL}/stats`,
+      },
+    },
     openGraph: {
       title,
       description,
