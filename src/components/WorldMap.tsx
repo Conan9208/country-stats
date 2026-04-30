@@ -24,6 +24,7 @@ import { useRealtimeViewers } from '@/hooks/useRealtimeViewers'
 import { useSpinRoulette } from '@/hooks/useSpinRoulette'
 import PinSubmitModal from '@/components/PinSubmitModal'
 import PromoListPanel from '@/components/PromoListPanel'
+import QuizModal from '@/components/QuizModal'
 import type { GlobePin } from '@/types/pin'
 import { useLocale, useTranslations } from 'next-intl'
 
@@ -46,6 +47,7 @@ type WorldMapProps = {
 export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollData, pollQuestion, pollTotalVotes, pollMyVote, onCancelPollVote, onStartPoll }: WorldMapProps = {}) {
   const locale = useLocale()
   const t = useTranslations('Map')
+  const tQuiz = useTranslations('Quiz')
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => { setIsMobile(window.matchMedia('(pointer: coarse)').matches) }, [])
 
@@ -104,6 +106,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const isOverPinRef = useRef(false)
   const [pinSubmitCountry, setPinSubmitCountry] = useState<{ code: string; name: string } | null>(null)
   const [activePinPopup, setActivePinPopup] = useState<{ alpha2: string; pins: GlobePin[]; countryName: string; x: number; y: number } | null>(null)
+  // 퀴즈 모드
+  const [quizMode, setQuizMode] = useState(false)
+  const quizModeRef = useRef(false)
+  const [quizCountry, setQuizCountry] = useState<{ code: string; name: string } | null>(null)
   // 모달
   const [debtCountry, setDebtCountry]   = useState<{ code: string; name: string } | null>(null)
   const [infoCountry, setInfoCountry]   = useState<{ code: string; name: string } | null>(null)
@@ -135,7 +141,17 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const [isMobileUI, setIsMobileUI] = useState(false)
   const [showTierPopup, setShowTierPopup] = useState(false)
 
-  const { isSpinning, setIsSpinning, landingMarkerRef, spinningRef, spinStartRef, spinTargetRef, spinProgressRef, spinJourneyRef, fireworkParticlesRef, handleRandomSpin } = useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef, overlayRef })
+  useEffect(() => { quizModeRef.current = quizMode }, [quizMode])
+
+  const handleQuizTrigger = useCallback((country: { code: string; name: string }) => {
+    setQuizCountry(country)
+  }, [])
+
+  const { isSpinning, setIsSpinning, landingMarkerRef, spinningRef, spinStartRef, spinTargetRef, spinProgressRef, spinJourneyRef, fireworkParticlesRef, handleRandomSpin } = useSpinRoulette({
+    canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef, overlayRef,
+    quizModeRef,
+    onQuizTrigger: handleQuizTrigger,
+  })
   const { viewersByCountryRef, lastBroadcastCountryRef, presenceChannelRef, mySessionId, channelSubscribedRef } = useRealtimeViewers()
 
   // 이펙트
@@ -1205,9 +1221,15 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     if (!alpha2) return
     const name = hoveredNameRef.current ?? alpha2
 
-    // 투표 모드: onPollVote 핸들러가 API 호출 포함 처리
+    // 투표 모드
     if (pollModeRef.current) {
       onPollVoteRef.current?.(alpha2, name)
+      return
+    }
+
+    // 퀴즈 모드: 나라 클릭 시 수도 퀴즈 표시
+    if (quizModeRef.current) {
+      setQuizCountry({ code: alpha2, name })
       return
     }
 
@@ -1754,6 +1776,14 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       {/* 모달 */}
       {debtCountry && <DebtModal code={debtCountry.code} name={debtCountry.name} onClose={() => setDebtCountry(null)} />}
       {infoCountry && <CountryInfoModal code={infoCountry.code} name={infoCountry.name} onClose={() => setInfoCountry(null)} />}
+      {quizCountry && (
+        <QuizModal
+          countryCode={quizCountry.code}
+          countryName={quizCountry.name}
+          onClose={() => setQuizCountry(null)}
+          onNext={quizMode ? () => { setQuizCountry(null); handleRandomSpin() } : undefined}
+        />
+      )}
 
       {/* 핀 등록 모달 */}
       {pinSubmitCountry && (
@@ -1805,8 +1835,30 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
 
-      {/* 좌하단: 랜덤 스핀 버튼 + 범례 (bottom: 80 — Rank 버튼이 bottom: 32에 위치) */}
+      {/* 좌하단: 퀴즈 버튼 + 스핀 버튼 + 범례 */}
       <div style={{ position: 'absolute', bottom: 80, left: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+        {!pollMode && (
+          <button
+            onClick={() => {
+              setQuizMode(m => !m)
+              if (quizMode) setQuizCountry(null)
+            }}
+            style={{
+              ...glass,
+              borderRadius: 12,
+              padding: '8px 16px',
+              border: `1px solid ${quizMode ? 'rgba(167,139,250,0.6)' : 'rgba(167,139,250,0.35)'}`,
+              color: quizMode ? '#c4b5fd' : '#a78bfa',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              background: quizMode ? 'rgba(167,139,250,0.15)' : 'rgba(167,139,250,0.08)',
+            }}
+          >
+            {quizMode ? tQuiz('exitQuiz') : tQuiz('quizButton')}
+          </button>
+        )}
         {!pollMode && (
           <button
             onClick={handleRandomSpin}
@@ -1824,7 +1876,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
               background: isSpinning ? 'rgba(15,15,25,0.55)' : 'rgba(167,139,250,0.08)',
             }}
           >
-            {isSpinning ? t('spinning') : t('randomSpin')}
+            {isSpinning ? t('spinning') : quizMode ? tQuiz('quizSpin') : t('randomSpin')}
           </button>
         )}
         {!pollMode && (

@@ -152,6 +152,26 @@
     "visitSite": "Visit Site",
     "addPromo": "Promote on {country}"
   },
+  "Quiz": {
+    "title": "Capital Quiz",
+    "question": "What is the capital?",
+    "loading": "Loading...",
+    "noCapital": "No capital data",
+    "difficulty_easy": "Easy",
+    "difficulty_medium": "Medium",
+    "difficulty_hard": "Hard",
+    "streak": "🔥 {count} streak",
+    "noStreak": "No streak yet",
+    "best": "Best: {count}",
+    "accuracy": "{correct}/{total}",
+    "nextSpin": "🎰 Next Spin",
+    "close": "Close",
+    "quizButton": "🎓 Country Quiz",
+    "exitQuiz": "✕ Exit Quiz",
+    "quizSpin": "🎓 Quiz Spin",
+    "correct": "Correct! 🎉",
+    "wrong": "Wrong…"
+  },
   "Map": {
     "randomSpin": "🎲 Random Spin",
     "spinning": "🌀 Spinning...",

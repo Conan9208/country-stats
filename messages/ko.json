@@ -152,6 +152,26 @@
     "visitSite": "사이트 방문",
     "addPromo": "{country}에 홍보하기"
   },
+  "Quiz": {
+    "title": "수도 퀴즈",
+    "question": "이 나라의 수도는 어디일까요?",
+    "loading": "불러오는 중...",
+    "noCapital": "수도 데이터 없음",
+    "difficulty_easy": "쉬움",
+    "difficulty_medium": "보통",
+    "difficulty_hard": "어려움",
+    "streak": "🔥 {count}연속",
+    "noStreak": "아직 연속 없음",
+    "best": "최고: {count}",
+    "accuracy": "{correct}/{total}",
+    "nextSpin": "🎰 다음 스핀",
+    "close": "닫기",
+    "quizButton": "🎓 나라 퀴즈",
+    "exitQuiz": "✕ 퀴즈 종료",
+    "quizSpin": "🎓 퀴즈 스핀",
+    "correct": "정답! 🎉",
+    "wrong": "오답…"
+  },
   "Map": {
     "randomSpin": "🎲 랜덤 스핀",
     "spinning": "🌀 스핀 중...",

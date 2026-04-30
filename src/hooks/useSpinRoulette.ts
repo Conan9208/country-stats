@@ -105,9 +105,11 @@ type Deps = {
   autoRotateRef: MutableRefObject<boolean>
   velocityRef: MutableRefObject<[number, number]>
   overlayRef: RefObject<OverlayHandle | null>
+  quizModeRef?: MutableRefObject<boolean>
+  onQuizTrigger?: (country: { code: string; name: string }) => void
 }
 
-export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef, overlayRef }: Deps) {
+export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRef, velocityRef, overlayRef, quizModeRef, onQuizTrigger }: Deps) {
   const locale = useLocale()
   const spinningRef = useRef(false)
   const spinStartRef = useRef<[number, number]>([0, 0])
@@ -182,39 +184,57 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
     let timer: ReturnType<typeof setTimeout>
     let active = true
 
+    const extraTimers: ReturnType<typeof setTimeout>[] = []
+
     const tick = () => {
       if (!active) return
       if (step >= schedule.length) {
         slotFinalCountryRef.current = final
         overlayRef.current?.setRouletteSlot({ current: { alpha2: final.code, name: final.name }, phase: 'landing' })
         landingMarkerRef.current = { alpha2: final.code, startTime: performance.now() }
-        
-        Promise.all([
-          fetch(`https://restcountries.com/v3.1/alpha/${final.code}?fields=population,area,region,capital,landlocked,borders,languages,timezones,car,tld`)
-            .then(r => r.json()),
-          getRankCache(),
-        ]).then(([raw, ranks]) => {
-          if (!active) return
-          const data = Array.isArray(raw) ? raw[0] : raw
-          const rank = ranks.get(final.code) ?? { popRank: 0, areaRank: 0 }
-          const funFact = pickFunFact(final.code, data, rank, locale)
-          overlayRef.current?.setLandingFacts({
-            population: data.population ?? 0,
-            area: data.area ?? 0,
-            region: data.region ?? '',
-            capital: Array.isArray(data.capital) ? (data.capital[0] ?? '') : (data.capital ?? ''),
-            popRank: rank.popRank,
-            areaRank: rank.areaRank,
-            funFact,
-          })
-        }).catch(() => {})
 
-        timer = setTimeout(() => {
-          if (!active) return
-          overlayRef.current?.setRouletteSlot(null)
-          overlayRef.current?.setLandingFacts(null)
-          setIsSpinning(false)
-        }, 6000)
+        if (quizModeRef?.current && onQuizTrigger) {
+          // Quiz mode: brief landing display, then open quiz modal
+          const t1 = setTimeout(() => {
+            if (!active) return
+            onQuizTrigger({ code: final.code, name: final.name })
+          }, 800)
+          extraTimers.push(t1)
+
+          timer = setTimeout(() => {
+            if (!active) return
+            overlayRef.current?.setRouletteSlot(null)
+            setIsSpinning(false)
+          }, 1500)
+        } else {
+          // Normal mode: show fact card for 6 seconds
+          Promise.all([
+            fetch(`https://restcountries.com/v3.1/alpha/${final.code}?fields=population,area,region,capital,landlocked,borders,languages,timezones,car,tld`)
+              .then(r => r.json()),
+            getRankCache(),
+          ]).then(([raw, ranks]) => {
+            if (!active) return
+            const data = Array.isArray(raw) ? raw[0] : raw
+            const rank = ranks.get(final.code) ?? { popRank: 0, areaRank: 0 }
+            const funFact = pickFunFact(final.code, data, rank, locale)
+            overlayRef.current?.setLandingFacts({
+              population: data.population ?? 0,
+              area: data.area ?? 0,
+              region: data.region ?? '',
+              capital: Array.isArray(data.capital) ? (data.capital[0] ?? '') : (data.capital ?? ''),
+              popRank: rank.popRank,
+              areaRank: rank.areaRank,
+              funFact,
+            })
+          }).catch(() => {})
+
+          timer = setTimeout(() => {
+            if (!active) return
+            overlayRef.current?.setRouletteSlot(null)
+            overlayRef.current?.setLandingFacts(null)
+            setIsSpinning(false)
+          }, 6000)
+        }
 
         return
       }
@@ -228,8 +248,9 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
     return () => {
       active = false
       clearTimeout(timer)
+      extraTimers.forEach(clearTimeout)
     }
-  }, [isSpinning, overlayRef, locale])
+  }, [isSpinning, overlayRef, locale, quizModeRef, onQuizTrigger])
 
   const handleRandomSpin = useCallback(() => {
     if (spinningRef.current) return
