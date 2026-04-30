@@ -14,6 +14,18 @@ export function countryColor(count: number): string {
   return TIERS.find(t => count >= t.min && count <= t.max)?.color ?? '#f8fafc'
 }
 
+// 퀴즈 모드: 짙은 틸→밝은 청록 — 클릭 많을수록 발광 효과
+const QUIZ_COLORS = [
+  '#134e4a', '#0f766e', '#0d9488', '#14b8a6',
+  '#2dd4bf', '#5eead4', '#99f6e4', '#ccfbf1',
+]
+
+export function countryColorQuiz(count: number): string {
+  if (count === 0) return '#031a17'
+  const idx = TIERS.findIndex(t => count >= t.min && count <= t.max)
+  return QUIZ_COLORS[idx] ?? '#ccfbf1'
+}
+
 export function getTier(count: number) {
   return TIERS.find(t => count >= t.min && count <= t.max) ?? null
 }

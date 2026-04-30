@@ -10,6 +10,7 @@ export type QuizQuestion = {
   capital: string
   flagSvg: string
   options: string[]
+  optionCodes: string[]  // options[i]에 해당하는 국가 alpha2 코드
 }
 
 export type QuizStats = {
@@ -55,7 +56,7 @@ function generateOptions(
   target: CapitalEntry,
   all: CapitalEntry[],
   difficulty: Difficulty
-): string[] {
+): { capital: string; cca2: string }[] {
   let pool: CapitalEntry[]
 
   if (difficulty === 'hard') {
@@ -66,7 +67,6 @@ function generateOptions(
     pool = all.filter(c => c.region !== target.region && c.cca2 !== target.cca2)
   }
 
-  // Fallback if pool is too small
   if (pool.length < 3) {
     pool = all.filter(c => c.region === target.region && c.cca2 !== target.cca2)
   }
@@ -74,19 +74,17 @@ function generateOptions(
     pool = all.filter(c => c.cca2 !== target.cca2)
   }
 
-  // Pick 3 unique distractors
   const shuffled = [...pool].sort(() => Math.random() - 0.5)
-  const distractors: string[] = []
+  const distractors: { capital: string; cca2: string }[] = []
   for (const c of shuffled) {
     const cap = c.capital[0]
-    if (cap && cap !== correct && !distractors.includes(cap)) {
-      distractors.push(cap)
+    if (cap && cap !== correct && !distractors.some(d => d.capital === cap)) {
+      distractors.push({ capital: cap, cca2: c.cca2 })
       if (distractors.length >= 3) break
     }
   }
 
-  // Shuffle all 4 options
-  return [correct, ...distractors].sort(() => Math.random() - 0.5)
+  return [{ capital: correct, cca2: target.cca2 }, ...distractors].sort(() => Math.random() - 0.5)
 }
 
 export function useCountryQuiz({
@@ -155,14 +153,15 @@ export function useCountryQuiz({
         if (!target || !target.capital?.[0]) return
 
         const correct = target.capital[0]
-        const options = generateOptions(correct, target, all, difficulty)
+        const optionEntries = generateOptions(correct, target, all, difficulty)
 
         setQuestion({
           countryCode,
           countryName,
           capital: correct,
           flagSvg: target.flags?.svg ?? target.flags?.png ?? '',
-          options,
+          options: optionEntries.map(o => o.capital),
+          optionCodes: optionEntries.map(o => o.cca2),
         })
       })
     }, 0)

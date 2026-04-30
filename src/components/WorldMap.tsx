@@ -17,7 +17,7 @@ import { WorldMapOverlay, type OverlayHandle } from '@/components/WorldMapOverla
 import type { ClickData, ClickEntry } from '@/types/map'
 import type { PollQuestion } from '@/types/poll'
 import { TIERS, glass } from '@/lib/mapConstants'
-import { countryColor, pollVoteColor, topN, topNToday, isVisibleOnGlobe, calcPinGrid } from '@/lib/mapUtils'
+import { countryColor, countryColorQuiz, pollVoteColor, topN, topNToday, isVisibleOnGlobe, calcPinGrid } from '@/lib/mapUtils'
 import { supabase } from '@/lib/supabase'
 import { worldGeo, landGeo, bordersMesh, graticuleData, alpha2Map, featureByAlpha2, centroidByAlpha2, geoBBoxByAlpha2 } from '@/lib/geoData'
 import { useRealtimeViewers } from '@/hooks/useRealtimeViewers'
@@ -383,9 +383,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     ctx.stroke()
 
     // 육지 베이스
+    const isQuiz = quizModeRef.current
     ctx.beginPath()
     path(landGeo)
-    ctx.fillStyle = '#2a5a3a'
+    ctx.fillStyle = isQuiz ? '#031a17' : '#2a5a3a'
     ctx.fill()
 
     // 루프 밖에서 한 번만 계산 — 매 프레임 재계산 방지
@@ -450,7 +451,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         ctx.fill()
         ctx.globalAlpha = 1
       } else if (!isPoll && count > 0) {
-        ctx.fillStyle = countryColor(count)
+        ctx.fillStyle = isQuiz ? countryColorQuiz(count) : countryColor(count)
         ctx.globalAlpha = 0.7
         ctx.fill()
         ctx.globalAlpha = 1

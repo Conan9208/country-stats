@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useTranslations } from 'next-intl'
+import { useTranslations, useLocale } from 'next-intl'
 import { glass } from '@/lib/mapConstants'
 import { useCountryQuiz, type Difficulty } from '@/hooks/useCountryQuiz'
+import { CAPITAL_NAMES_KO } from '@/data/capitalNamesKo'
 
 type Props = {
   countryCode: string
@@ -20,6 +21,7 @@ const DIFFICULTY_COLORS: Record<Difficulty, { active: string; border: string; te
 
 export default function QuizModal({ countryCode, countryName, onClose, onNext }: Props) {
   const t = useTranslations('Quiz')
+  const locale = useLocale()
 
   const [difficulty, setDifficulty] = useState<Difficulty>(() => {
     if (typeof window !== 'undefined') {
@@ -177,6 +179,11 @@ export default function QuizModal({ countryCode, countryName, onClose, onNext }:
                   }
                 }
 
+                const code = question.optionCodes?.[i]
+                const displayName = locale === 'ko' && code
+                  ? (CAPITAL_NAMES_KO[code.toUpperCase()] ?? opt)
+                  : opt
+
                 return (
                   <button
                     key={i}
@@ -198,7 +205,7 @@ export default function QuizModal({ countryCode, countryName, onClose, onNext }:
                       wordBreak: 'break-word',
                     }}
                   >
-                    {opt}
+                    {displayName}
                   </button>
                 )
               })}
