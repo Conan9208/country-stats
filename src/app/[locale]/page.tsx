@@ -46,11 +46,11 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const base = isKo ? '/ko' : ''
 
   return (
-    <>
+    <div className="h-dvh overflow-hidden">
       {/* 인터랙티브 글로브 UI (클라이언트 전용) */}
       <HomeClientWrapper />
 
-      {/* SSR 콘텐츠: 구글봇이 읽는 게시자 콘텐츠 — 글로브 아래 스크롤 영역 */}
+      {/* SEO 색인용 — 화면 밖에 클립되어 유저에게 노출 안 됨, DOM에는 유지 */}
       <section
         className="bg-zinc-900 text-white px-6 py-12 border-t border-zinc-800"
         aria-label={isKo ? '사이트 안내' : 'Site overview'}
@@ -114,6 +114,6 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           </ul>
         </div>
       </section>
-    </>
+    </div>
   )
 }

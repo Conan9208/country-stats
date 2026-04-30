@@ -2,6 +2,11 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* iOS rubber-band 스크롤 방지 */
+html {
+  overscroll-behavior: none;
+}
+
 /* Leaflet 커스텀 툴팁 — 기본 스타일 완전 제거 */
 .leaflet-tooltip.wm-tooltip-wrapper,
 .wm-tooltip-wrapper {
