@@ -19,6 +19,27 @@ const TOP_TRAVEL = [
   { from: 'US', to: 'JP', labelKo: '미국 → 일본', labelEn: 'USA → Japan' },
 ]
 
+const RETURN_REASONS = [
+  {
+    titleKo: '매일 바뀌는 국가 투표',
+    titleEn: 'Daily country vote',
+    descKo: '하루 한 번 새로운 질문에 투표하고 전 세계 사용자의 선택 이유를 볼 수 있습니다.',
+    descEn: 'Vote once a day on a new country prompt and read why people around the world chose their answer.',
+  },
+  {
+    titleKo: '실시간 랭킹과 피드',
+    titleEn: 'Live rankings and feed',
+    descKo: '국가 클릭 순위, 댓글, 투표 이유가 실시간으로 쌓여 다시 방문할수록 볼거리가 늘어납니다.',
+    descEn: 'Country clicks, comments, and vote reasons build up in real time, so repeat visits reveal new activity.',
+  },
+  {
+    titleKo: '여행 준비용 빠른 비교',
+    titleEn: 'Fast travel comparison',
+    descKo: '비자, 환율, 시차, 날씨, 전압 정보를 한 화면에서 비교할 수 있습니다.',
+    descEn: 'Compare visa, exchange rate, time difference, weather, and voltage information in one view.',
+  },
+]
+
 export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
   const isKo = locale === 'ko'
@@ -46,6 +67,19 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               ? '195개국의 실시간 국가 부채, 1인당 GDP, 금리 데이터를 인터랙티브 3D 지구본으로 탐험하세요. 세계은행(World Bank) 공식 데이터 기반으로 매일 업데이트됩니다.'
               : 'Explore live national debt clocks, GDP per capita, and interest rate data for 195 countries on an interactive 3D globe. Updated daily with official World Bank data.'}
           </p>
+
+          <div className="grid gap-3 sm:grid-cols-3 mb-10">
+            {RETURN_REASONS.map(item => (
+              <section key={item.titleEn} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-4">
+                <h2 className="text-sm font-semibold text-zinc-100 mb-2">
+                  {isKo ? item.titleKo : item.titleEn}
+                </h2>
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  {isKo ? item.descKo : item.descEn}
+                </p>
+              </section>
+            ))}
+          </div>
 
           <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">
             {isKo ? '인기 국가 부채 현황' : 'Popular Country Debt Clocks'}

@@ -9,6 +9,7 @@ import { routing } from '@/i18n/routing';
 import { notFound } from 'next/navigation';
 
 const BASE_URL = 'https://postmyglobe.com'
+type Locale = (typeof routing.locales)[number]
 
 
 const geistSans = Geist({
@@ -31,11 +32,11 @@ export async function generateMetadata({
   const isKo = locale === 'ko'
 
   const title = isKo
-    ? '글로브 포스트 | 세계 국가 통계'
-    : 'GlobePost | Country Stats'
+    ? 'PostMyGlobe | 세계 국가 통계'
+    : 'PostMyGlobe | Country Stats'
 
   const description = isKo
-    ? '3D 지구본으로 세계 195개 국가를 탐험하세요. 국가 부채 실시간, GDP, 환율, 국가 비교 정보를 한눈에.'
+    ? '3D 지구본으로 세계 195개 국가를 탐험하세요. 국가 부채, GDP, 환율, 여행 정보와 국가 비교를 한눈에 확인할 수 있습니다.'
     : 'Explore 195 countries on an interactive 3D globe. Real-time national debt, GDP, exchange rates, and country comparisons.'
 
   const url = locale === 'en' ? BASE_URL : `${BASE_URL}/${locale}`
@@ -62,7 +63,7 @@ export async function generateMetadata({
           url: '/og-image.png',
           width: 1200,
           height: 630,
-          alt: 'PostMyGlobe — Interactive 3D Globe',
+          alt: 'PostMyGlobe interactive 3D globe',
         },
       ],
       type: 'website',
@@ -90,12 +91,30 @@ export default async function RootLayout({
 }>) {
   const { locale } = await params;
   
-  if (!routing.locales.includes(locale as any)) {
+  if (!(routing.locales as readonly string[]).includes(locale)) {
     notFound();
   }
   
-  setRequestLocale(locale);
+  setRequestLocale(locale as Locale);
   const messages = await getMessages();
+  const isKo = locale === 'ko'
+  const siteJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'PostMyGlobe',
+    alternateName: ['Country Stats', 'WorldStats'],
+    url: BASE_URL,
+    inLanguage: isKo ? 'ko-KR' : 'en-US',
+    description: isKo
+      ? '세계 국가 통계, 여행 정보, 실시간 투표와 커뮤니티 피드를 제공하는 인터랙티브 3D 지구본입니다.'
+      : 'An interactive 3D globe for country statistics, travel information, live votes, and community feeds.',
+    publisher: {
+      '@type': 'Organization',
+      name: 'PostMyGlobe',
+      url: BASE_URL,
+      logo: `${BASE_URL}/og-image.png`,
+    },
+  }
 
   return (
     <html
@@ -111,6 +130,12 @@ export default async function RootLayout({
         <meta name="google-adsense-account" content="ca-pub-8766166885849764" />
       </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(siteJsonLd).replace(/</g, '\\u003c'),
+          }}
+        />
         <NextIntlClientProvider messages={messages} locale={locale}>
           {children}
         </NextIntlClientProvider>

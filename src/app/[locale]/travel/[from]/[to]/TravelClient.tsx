@@ -275,11 +275,6 @@ function TravelClientContent({ fromData, toData, visa }: TravelClientProps) {
   const toRegions       = COUNTRY_REGIONS[toData.cca2] ?? []
   const selectedToRegion = toRegions.find(r => r.id === toRegionId)
 
-  // 환율 자동 swap (rate < 1 이면 from이 약한 통화)
-  useEffect(() => {
-    if (exchangeRate !== null) setRateSwapped(exchangeRate < 1)
-  }, [exchangeRate])
-
   // 국가 목록 (검색용)
   useEffect(() => {
     fetch('https://restcountries.com/v3.1/all?fields=cca2,name,flags')
@@ -300,10 +295,12 @@ function TravelClientContent({ fromData, toData, visa }: TravelClientProps) {
 
   // 날씨 + 환율 fetch (실시간)
   const loadWeatherAndRate = useCallback(async (from: CountryBasic, to: CountryBasic, regionId: string) => {
+    await Promise.resolve()
     setWeatherLoading(true)
     setFromWeather(null)
     setToWeather(null)
     setExchangeRate(null)
+    setRateSwapped(false)
 
     const region  = COUNTRY_REGIONS[to.cca2]?.find(r => r.id === regionId)
     const fromCity = from.capital
@@ -325,7 +322,9 @@ function TravelClientContent({ fromData, toData, visa }: TravelClientProps) {
     )
     if (exchangeRes.status === 'fulfilled' && exchangeRes.value.ok) {
       const exJson = await exchangeRes.value.json()
-      setExchangeRate(exJson?.rates?.[to.currency.code] ?? null)
+      const nextRate = exJson?.rates?.[to.currency.code] ?? null
+      setExchangeRate(nextRate)
+      if (nextRate !== null) setRateSwapped(nextRate < 1)
     } else {
       setExchangeRate(null)
     }
@@ -333,8 +332,11 @@ function TravelClientContent({ fromData, toData, visa }: TravelClientProps) {
   }, [])
 
   useEffect(() => {
-    loadWeatherAndRate(fromData, toData, toRegionId)
-  }, [fromData.cca2, toData.cca2, toRegionId, loadWeatherAndRate])
+    const timer = setTimeout(() => {
+      void loadWeatherAndRate(fromData, toData, toRegionId)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [fromData, toData, toRegionId, loadWeatherAndRate])
 
   // 국가 변경 → 새 경로로 이동 (SSR 재실행)
   const handleFromChange = (code: string) => {

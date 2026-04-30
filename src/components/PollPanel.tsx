@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { PollTodayResponse } from '@/types/poll'
 import { glass } from '@/lib/mapConstants'
@@ -38,11 +38,11 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
   const [copied, setCopied] = useState(false)
   const [cancelling, setCancelling] = useState(false)
 
-  const MEDAL = ['🥇', '🥈', '🥉', t('rank4'), t('rank5')]
+  const medal = useMemo(() => ['🥇', '🥈', '🥉', t('rank4'), t('rank5')], [t])
 
-  function countryName(alpha2: string): string {
+  const countryName = useCallback((alpha2: string): string => {
     return isoCountries.getName(alpha2.toUpperCase(), locale) ?? alpha2
-  }
+  }, [locale])
 
   const fetchPoll = useCallback(async () => {
     const res = await fetch('/api/polls/today')
@@ -73,9 +73,11 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
 
   const myVote = votedCountry ?? poll?.myVote ?? null
 
-  const top5 = poll
-    ? Object.entries(poll.results).sort((a, b) => b[1] - a[1]).slice(0, 5)
-    : []
+  const top5 = useMemo(() => (
+    poll
+      ? Object.entries(poll.results).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      : []
+  ), [poll])
   const maxVotes = top5[0]?.[1] ?? 1
 
   // 투표 취소
@@ -94,7 +96,7 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
     const topLines = top5
       .map(([alpha2, count], i) => {
         const pct = poll.totalVotes > 0 ? Math.round((count / poll.totalVotes) * 100) : 0
-        return `${MEDAL[i]} ${flagEmoji(alpha2)} ${countryName(alpha2)} (${pct}%)`
+        return `${medal[i]} ${flagEmoji(alpha2)} ${countryName(alpha2)} (${pct}%)`
       })
       .join('\n')
     const myLine = myVote
@@ -116,7 +118,7 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
       '',
       ctaText,
     ].join('\n')
-  }, [poll, top5, myVote, locale])
+  }, [poll, top5, myVote, locale, medal, countryName])
 
   const handleCopyShare = useCallback(async () => {
     const text = buildShareText()
@@ -265,7 +267,7 @@ export default function PollPanel({ votedCountry, onVote, onCancelVote, onClose 
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
                   <span style={{ minWidth: 20, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                    {i < 3 ? <Medal size={12} style={{ color: ['#facc15','#94a3b8','#cd7f32'][i] }} /> : <span style={{ fontSize: 11, color: '#64748b' }}>{MEDAL[i]}</span>}
+                    {i < 3 ? <Medal size={12} style={{ color: ['#facc15','#94a3b8','#cd7f32'][i] }} /> : <span style={{ fontSize: 11, color: '#64748b' }}>{medal[i]}</span>}
                   </span>
                   <span style={{ fontSize: 17 }}>{flagEmoji(alpha2)}</span>
                   <span style={{ fontSize: 12, color: '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isMyVote ? 700 : 400 }}>

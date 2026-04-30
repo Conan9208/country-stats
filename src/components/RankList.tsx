@@ -24,6 +24,7 @@ export default function RankList({ title, entries, emptyMsg, live, onSelect, vis
   const [rankFloats, setRankFloats] = useState<RankFloat[]>([])
 
   useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = []
     const prev = prevEntriesRef.current
     if (prev.length > 0) {
       const newFloats: RankFloat[] = []
@@ -36,13 +37,16 @@ export default function RankList({ title, entries, emptyMsg, live, onSelect, vis
         }
       })
       if (newFloats.length > 0) {
-        setRankFloats(prev => [...prev, ...newFloats])
-        newFloats.forEach(f => {
-          setTimeout(() => setRankFloats(p => p.filter(x => x.id !== f.id)), 1000)
-        })
+        timers.push(setTimeout(() => {
+          setRankFloats(prev => [...prev, ...newFloats])
+          newFloats.forEach(f => {
+            timers.push(setTimeout(() => setRankFloats(p => p.filter(x => x.id !== f.id)), 1000))
+          })
+        }, 0))
       }
     }
     prevEntriesRef.current = [...entries]
+    return () => { timers.forEach(clearTimeout) }
   }, [entries, visibleCount])
 
   return (

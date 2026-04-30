@@ -109,8 +109,6 @@ export function useCountryQuiz({
   })
 
   const sessionIdRef = useRef<string | null>(null)
-  const statsRef = useRef(stats)
-  statsRef.current = stats
 
   // Load session id + remote stats on mount
   useEffect(() => {
@@ -138,32 +136,41 @@ export function useCountryQuiz({
 
   // Generate question when countryCode changes
   useEffect(() => {
-    if (!countryCode || !countryName) {
+    let cancelled = false
+    const resetQuestion = () => {
       setQuestion(null)
       setAnswered(false)
       setSelectedOption(null)
-      return
     }
 
-    setQuestion(null)
-    setAnswered(false)
-    setSelectedOption(null)
+    const timer = setTimeout(() => {
+      resetQuestion()
+      if (!countryCode || !countryName) {
+        return
+      }
 
-    getCapitalsData().then(all => {
-      const target = all.find(c => c.cca2.toUpperCase() === countryCode.toUpperCase())
-      if (!target || !target.capital?.[0]) return
+      getCapitalsData().then(all => {
+        if (cancelled) return
+        const target = all.find(c => c.cca2.toUpperCase() === countryCode.toUpperCase())
+        if (!target || !target.capital?.[0]) return
 
-      const correct = target.capital[0]
-      const options = generateOptions(correct, target, all, difficulty)
+        const correct = target.capital[0]
+        const options = generateOptions(correct, target, all, difficulty)
 
-      setQuestion({
-        countryCode,
-        countryName,
-        capital: correct,
-        flagSvg: target.flags?.svg ?? target.flags?.png ?? '',
-        options,
+        setQuestion({
+          countryCode,
+          countryName,
+          capital: correct,
+          flagSvg: target.flags?.svg ?? target.flags?.png ?? '',
+          options,
+        })
       })
-    })
+    }, 0)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [countryCode, countryName, difficulty])
 
   const handleAnswer = useCallback(

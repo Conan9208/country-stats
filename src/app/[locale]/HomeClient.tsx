@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, Suspense, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
@@ -26,11 +26,12 @@ const ContactContent = dynamic(() => import('@/components/ContactContent'), { ss
 const tabs = [
   { id: 'map', labelKey: 'globe' },
   { id: 'feed', labelKey: 'feed' },
-]
+] as const
 
 type TabId = 'map' | 'feed' | 'donate' | 'contact'
 
 function HomeContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const rawTab = searchParams.get('tab')
   const initialTab: TabId = rawTab === 'feed' ? 'feed' : 'map'
@@ -47,6 +48,13 @@ function HomeContent() {
   useEffect(() => {
     fetch('/api/track', { method: 'POST' }).catch(() => {})
   }, [])
+
+  const switchTab = useCallback((tab: TabId) => {
+    setActiveTab(tab)
+    if (tab === 'map' || tab === 'feed') {
+      router.replace(tab === 'map' ? '?tab=map' : '?tab=feed', { scroll: false })
+    }
+  }, [router])
 
   useEffect(() => {
     if (activeTab !== 'map') return
@@ -120,14 +128,14 @@ function HomeContent() {
             {tabs.map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as TabId)}
+                onClick={() => switchTab(tab.id)}
                 className={`px-5 h-12 text-sm font-medium transition-all border-b-2 ${
                   activeTab === tab.id
                     ? 'border-white text-white'
                     : 'border-transparent text-zinc-500 hover:text-zinc-300'
                 }`}
               >
-                {t(tab.labelKey as any)}
+                  {t(tab.labelKey)}
               </button>
             ))}
           </div>
@@ -188,13 +196,13 @@ function HomeContent() {
         {tabs.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as TabId)}
+            onClick={() => switchTab(tab.id)}
             className={`flex-1 flex flex-col items-center justify-center h-14 gap-1 text-xs font-medium transition-all ${
               activeTab === tab.id ? 'text-white' : 'text-zinc-500'
             }`}
           >
             {tab.id === 'map' ? <Globe size={20} /> : <Send size={20} />}
-            <span>{t(tab.labelKey as any)}</span>
+            <span>{t(tab.labelKey)}</span>
           </button>
         ))}
         <button
