@@ -129,7 +129,7 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
   return (
     <div style={
       isMobile
-        ? { ...glass, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1950, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+        ? { ...glass, position: 'fixed', top: 0, left: 0, right: 0, height: '100dvh', maxHeight: '-webkit-fill-available', zIndex: 1950, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
         : { ...glass, position: 'absolute', top: 16, right: 16, bottom: 16, width: 300, maxWidth: 'calc(100vw - 32px)', borderRadius: 18, display: 'flex', flexDirection: 'column', zIndex: 1100, overflow: 'hidden' }
     }>
       {/* 헤더 */}
@@ -161,7 +161,7 @@ export default function CommentPanel({ countryCode, countryName, onClose }: Prop
             background: 'rgba(255,255,255,0.05)',
             border: '1px solid rgba(255,255,255,0.1)',
             borderRadius: 10, padding: '8px 10px',
-            color: '#e2e8f0', fontSize: 13, resize: 'none',
+            color: '#e2e8f0', fontSize: 16, resize: 'none',
             outline: 'none', fontFamily: 'inherit',
           }}
         />
