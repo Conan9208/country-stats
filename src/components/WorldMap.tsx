@@ -2,7 +2,6 @@
 /* eslint-disable react-hooks/preserve-manual-memoization */
 
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { Heart, Search, Link2 } from 'lucide-react'
 import type { Feature, Geometry, GeoJsonProperties } from 'geojson'
 import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
@@ -14,9 +13,15 @@ import DebtModal from '@/components/DebtModal'
 import CountryInfoModal from '@/components/CountryInfoModal'
 import StatsPanelOverlay from '@/components/StatsPanelOverlay'
 import { WorldMapOverlay, type OverlayHandle } from '@/components/WorldMapOverlay'
+import { PinHoverTooltip } from '@/components/worldmap/PinHoverTooltip'
+import { GuidePanel } from '@/components/worldmap/GuidePanel'
+import { MobileTapBadge } from '@/components/worldmap/MobileTapBadge'
+import { GlobeContextMenu } from '@/components/worldmap/GlobeContextMenu'
+import { LoadingOverlay } from '@/components/worldmap/LoadingOverlay'
+import { GlobeBottomControls } from '@/components/worldmap/GlobeBottomControls'
+import { TierLegend } from '@/components/worldmap/TierLegend'
 import type { ClickData, ClickEntry } from '@/types/map'
 import type { PollQuestion } from '@/types/poll'
-import { TIERS, glass } from '@/lib/mapConstants'
 import { countryColor, countryColorQuiz, pollVoteColor, topN, topNToday, isVisibleOnGlobe, calcPinGrid } from '@/lib/mapUtils'
 import { supabase } from '@/lib/supabase'
 import { worldGeo, landGeo, bordersMesh, graticuleData, alpha2Map, featureByAlpha2, centroidByAlpha2, geoBBoxByAlpha2 } from '@/lib/geoData'
@@ -610,13 +615,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     // 50% 겹침: 이웃 핀 중심간 거리 = pinRadius (직경의 절반)
     const pinSpacing = pinRadius
 
-    const pinsByCountryMap = new Map<string, GlobePin[]>()
-    for (const pin of pinsRef.current) {
-      const list = pinsByCountryMap.get(pin.country_alpha2) ?? []
-      list.push(pin)
-      pinsByCountryMap.set(pin.country_alpha2, list)
-    }
-    for (const [alpha2, pins] of pinsByCountryMap) {
+    // pinsByCountryRef는 fetch 시점(rebuildPinsByCountry)에만 갱신되는 캐시 — 매 프레임 Map 재생성 제거
+    for (const [alpha2, pins] of pinsByCountryRef.current) {
       const geo = centroidByAlpha2.get(alpha2)
       if (!geo) continue
       const pLng = geo[0] * Math.PI / 180
@@ -632,8 +632,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       if (!isFinite(px) || !isFinite(py)) continue
       const pulse2 = (Math.sin(now * 0.004 + py * 0.02) + 1) / 2
 
-      // 글로우 (드래그 중에는 생략, layered arc로 gradient 객체 생성 제거)
-      if (!isDragging) {
+      // 글로우 (드래그·스핀 중에는 생략, layered arc로 gradient 객체 생성 제거)
+      if (!isDragging && !spinningRef.current) {
         ctx.beginPath()
         ctx.arc(px, py, pinDiameter, 0, Math.PI * 2)
         ctx.fillStyle = `rgba(167,139,250,${(0.08 + pulse2 * 0.06).toFixed(2)})`
@@ -956,14 +956,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     const cLng = -rotationRef.current[0] * Math.PI / 180
     const cLat = -rotationRef.current[1] * Math.PI / 180
 
-    const pinsByCountry = new Map<string, GlobePin[]>()
-    for (const pin of pinsRef.current) {
-      const list = pinsByCountry.get(pin.country_alpha2) ?? []
-      list.push(pin)
-      pinsByCountry.set(pin.country_alpha2, list)
-    }
-
-    for (const [alpha2, pins] of pinsByCountry) {
+    for (const [alpha2, pins] of pinsByCountryRef.current) {
       const geo = centroidByAlpha2.get(alpha2)
       if (!geo) continue
       const pLng = geo[0] * Math.PI / 180
@@ -1587,123 +1580,11 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
       <WorldMapOverlay ref={overlayRef} onSpinClose={() => setIsSpinning(false)} />
 
-      {/* 핀 hover 툴팁 */}
-      {pinHoverTooltip && (
-        <div
-          style={{
-            position: 'absolute',
-            left: pinHoverTooltip.x + 14,
-            top: pinHoverTooltip.y - 10,
-            zIndex: 1500,
-            pointerEvents: 'none',
-            ...glass,
-            borderRadius: 10,
-            padding: '7px 12px',
-            maxWidth: 220,
-          }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {pinHoverTooltip.name}
-          </div>
-          {pinHoverTooltip.website && (
-            <div style={{ fontSize: 10, color: '#a78bfa', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              <Link2 size={10} style={{ verticalAlign: 'middle', marginRight: 3, flexShrink: 0 }} />{pinHoverTooltip.website.replace(/^https?:\/\//, '')}
-            </div>
-          )}
-          <div style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>{t('clickToSeeDetails')}</div>
-        </div>
-      )}
+      {pinHoverTooltip && <PinHoverTooltip tooltip={pinHoverTooltip} detailsLabel={t('clickToSeeDetails')} />}
 
-      {/* 안내 — 좌상단 */}
-      <div style={{ ...glass, position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 12, padding: '8px 12px', lineHeight: 1.35 }}>
-        {pollMode ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className="animate-pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: '#a78bfa', display: 'inline-block', flexShrink: 0 }} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa', whiteSpace: 'nowrap' }}>
-              {t('pollModeGuide')}
-            </span>
-          </div>
-        ) : (
-          <>
-            {isMobile ? (
-              <>
-                <div style={{ fontSize: 11, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
-                  <span style={{ color: '#34d399', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 3 }}><Heart size={10} /> {t('guideTap')}</span>
-                  <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
-                  <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>{t('guideTapDesc')}</span>
-                </div>
-                <div style={{ fontSize: 11, color: '#f1f5f9', marginTop: 3, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
-                  <span style={{ color: '#a78bfa', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 3 }}><Search size={10} /> {t('guideLongPress')}</span>
-                  <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
-                  <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>{t('guideLongPressDesc')}</span>
-                </div>
-                <div style={{ fontSize: 9, color: '#334155', marginTop: 5, fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", letterSpacing: '0.03em' }}>
-                  {t('guideDragMobile')}
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: 11, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
-                  <span style={{ color: '#34d399', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 3 }}><Heart size={10} /> {t('guideLeftClick')}</span>
-                  <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
-                  <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>{t('guideLeftClickDesc')}</span>
-                </div>
-                <div style={{ fontSize: 11, color: '#f1f5f9', marginTop: 3, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
-                  <span style={{ color: '#a78bfa', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 3 }}><Search size={10} /> {t('guideRightClick')}</span>
-                  <span style={{ color: '#64748b', fontFamily: "'Montserrat', sans-serif" }}>—</span>
-                  <span style={{ color: '#cbd5e1', fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", fontWeight: 500 }}>{t('guideRightClickDesc')}</span>
-                </div>
-                <div style={{ fontSize: 9, color: '#334155', marginTop: 5, fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif", letterSpacing: '0.03em' }}>
-                  {t('guideDrag')}
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </div>
+      <GuidePanel pollMode={pollMode} isMobile={isMobile} t={t} />
 
-      {/* 모바일 탭 배지 — 국기+이름+클릭수, 2초 후 페이드아웃 */}
-      {tapBadge && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1200,
-            pointerEvents: 'none',
-          }}
-        >
-          <div
-            key={tapBadge.id}
-            className="tap-badge"
-            style={{
-              ...glass,
-              borderRadius: 16,
-              padding: '10px 18px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              border: '1px solid rgba(255,255,255,0.12)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-              minWidth: 180,
-            }}
-          >
-            <img
-              src={`https://flagcdn.com/48x36/${tapBadge.alpha2.toLowerCase()}.png`}
-              alt=""
-              style={{ width: 36, height: 27, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }}
-            />
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', whiteSpace: 'nowrap' }}>{tapBadge.name}</div>
-              <div style={{ fontSize: 11, color: '#a78bfa', marginTop: 2 }}>
-                👆 {tapBadge.count.toLocaleString()}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {tapBadge && <MobileTapBadge badge={tapBadge} />}
 
       {/* 댓글 패널 */}
       {commentCountry && (
@@ -1731,47 +1612,17 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         pollMode={pollMode}
       />
 
-      {/* 우클릭 컨텍스트 메뉴 */}
       {contextMenu && (
-        <div
-          onMouseDown={e => e.stopPropagation()}
-          onTouchStart={e => e.stopPropagation()}
-          style={{
-            position: 'fixed',
-            left: contextMenu.x,
-            top: contextMenu.y,
-            zIndex: 2000,
-            ...glass,
-            borderRadius: 12,
-            padding: '6px 0',
-            minWidth: 200,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        <GlobeContextMenu
+          menu={contextMenu}
+          onSelect={handleMenuSelect}
+          labels={{
+            info: t('contextInfo'),
+            comment: t('contextComment'),
+            promote: t('contextPin'),
+            travel: t('contextTravel'),
           }}
-        >
-          <div style={{ fontSize: 11, color: '#475569', padding: '6px 14px 4px', fontWeight: 700, letterSpacing: '0.06em' }}>
-            {contextMenu.name}
-          </div>
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '4px 0' }} />
-          {(['info', 'comment', 'promote', 'travel'] as const).map((action) => {
-            const labels: Record<string, string> = {
-              info: t('contextInfo'),
-              comment: t('contextComment'),
-              promote: t('contextPin'),
-              travel: t('contextTravel'),
-            }
-            return (
-              <button
-                key={action}
-                onClick={() => handleMenuSelect(action, contextMenu.alpha2, contextMenu.name)}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 14px', fontSize: 13, color: '#e2e8f0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-              >
-                {labels[action]}
-              </button>
-            )
-          })}
-        </div>
+        />
       )}
 
       {/* 모달 */}
@@ -1821,125 +1672,34 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         />
       )}
 
-      {/* 초기 데이터 로딩 오버레이 */}
-      <div style={{
-        position: 'absolute', inset: 0, zIndex: 900,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(9,9,11,0.55)',
-        backdropFilter: 'blur(2px)',
-        opacity: isDataReady ? 0 : 1,
-        pointerEvents: isDataReady ? 'none' : 'all',
-        transition: 'opacity 0.5s ease',
-      }}>
-        <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid rgba(167,139,250,0.2)', borderTopColor: '#a78bfa', animation: 'spin 0.8s linear infinite' }} />
-        <div style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>🌍 {t('loadingGlobe')}</div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-      </div>
+      <LoadingOverlay isReady={isDataReady} message={t('loadingGlobe')} />
 
-      {/* 좌하단: 퀴즈 버튼 + 스핀 버튼 + 범례 */}
-      <div style={{ position: 'absolute', bottom: 80, left: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
-        {!pollMode && (
-          <button
-            onClick={() => {
+      {!pollMode && (
+        <div style={{ position: 'absolute', bottom: 80, left: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+          <GlobeBottomControls
+            quizMode={quizMode}
+            isSpinning={isSpinning}
+            onToggleQuizMode={() => {
               setQuizMode(m => !m)
               if (quizMode) setQuizCountry(null)
             }}
-            style={{
-              ...glass,
-              borderRadius: 12,
-              padding: '8px 16px',
-              border: `1px solid ${quizMode ? 'rgba(167,139,250,0.6)' : 'rgba(167,139,250,0.35)'}`,
-              color: quizMode ? '#c4b5fd' : '#a78bfa',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              background: quizMode ? 'rgba(167,139,250,0.15)' : 'rgba(167,139,250,0.08)',
+            onRandomSpin={handleRandomSpin}
+            labels={{
+              quizButton: tQuiz('quizButton'),
+              exitQuiz: tQuiz('exitQuiz'),
+              spinning: t('spinning'),
+              quizSpin: tQuiz('quizSpin'),
+              randomSpin: t('randomSpin'),
             }}
-          >
-            {quizMode ? tQuiz('exitQuiz') : tQuiz('quizButton')}
-          </button>
-        )}
-        {!pollMode && (
-          <button
-            onClick={handleRandomSpin}
-            disabled={isSpinning}
-            style={{
-              ...glass,
-              borderRadius: 12,
-              padding: '8px 16px',
-              border: `1px solid ${isSpinning ? 'rgba(255,255,255,0.07)' : 'rgba(167,139,250,0.35)'}`,
-              color: isSpinning ? '#475569' : '#a78bfa',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: isSpinning ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease',
-              background: isSpinning ? 'rgba(15,15,25,0.55)' : 'rgba(167,139,250,0.08)',
-            }}
-          >
-            {isSpinning ? t('spinning') : quizMode ? tQuiz('quizSpin') : t('randomSpin')}
-          </button>
-        )}
-        {!pollMode && (
-          isMobileUI ? (
-            <div style={{ position: 'relative' }}>
-              {showTierPopup && (
-                <div
-                  onMouseDown={e => e.stopPropagation()}
-                  onTouchStart={e => e.stopPropagation()}
-                  style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 1001, ...glass, borderRadius: 12, padding: '10px 14px', minWidth: 195 }}
-                >
-                  <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
-                    {t('clickTier')}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {TIERS.map((tier, tierIdx) => (
-                      <div key={tier.tag} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                        <div style={{ width: 10, height: 10, borderRadius: 3, background: tier.color, flexShrink: 0 }} />
-                        <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72, flexShrink: 0 }}>{tier.label}</span>
-                        <span style={{ fontSize: 10, color: tier.color, fontWeight: 600, whiteSpace: 'nowrap' }}>{t(`tierTag${tierIdx}`)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <button
-                onClick={() => setShowTierPopup(p => !p)}
-                onMouseDown={e => e.stopPropagation()}
-                onTouchStart={e => e.stopPropagation()}
-                style={{
-                  ...glass,
-                  borderRadius: 12,
-                  padding: '8px 16px',
-                  border: `1px solid ${showTierPopup ? 'rgba(167,139,250,0.6)' : 'rgba(167,139,250,0.35)'}`,
-                  color: showTierPopup ? '#c4b5fd' : '#a78bfa',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                🎖️ {t('tierButton')}
-              </button>
-            </div>
-          ) : (
-            <div style={{ ...glass, borderRadius: 12, padding: '10px 14px' }}>
-              <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
-                {t('clickTier')}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {TIERS.map((tier, tierIdx) => (
-                  <div key={tier.tag} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: 3, background: tier.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 72, flexShrink: 0 }}>{tier.label}</span>
-                    <span style={{ fontSize: 10, color: tier.color, fontWeight: 600, whiteSpace: 'nowrap' }}>{t(`tierTag${tierIdx}`)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        )}
-      </div>
+          />
+          <TierLegend
+            isMobileUI={isMobileUI}
+            showPopup={showTierPopup}
+            onTogglePopup={() => setShowTierPopup(p => !p)}
+            t={t}
+          />
+        </div>
+      )}
     </div>
   )
 }
