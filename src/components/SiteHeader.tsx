@@ -11,6 +11,7 @@ export default function SiteHeader() {
 
   const isAbout = pathname.includes('/about')
   const isPrivacy = pathname.includes('/privacy')
+  const isTerms = pathname.includes('/terms')
   const isContact = pathname.includes('/contact')
   const isDonate = pathname.includes('/donate')
 
@@ -60,6 +61,9 @@ export default function SiteHeader() {
           </Link>
           <Link href="/privacy" className={`transition-colors ${isPrivacy ? 'text-zinc-200' : 'hover:text-zinc-400'}`}>
             {t('privacy')}
+          </Link>
+          <Link href="/terms" className={`transition-colors ${isTerms ? 'text-zinc-200' : 'hover:text-zinc-400'}`}>
+            {t('terms')}
           </Link>
           <Link href="/contact" className={`transition-colors ${isContact ? 'text-zinc-200' : 'hover:text-zinc-400'}`}>
             {t('contact')}

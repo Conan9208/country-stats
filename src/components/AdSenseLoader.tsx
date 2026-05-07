@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 
-const NO_ADS_PATHS = ['/contact', '/donate']
+const NO_ADS_PATHS = ['/contact', '/donate', '/terms', '/admin']
 
 export default function AdSenseLoader() {
   const pathname = usePathname()

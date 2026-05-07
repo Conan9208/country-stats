@@ -5,7 +5,8 @@
       "WebSearch",
       "WebFetch(domain:support.patreon.com)",
       "Bash(npx tsc:*)",
-      "Bash(head -50 /c/Dev/workspace/countryStats/country-stats/src/app/[locale]/contact/page.tsx)"
+      "Bash(head -50 /c/Dev/workspace/countryStats/country-stats/src/app/[locale]/contact/page.tsx)",
+      "PowerShell($ko = Get-Content \"c:\\\\Dev\\\\workspace\\\\countryStats\\\\country-stats\\\\messages\\\\ko.json\" -Encoding utf8 | ConvertFrom-Json; $en = Get-Content \"c:\\\\Dev\\\\workspace\\\\countryStats\\\\country-stats\\\\messages\\\\en.json\" -Encoding utf8 | ConvertFrom-Json; @\\($ko.PSObject.Properties\\).Count; @\\($en.PSObject.Properties\\).Count)"
     ]
   }
 }

@@ -3,6 +3,9 @@ import Link from 'next/link'
 import DebtTicker from './DebtTicker'
 import { CURATED_FACTS_KO, CURATED_FACTS_EN } from '@/data/countryFacts'
 import { routing } from '@/i18n/routing'
+import { buildNarrative, type NarrativeInput } from '@/lib/countryNarrative'
+import AdSlot from '@/components/AdSlot'
+import { AD_SLOTS } from '@/lib/adSlots'
 
 const BASE_URL = 'https://postmyglobe.com'
 const WB = 'https://api.worldbank.org/v2'
@@ -32,6 +35,20 @@ type CountryData = {
   capital: string | null
   region: string | null
   subregion: string | null
+  languages: Record<string, string> | null
+  timezones: string[] | null
+  borders: string[] | null
+  landlocked: boolean | null
+  unMember: boolean | null
+  startOfWeek: string | null
+  drivingSide: 'left' | 'right' | null
+  demonym: string | null
+  tld: string[] | null
+  independent: boolean | null
+  fifa: string | null
+  iddRoot: string | null
+  iddSuffixes: string[] | null
+  continents: string[] | null
   gdpUSD: number
   gdpYear: string
   debtRatio: number
@@ -70,7 +87,7 @@ async function fetchCountryData(code: string): Promise<CountryData | null> {
     wbFetch(upper, 'GC.DOD.TOTL.GD.ZS'),
     wbFetch(upper, 'FR.INR.RINR'),
     fetch('https://open.er-api.com/v6/latest/USD', { next: { revalidate: 3600 } }),
-    fetch(`https://restcountries.com/v3.1/alpha/${upper}?fields=name,flags,currencies,region,subregion,capital,population,area`, {
+    fetch(`https://restcountries.com/v3.1/alpha/${upper}?fields=name,flags,currencies,region,subregion,capital,population,area,languages,timezones,borders,landlocked,unMember,startOfWeek,car,demonyms,tld,independent,fifa,idd,continents`, {
       next: { revalidate: 86400 },
     }),
   ])
@@ -94,6 +111,20 @@ async function fetchCountryData(code: string): Promise<CountryData | null> {
   let capital:    string | null = null
   let region:     string | null = null
   let subregion:  string | null = null
+  let languages:  Record<string, string> | null = null
+  let timezones:  string[] | null = null
+  let borders:    string[] | null = null
+  let landlocked: boolean | null = null
+  let unMember:   boolean | null = null
+  let startOfWeek: string | null = null
+  let drivingSide: 'left' | 'right' | null = null
+  let demonym:    string | null = null
+  let tld:        string[] | null = null
+  let independent: boolean | null = null
+  let fifa:       string | null = null
+  let iddRoot:    string | null = null
+  let iddSuffixes: string[] | null = null
+  let continents: string[] | null = null
 
   if (countryRes.status === 'fulfilled' && countryRes.value.ok) {
     const raw  = await countryRes.value.json()
@@ -107,6 +138,20 @@ async function fetchCountryData(code: string): Promise<CountryData | null> {
     capital     = Array.isArray(c?.capital) ? c.capital[0] ?? null : null
     region      = c?.region ?? null
     subregion   = c?.subregion ?? null
+    languages   = c?.languages ?? null
+    timezones   = Array.isArray(c?.timezones) ? c.timezones : null
+    borders     = Array.isArray(c?.borders) && c.borders.length > 0 ? c.borders : null
+    landlocked  = typeof c?.landlocked === 'boolean' ? c.landlocked : null
+    unMember    = typeof c?.unMember === 'boolean' ? c.unMember : null
+    startOfWeek = typeof c?.startOfWeek === 'string' ? c.startOfWeek : null
+    drivingSide = c?.car?.side === 'left' || c?.car?.side === 'right' ? c.car.side : null
+    demonym     = c?.demonyms?.eng?.m ?? c?.demonyms?.eng?.f ?? null
+    tld         = Array.isArray(c?.tld) ? c.tld : null
+    independent = typeof c?.independent === 'boolean' ? c.independent : null
+    fifa        = typeof c?.fifa === 'string' ? c.fifa : null
+    iddRoot     = typeof c?.idd?.root === 'string' ? c.idd.root : null
+    iddSuffixes = Array.isArray(c?.idd?.suffixes) ? c.idd.suffixes : null
+    continents  = Array.isArray(c?.continents) ? c.continents : null
     if (cCode) {
       currency = { code: cCode, symbol: cMeta?.symbol ?? cCode, name: cMeta?.name ?? cCode }
     }
@@ -138,6 +183,20 @@ async function fetchCountryData(code: string): Promise<CountryData | null> {
     capital,
     region,
     subregion,
+    languages,
+    timezones,
+    borders,
+    landlocked,
+    unMember,
+    startOfWeek,
+    drivingSide,
+    demonym,
+    tld,
+    independent,
+    fifa,
+    iddRoot,
+    iddSuffixes,
+    continents,
     gdpUSD:        gdp.value,
     gdpYear:       gdp.year,
     debtRatio:     debtRatio.value,
@@ -253,6 +312,40 @@ export default async function CountryDebtPage({
     ? `${BASE_URL}/countries/${code.toLowerCase()}`
     : `${BASE_URL}/${locale}/countries/${code.toLowerCase()}`
 
+  const narrativeInput: NarrativeInput | null = data
+    ? {
+        code: data.code,
+        name: data.name,
+        population: data.population,
+        area: data.area,
+        capital: data.capital,
+        region: data.region,
+        subregion: data.subregion,
+        languages: data.languages,
+        timezones: data.timezones,
+        borders: data.borders,
+        landlocked: data.landlocked,
+        unMember: data.unMember,
+        startOfWeek: data.startOfWeek,
+        drivingSide: data.drivingSide,
+        demonym: data.demonym,
+        tld: data.tld,
+        independent: data.independent,
+        fifa: data.fifa,
+        iddRoot: data.iddRoot,
+        iddSuffixes: data.iddSuffixes,
+        continents: data.continents,
+        currency: data.currency,
+        exchangeRate: data.exchangeRate,
+        gdpUSD: data.gdpUSD,
+        gdpYear: data.gdpYear,
+        debtRatio: data.debtRatio,
+        debtYear: data.debtYear,
+      }
+    : null
+
+  const narrative = narrativeInput ? buildNarrative(narrativeInput, isKo ? 'ko' : 'en') : null
+
   const datasetJsonLd = data
     ? {
         '@context': 'https://schema.org',
@@ -267,6 +360,32 @@ export default async function CountryDebtPage({
           { '@type': 'PropertyValue', name: 'Debt-to-GDP Ratio (%)', value: data.debtRatio },
           { '@type': 'PropertyValue', name: 'Annual Interest Rate (%)', value: data.interestRate },
         ],
+      }
+    : null
+
+  const articleJsonLd = data && narrative
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: isKo
+          ? `${data.name} 국가 정보와 부채 현황`
+          : `${data.name}: Country Profile and National Debt Overview`,
+        description: isKo
+          ? `${data.name}의 지리, 인구, 경제, 문화, 정치적 지위, 실용 정보를 World Bank와 REST Countries 공개 데이터에 근거해 정리한 페이지입니다.`
+          : `An overview of ${data.name} covering geography, demographics, economy, culture, political status, and practical information, sourced from World Bank and REST Countries open data.`,
+        articleBody: [
+          narrative.geography,
+          narrative.demographics,
+          narrative.economy,
+          narrative.culture,
+          narrative.government,
+          narrative.practical,
+        ].filter(Boolean).join(' '),
+        inLanguage: isKo ? 'ko' : 'en',
+        url: pageUrl,
+        author: { '@type': 'Organization', name: 'PostMyGlobe' },
+        publisher: { '@type': 'Organization', name: 'PostMyGlobe' },
+        about: { '@type': 'Country', name: data.name },
       }
     : null
 
@@ -295,6 +414,12 @@ export default async function CountryDebtPage({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(datasetJsonLd) }}
+        />
+      )}
+      {articleJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
         />
       )}
 
@@ -365,6 +490,21 @@ export default async function CountryDebtPage({
 
         {data && (
           <>
+            <h1 style={{
+              fontSize: 28,
+              fontWeight: 800,
+              color: '#f1f5f9',
+              margin: '0 0 8px',
+              letterSpacing: '-0.01em',
+            }}>
+              {isKo ? `${data.name} 국가 정보 및 부채 현황` : `${data.name} — Country Profile & National Debt`}
+            </h1>
+            <p style={{ color: '#64748b', fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
+              {isKo
+                ? `${data.name}의 지리, 인구, 경제, 문화, 정치적 지위, 실용 정보를 한 페이지로 정리했습니다. 데이터는 World Bank와 REST Countries 공개 자료를 기반으로 합니다.`
+                : `An overview of ${data.name} covering geography, demographics, economy, culture, political status, and practical information, sourced from World Bank and REST Countries open data.`}
+            </p>
+
             {/* 메인 티커 */}
             <div style={{
               background: 'rgba(255,255,255,0.03)',
@@ -460,6 +600,10 @@ export default async function CountryDebtPage({
               ))}
             </div>
 
+            <div style={{ margin: '8px 0 16px' }}>
+              <AdSlot slot={AD_SLOTS.countryMid} className="rounded-lg" />
+            </div>
+
             {/* 환율 정보 */}
             {data.exchangeRate && data.currency && (
               <div style={{
@@ -548,6 +692,61 @@ export default async function CountryDebtPage({
                 )
               })()}
             </div>
+
+            <div style={{ margin: '16px 0' }}>
+              <AdSlot slot={AD_SLOTS.countryArticle} className="rounded-lg" />
+            </div>
+
+            {/* 사실 기반 narrative 6 섹션 */}
+            {narrative && (() => {
+              const sections: { title: string; body: string }[] = [
+                { title: isKo ? '지리적 특징'   : 'Geography',              body: narrative.geography },
+                { title: isKo ? '인구와 언어'   : 'Demographics & Languages', body: narrative.demographics },
+                { title: isKo ? '경제 개요'     : 'Economy Overview',        body: narrative.economy },
+                { title: isKo ? '문화와 시간대' : 'Culture & Time',          body: narrative.culture },
+                { title: isKo ? '정부와 국제 지위' : 'Government & Status',  body: narrative.government },
+                { title: isKo ? '실용 정보'     : 'Practical Information',   body: narrative.practical },
+              ]
+              return sections
+                .filter(s => s.body && s.body.length > 0)
+                .map(s => (
+                  <section
+                    key={s.title}
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: 16,
+                      padding: '24px 32px',
+                      marginTop: 16,
+                    }}
+                  >
+                    <h2 style={{ fontSize: 16, fontWeight: 700, color: '#e2e8f0', marginBottom: 12 }}>
+                      {s.title}
+                    </h2>
+                    <p style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.85, margin: 0 }}>
+                      {s.body}
+                    </p>
+                  </section>
+                ))
+            })()}
+
+            {/* 데이터 출처 & 방법론 (확장) */}
+            <section style={{
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 16,
+              padding: '24px 32px',
+              marginTop: 16,
+            }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: '#e2e8f0', marginBottom: 12 }}>
+                {isKo ? '데이터 출처와 산정 방식' : 'Data Sources & Methodology'}
+              </h2>
+              <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.85, margin: 0 }}>
+                {isKo
+                  ? `이 페이지의 GDP와 GDP 대비 부채 비율은 세계은행(World Bank) 공개 통계의 가장 최근 가용 연도 값을 사용했습니다. 실시간 부채 추산은 GDP × 부채 비율로 산출한 총 부채에 World Bank 실질금리(없을 경우 4% 기본값)를 적용해 1초당 이자 부담을 계산하는 방식입니다. 환율은 open.er-api.com에서 1시간마다, 국가 기본 정보(언어, 시간대, 국경, 도메인 등)는 REST Countries에서 24시간마다 가져옵니다. 모든 수치는 공개 통계 기반 추산이며, 실제 정부 공식 발표와는 차이가 있을 수 있습니다.`
+                  : `GDP and debt-to-GDP figures on this page are pulled from the most recent available year of World Bank open statistics. The real-time debt estimate is computed by multiplying total debt (GDP × debt ratio) by World Bank's real interest rate (or a 4% fallback when unavailable) and dividing across each second of a year. Exchange rates refresh hourly via open.er-api.com, and country-level metadata such as languages, time zones, borders, and domains is fetched from REST Countries every 24 hours. All values are estimates derived from public datasets and may differ from official figures.`}
+              </p>
+            </section>
           </>
         )}
 

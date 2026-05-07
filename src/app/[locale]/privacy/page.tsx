@@ -162,14 +162,22 @@ export default async function PrivacyPage({ params }: Props) {
               {t('section8Desc')}
               <Link href="/contact" className="text-blue-400 hover:underline">{t('contactLink')}</Link>
               {t('section8Desc2')}
+              {' '}
+              <a href="mailto:whitecw0820@gmail.com" className="text-blue-400 hover:underline">whitecw0820@gmail.com</a>
             </p>
+          </section>
+
+          <section>
+            <h2 className="text-base font-semibold text-white mb-3">{t('controllerTitle')}</h2>
+            <p>{t('controllerBody')}</p>
           </section>
 
         </div>
 
-        <div className="mt-16 pt-8 border-t border-zinc-800 flex gap-6 text-sm text-zinc-600">
+        <div className="mt-16 pt-8 border-t border-zinc-800 flex flex-wrap gap-6 text-sm text-zinc-600">
           <Link href="/" className="hover:text-zinc-400 transition-colors">{t('footerHome')}</Link>
           <Link href="/about" className="hover:text-zinc-400 transition-colors">{t('footerAbout')}</Link>
+          <Link href="/terms" className="hover:text-zinc-400 transition-colors">{t('footerTerms')}</Link>
           <Link href="/contact" className="hover:text-zinc-400 transition-colors">{t('footerContact')}</Link>
         </div>
       </div>

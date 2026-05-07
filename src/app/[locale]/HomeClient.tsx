@@ -20,7 +20,7 @@ const WorldMap = dynamic(() => import('@/components/WorldMap'), {
   ),
 })
 
-const DonatePage = dynamic(() => import('@/app/[locale]/donate/page'), { ssr: false })
+const DonateContent = dynamic(() => import('@/app/[locale]/donate/DonateContent'), { ssr: false })
 const ContactContent = dynamic(() => import('@/components/ContactContent'), { ssr: false })
 
 const tabs = [
@@ -179,7 +179,7 @@ function HomeContent() {
       {activeTab === 'donate' && (
         <div className="flex-1 overflow-y-auto bg-zinc-950">
           <Suspense fallback={<div className="h-dvh bg-zinc-950" />}>
-            <DonatePage />
+            <DonateContent />
           </Suspense>
         </div>
       )}

@@ -3,7 +3,7 @@ import { MetadataRoute } from 'next'
 const BASE_URL = 'https://postmyglobe.com'
 const LOCALES = ['ko', 'en']
 
-const STATIC_ROUTES = ['', '/about', '/privacy', '/contact', '/donate', '/rankings', '/stats']
+const STATIC_ROUTES = ['', '/about', '/privacy', '/terms', '/contact', '/donate', '/rankings', '/stats']
 
 // localePrefix: 'as-needed' → en has no prefix, ko has /ko prefix
 function sitemapUrl(locale: string, path: string): string {

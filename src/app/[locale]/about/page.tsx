@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { Globe, BarChart2, ArrowLeftRight, Scale, Trophy, MessageCircle, Pin, Vote, AlertTriangle } from 'lucide-react'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import SiteHeader from '@/components/SiteHeader'
+import AdSlot from '@/components/AdSlot'
+import { AD_SLOTS } from '@/lib/adSlots'
 
 type Props = { params: Promise<{ locale: string }> }
 
@@ -171,18 +173,27 @@ export default async function AboutPage({ params }: Props) {
             <p className="text-sm">{t('techList')}</p>
           </section>
 
+          {/* 만든 동기 */}
+          <section>
+            <h2 className="text-lg font-semibold text-white mb-3">{t('motivationTitle')}</h2>
+            <p className="text-sm">{t('motivationBody')}</p>
+          </section>
+
           {/* 만든 사람 */}
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">{t('authorTitle')}</h2>
             <p className="text-sm">{t('authorBody')}</p>
           </section>
 
+          <AdSlot slot={AD_SLOTS.aboutBottom} className="rounded-lg" />
+
         </div>
 
         {/* 푸터 링크 */}
-        <div className="mt-16 pt-8 border-t border-zinc-800 flex gap-6 text-sm text-zinc-600">
+        <div className="mt-16 pt-8 border-t border-zinc-800 flex flex-wrap gap-6 text-sm text-zinc-600">
           <Link href="/" className="hover:text-zinc-400 transition-colors">{t('footerHome')}</Link>
           <Link href="/privacy" className="hover:text-zinc-400 transition-colors">{t('footerPrivacy')}</Link>
+          <Link href="/terms" className="hover:text-zinc-400 transition-colors">{t('footerTerms')}</Link>
           <Link href="/contact" className="hover:text-zinc-400 transition-colors">{t('footerContact')}</Link>
         </div>
       </div>

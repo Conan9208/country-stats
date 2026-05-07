@@ -1,5 +1,8 @@
 import Link from 'next/link'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
 import HomeClientWrapper from './HomeClientWrapper'
+import AdSlot from '@/components/AdSlot'
+import { AD_SLOTS } from '@/lib/adSlots'
 
 const TOP_COUNTRIES = [
   { code: 'us', nameKo: '미국', nameEn: 'United States' },
@@ -42,78 +45,165 @@ const RETURN_REASONS = [
 
 export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
+  setRequestLocale(locale)
+  const t = await getTranslations({ locale, namespace: 'Home' })
   const isKo = locale === 'ko'
   const base = isKo ? '/ko' : ''
 
+  const faqs = [
+    { q: t('faq1Q'), a: t('faq1A') },
+    { q: t('faq2Q'), a: t('faq2A') },
+    { q: t('faq3Q'), a: t('faq3A') },
+    { q: t('faq4Q'), a: t('faq4A') },
+  ]
+
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  }
+
   return (
-    <div className="h-dvh overflow-hidden">
-      {/* 인터랙티브 글로브 UI (클라이언트 전용) */}
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+
+      {/* 인터랙티브 글로브 (자체 viewport 차지) */}
       <HomeClientWrapper />
 
-      {/* SEO 색인용 — 화면 밖에 클립되어 유저에게 노출 안 됨, DOM에는 유지 */}
-      <section
-        className="bg-zinc-900 text-white px-6 py-12 border-t border-zinc-800"
-        aria-label={isKo ? '사이트 안내' : 'Site overview'}
-      >
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold mb-3">
-            PostMyGlobe —{' '}
-            {isKo
-              ? '실시간 세계 국가 부채 & 여행 정보'
-              : 'Live National Debt Clocks & Travel Info'}
-          </h1>
-          <p className="text-zinc-400 mb-8 leading-relaxed">
-            {isKo
-              ? '195개국의 실시간 국가 부채, 1인당 GDP, 금리 데이터를 인터랙티브 3D 지구본으로 탐험하세요. 세계은행(World Bank) 공식 데이터 기반으로 매일 업데이트됩니다.'
-              : 'Explore live national debt clocks, GDP per capita, and interest rate data for 195 countries on an interactive 3D globe. Updated daily with official World Bank data.'}
-          </p>
+      {/* 글로브 아래로 스크롤되는 SSR 콘텐츠 */}
+      <main className="bg-zinc-950 text-white">
 
-          <div className="grid gap-3 sm:grid-cols-3 mb-10">
-            {RETURN_REASONS.map(item => (
-              <section key={item.titleEn} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-4">
-                <h2 className="text-sm font-semibold text-zinc-100 mb-2">
-                  {isKo ? item.titleKo : item.titleEn}
-                </h2>
-                <p className="text-sm text-zinc-400 leading-relaxed">
-                  {isKo ? item.descKo : item.descEn}
-                </p>
-              </section>
-            ))}
+        {/* Hero 텍스트 */}
+        <section className="border-t border-zinc-800 px-6 py-14">
+          <div className="max-w-4xl mx-auto">
+            <h1 className="text-3xl sm:text-4xl font-bold mb-4 leading-tight">
+              {t('heroTitle')}
+            </h1>
+            <p className="text-zinc-400 text-base sm:text-lg leading-relaxed">
+              {t('heroLead')}
+            </p>
           </div>
+        </section>
 
-          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">
-            {isKo ? '인기 국가 부채 현황' : 'Popular Country Debt Clocks'}
-          </h2>
-          <ul className="flex flex-wrap gap-2 mb-10">
-            {TOP_COUNTRIES.map(c => (
-              <li key={c.code}>
-                <Link
-                  href={`${base}/countries/${c.code}`}
-                  className="px-3 py-1.5 rounded-full bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-300 hover:text-white transition-colors"
-                >
-                  {isKo ? c.nameKo : c.nameEn}
-                </Link>
-              </li>
-            ))}
-          </ul>
+        {/* What is */}
+        <section className="px-6 py-12 border-t border-zinc-900">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-xl font-semibold mb-3">{t('whatIsTitle')}</h2>
+            <p className="text-zinc-400 leading-relaxed">{t('whatIsBody')}</p>
+          </div>
+        </section>
 
-          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">
-            {isKo ? '인기 여행 정보' : 'Popular Travel Routes'}
-          </h2>
-          <ul className="flex flex-wrap gap-2">
-            {TOP_TRAVEL.map(r => (
-              <li key={`${r.from}-${r.to}`}>
-                <Link
-                  href={`${base}/travel/${r.from}/${r.to}`}
-                  className="px-3 py-1.5 rounded-full bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-300 hover:text-white transition-colors"
-                >
-                  {isKo ? r.labelKo : r.labelEn}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-    </div>
+        {/* Features */}
+        <section className="px-6 py-12 border-t border-zinc-900">
+          <div className="max-w-4xl mx-auto">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {RETURN_REASONS.map((item) => (
+                <div key={item.titleEn} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+                  <h3 className="text-sm font-semibold text-zinc-100 mb-2">
+                    {isKo ? item.titleKo : item.titleEn}
+                  </h3>
+                  <p className="text-sm text-zinc-400 leading-relaxed">
+                    {isKo ? item.descKo : item.descEn}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Popular country pages */}
+        <section className="px-6 py-12 border-t border-zinc-900">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">
+              {t('popularCountriesTitle')}
+            </h2>
+            <ul className="flex flex-wrap gap-2">
+              {TOP_COUNTRIES.map((c) => (
+                <li key={c.code}>
+                  <Link
+                    href={`${base}/countries/${c.code}`}
+                    className="px-3 py-1.5 rounded-full bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-300 hover:text-white transition-colors"
+                  >
+                    {isKo ? c.nameKo : c.nameEn}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* Popular travel routes */}
+        <section className="px-6 py-12 border-t border-zinc-900">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">
+              {t('popularTravelTitle')}
+            </h2>
+            <ul className="flex flex-wrap gap-2">
+              {TOP_TRAVEL.map((r) => (
+                <li key={`${r.from}-${r.to}`}>
+                  <Link
+                    href={`${base}/travel/${r.from}/${r.to}`}
+                    className="px-3 py-1.5 rounded-full bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-300 hover:text-white transition-colors"
+                  >
+                    {isKo ? r.labelKo : r.labelEn}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* How data */}
+        <section className="px-6 py-12 border-t border-zinc-900">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-xl font-semibold mb-3">{t('howDataTitle')}</h2>
+            <p className="text-zinc-400 leading-relaxed">{t('howDataBody')}</p>
+          </div>
+        </section>
+
+        {/* FAQ */}
+        <section className="px-6 py-12 border-t border-zinc-900">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-xl font-semibold mb-6">{t('faqTitle')}</h2>
+            <div className="space-y-5">
+              {faqs.map((f) => (
+                <div key={f.q} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-5">
+                  <h3 className="text-base font-medium text-zinc-100 mb-2">{f.q}</h3>
+                  <p className="text-sm text-zinc-400 leading-relaxed">{f.a}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-10">
+              <AdSlot slot={AD_SLOTS.homeBottom} className="rounded-lg" />
+            </div>
+          </div>
+        </section>
+
+        {/* Footer links */}
+        <footer className="px-6 py-10 border-t border-zinc-800">
+          <div className="max-w-4xl mx-auto flex flex-wrap gap-6 text-sm text-zinc-600">
+            <Link href={`${base}/about`} className="hover:text-zinc-400 transition-colors">
+              {isKo ? '서비스 소개' : 'About'}
+            </Link>
+            <Link href={`${base}/privacy`} className="hover:text-zinc-400 transition-colors">
+              {isKo ? '개인정보처리방침' : 'Privacy'}
+            </Link>
+            <Link href={`${base}/terms`} className="hover:text-zinc-400 transition-colors">
+              {isKo ? '이용약관' : 'Terms'}
+            </Link>
+            <Link href={`${base}/contact`} className="hover:text-zinc-400 transition-colors">
+              {isKo ? '문의' : 'Contact'}
+            </Link>
+          </div>
+        </footer>
+      </main>
+    </>
   )
 }
