@@ -16,9 +16,11 @@ export async function GET(req: NextRequest) {
 
   const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z'
 
-  const [allRes, todayRes] = await Promise.all([
+  const [allRes, todayRes, pollCountRes, quizSessionsRes] = await Promise.all([
     supabaseAdmin.from('site_visits').select('ip_hash, visitor_country'),
     supabaseAdmin.from('site_visits').select('ip_hash').gte('visited_at', todayStart),
+    supabaseAdmin.from('poll_votes').select('*', { count: 'exact', head: true }),
+    supabaseAdmin.from('quiz_sessions').select('total_answered, total_correct'),
   ])
 
   if (allRes.error) return Response.json({ error: allRes.error.message }, { status: 500 })
@@ -49,8 +51,14 @@ export async function GET(req: NextRequest) {
     })
     .map(([country, count]) => ({ country, count }))
 
+  const totalVotes = pollCountRes.count ?? 0
+  const quizData = quizSessionsRes.data ?? []
+  const totalQuizSessions = quizData.length
+  const totalQuizAnswers = quizData.reduce((s, r) => s + (r.total_answered ?? 0), 0)
+  const totalCorrect = quizData.reduce((s, r) => s + (r.total_correct ?? 0), 0)
+
   return Response.json(
-    { todayVisitors, totalVisitors, isPublic: IS_PUBLIC, countries },
+    { todayVisitors, totalVisitors, isPublic: IS_PUBLIC, countries, totalVotes, totalQuizSessions, totalQuizAnswers, totalCorrect },
     { headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' } }
   )
 }

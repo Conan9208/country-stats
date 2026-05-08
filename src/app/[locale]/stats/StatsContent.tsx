@@ -20,6 +20,10 @@ interface Stats {
   todayVisitors: number
   totalVisitors: number
   countries: CountryRow[]
+  totalVotes?: number
+  totalQuizSessions?: number
+  totalQuizAnswers?: number
+  totalCorrect?: number
 }
 
 const inputStyle: React.CSSProperties = {
@@ -183,6 +187,31 @@ export default function StatsContent() {
 
           {stats && (
             <>
+              {/* 참여 현황 */}
+              {(stats.totalVotes !== undefined || stats.totalQuizSessions !== undefined) && (
+                <div className="mb-6">
+                  <div className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-3">참여 현황</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: '총 투표 참여', value: stats.totalVotes ?? 0, unit: '회' },
+                      { label: '퀴즈 플레이', value: stats.totalQuizSessions ?? 0, unit: '세션' },
+                      {
+                        label: '퀴즈 정답률',
+                        value: stats.totalQuizAnswers
+                          ? Math.round(((stats.totalCorrect ?? 0) / stats.totalQuizAnswers) * 100)
+                          : 0,
+                        unit: '%',
+                      },
+                    ].map(({ label, value, unit }) => (
+                      <div key={label} className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 text-center">
+                        <div className="text-2xl font-bold tabular-nums">{value.toLocaleString()}<span className="text-sm text-zinc-500 ml-0.5">{unit}</span></div>
+                        <div className="text-xs text-zinc-500 mt-1">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4 mb-6">
                 {[
                   { label: '오늘 방문자', value: stats.todayVisitors },

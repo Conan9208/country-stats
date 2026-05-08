@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
-import { Globe, BarChart2, MessageCircle, Pin, RefreshCw, LogOut, Trash2, X } from 'lucide-react'
+import { Globe, BarChart2, MessageCircle, Pin, RefreshCw, LogOut, Trash2, X, Activity } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,7 +41,20 @@ interface ReportedPin {
   created_at: string
 }
 
-type Tab = 'stats' | 'comments' | 'pins'
+interface ActivityDayRow {
+  date: string
+  votes: number
+  quizSessions: number
+  comments: number
+  pins: number
+}
+
+interface ActivityStats {
+  daily: ActivityDayRow[]
+  totals: { votes: number; quizSessions: number; comments: number; pins: number }
+}
+
+type Tab = 'stats' | 'activity' | 'comments' | 'pins'
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -77,8 +90,11 @@ export default function AdminPage() {
 
   const [tab, setTab] = useState<Tab>('stats')
   const [statsRange, setStatsRange] = useState<'7d' | '30d'>('7d')
+  const [activityRange, setActivityRange] = useState<'7d' | '30d'>('7d')
   const [stats, setStats] = useState<Stats | null>(null)
   const [statsError, setStatsError] = useState<string | null>(null)
+  const [activity, setActivity] = useState<ActivityStats | null>(null)
+  const [activityError, setActivityError] = useState<string | null>(null)
   const [comments, setComments] = useState<ReportedComment[]>([])
   const [pins, setPins] = useState<ReportedPin[]>([])
   const [loading, setLoading] = useState(false)
@@ -105,6 +121,19 @@ export default function AdminPage() {
     setStats(await res.json())
   }, [])
 
+  const loadActivity = useCallback(async (token: string, range: '7d' | '30d' = '7d') => {
+    setActivityError(null)
+    const res = await fetch(`/api/admin/activity?range=${range}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}))
+      setActivityError(json.error ?? `HTTP ${res.status}`)
+      return
+    }
+    setActivity(await res.json())
+  }, [])
+
   const loadComments = useCallback(async (token: string) => {
     const res = await fetch('/api/admin/reports?type=comments', {
       headers: { Authorization: `Bearer ${token}` },
@@ -127,17 +156,20 @@ export default function AdminPage() {
     setLoading(true)
     try {
       if (t === 'stats') await loadStats(token, range)
+      if (t === 'activity') await loadActivity(token, range)
       if (t === 'comments') await loadComments(token)
       if (t === 'pins') await loadPins(token)
     } finally {
       setLoading(false)
     }
-  }, [loadStats, loadComments, loadPins])
+  }, [loadStats, loadActivity, loadComments, loadPins])
 
-  // 탭 변경 시 해당 데이터 로드
+  // 탭 변경 또는 날짜 범위 변경 시 해당 데이터 로드
   useEffect(() => {
-    if (accessToken) loadTab(tab, accessToken, statsRange)
-  }, [tab, accessToken, loadTab, statsRange])
+    if (!accessToken) return
+    const range = tab === 'activity' ? activityRange : statsRange
+    loadTab(tab, accessToken, range)
+  }, [tab, accessToken, loadTab, statsRange, activityRange])
 
   // ── 로그인 ────────────────────────────────────────────────────────────────
 
@@ -159,6 +191,7 @@ export default function AdminPage() {
     await supabase.auth.signOut()
     setAccessToken(null)
     setStats(null)
+    setActivity(null)
     setComments([])
     setPins([])
   }
@@ -252,6 +285,7 @@ export default function AdminPage() {
   // 대시보드
   const tabItems: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'stats', label: '방문자 통계', icon: <BarChart2 size={14} /> },
+    { id: 'activity', label: '활동 통계', icon: <Activity size={14} /> },
     { id: 'comments', label: '댓글 신고', icon: <MessageCircle size={14} />, badge: comments.length },
     { id: 'pins', label: '핀 신고', icon: <Pin size={14} />, badge: pins.length },
   ]
@@ -427,6 +461,85 @@ export default function AdminPage() {
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── 활동 통계 탭 에러 ── */}
+        {!loading && tab === 'activity' && !activity && activityError && (
+          <div style={{ textAlign: 'center', color: '#f87171', padding: '40px 0', fontSize: 14 }}>
+            활동 통계 로드 실패: {activityError}
+          </div>
+        )}
+
+        {/* ── 활동 통계 탭 ── */}
+        {!loading && tab === 'activity' && activity && (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24 }}>
+              {[
+                { label: '총 투표수', value: activity.totals.votes },
+                { label: '퀴즈 세션', value: activity.totals.quizSessions },
+                { label: '댓글 수', value: activity.totals.comments },
+                { label: '핀 제출', value: activity.totals.pins },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ ...card, textAlign: 'center' }}>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>{value.toLocaleString()}</div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={card}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+                  일별 활동 내역
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {(['7d', '30d'] as const).map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setActivityRange(r)}
+                      style={{
+                        background: activityRange === r ? 'rgba(167,139,250,0.15)' : 'rgba(255,255,255,0.04)',
+                        border: `1px solid ${activityRange === r ? 'rgba(167,139,250,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                        borderRadius: 6,
+                        color: activityRange === r ? '#a78bfa' : '#64748b',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '3px 10px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      최근 {r === '7d' ? '7일' : '30일'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {activity.daily.length === 0 ? (
+                <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', padding: '16px 0' }}>데이터 없음</div>
+              ) : (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '80px 60px 70px 60px 60px', gap: 8, fontSize: 10, fontWeight: 700, color: '#475569', letterSpacing: '0.06em', textTransform: 'uppercase', paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>
+                    <span>날짜</span>
+                    <span style={{ textAlign: 'right' }}>투표</span>
+                    <span style={{ textAlign: 'right' }}>퀴즈세션</span>
+                    <span style={{ textAlign: 'right' }}>댓글</span>
+                    <span style={{ textAlign: 'right' }}>핀</span>
+                  </div>
+                  {activity.daily.map(row => (
+                    <div key={row.date} style={{ display: 'grid', gridTemplateColumns: '80px 60px 70px 60px 60px', gap: 8, alignItems: 'center', padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                      <span style={{ fontSize: 12, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                        {row.date.slice(5)}
+                      </span>
+                      <span style={{ fontSize: 13, color: '#f1f5f9', textAlign: 'right' }}>{row.votes}</span>
+                      <span style={{ fontSize: 13, color: '#f1f5f9', textAlign: 'right' }}>{row.quizSessions}</span>
+                      <span style={{ fontSize: 13, color: '#f1f5f9', textAlign: 'right' }}>{row.comments}</span>
+                      <span style={{ fontSize: 13, color: '#f1f5f9', textAlign: 'right' }}>{row.pins}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
