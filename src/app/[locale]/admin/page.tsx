@@ -43,6 +43,7 @@ interface ReportedPin {
 
 interface ActivityDayRow {
   date: string
+  clicks: number
   votes: number
   quizSessions: number
   comments: number
@@ -51,7 +52,7 @@ interface ActivityDayRow {
 
 interface ActivityStats {
   daily: ActivityDayRow[]
-  totals: { votes: number; quizSessions: number; comments: number; pins: number }
+  totals: { clicks: number; votes: number; quizSessions: number; comments: number; pins: number }
 }
 
 type Tab = 'stats' | 'activity' | 'comments' | 'pins'
@@ -474,8 +475,9 @@ export default function AdminPage() {
         {/* ── 활동 통계 탭 ── */}
         {!loading && tab === 'activity' && activity && (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 24 }}>
               {[
+                { label: '총 클릭수', value: activity.totals.clicks },
                 { label: '총 투표수', value: activity.totals.votes },
                 { label: '퀴즈 세션', value: activity.totals.quizSessions },
                 { label: '댓글 수', value: activity.totals.comments },
@@ -519,18 +521,20 @@ export default function AdminPage() {
                 <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', padding: '16px 0' }}>데이터 없음</div>
               ) : (
                 <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '80px 60px 70px 60px 60px', gap: 8, fontSize: 10, fontWeight: 700, color: '#475569', letterSpacing: '0.06em', textTransform: 'uppercase', paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '80px 70px 60px 70px 60px 60px', gap: 8, fontSize: 10, fontWeight: 700, color: '#475569', letterSpacing: '0.06em', textTransform: 'uppercase', paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>
                     <span>날짜</span>
+                    <span style={{ textAlign: 'right' }}>클릭</span>
                     <span style={{ textAlign: 'right' }}>투표</span>
                     <span style={{ textAlign: 'right' }}>퀴즈세션</span>
                     <span style={{ textAlign: 'right' }}>댓글</span>
                     <span style={{ textAlign: 'right' }}>핀</span>
                   </div>
                   {activity.daily.map(row => (
-                    <div key={row.date} style={{ display: 'grid', gridTemplateColumns: '80px 60px 70px 60px 60px', gap: 8, alignItems: 'center', padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                    <div key={row.date} style={{ display: 'grid', gridTemplateColumns: '80px 70px 60px 70px 60px 60px', gap: 8, alignItems: 'center', padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                       <span style={{ fontSize: 12, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
                         {row.date.slice(5)}
                       </span>
+                      <span style={{ fontSize: 13, color: '#f1f5f9', textAlign: 'right' }}>{(row.clicks ?? 0).toLocaleString()}</span>
                       <span style={{ fontSize: 13, color: '#f1f5f9', textAlign: 'right' }}>{row.votes}</span>
                       <span style={{ fontSize: 13, color: '#f1f5f9', textAlign: 'right' }}>{row.quizSessions}</span>
                       <span style={{ fontSize: 13, color: '#f1f5f9', textAlign: 'right' }}>{row.comments}</span>

@@ -17,22 +17,24 @@ export async function GET(req: NextRequest) {
   const days = rangeParam === '30d' ? 30 : 7
   const rangeStart = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
 
-  const [pollRes, quizRes, commentRes, pinRes, totalPollRes, totalQuizRes, totalCommentRes, totalPinRes] =
+  const [pollRes, quizRes, commentRes, pinRes, clicksRes, totalPollRes, totalQuizRes, totalCommentRes, totalPinRes, totalClicksRes] =
     await Promise.all([
       supabaseAdmin.from('poll_votes').select('poll_date').gte('poll_date', rangeStart),
       supabaseAdmin.from('quiz_answers').select('session_id, created_at').gte('created_at', rangeStart),
       supabaseAdmin.from('country_comments').select('created_at').gte('created_at', rangeStart).eq('is_hidden', false),
       supabaseAdmin.from('globe_pins').select('created_at').gte('created_at', rangeStart),
+      supabaseAdmin.from('country_daily_views').select('view_date, view_count').gte('view_date', rangeStart),
       supabaseAdmin.from('poll_votes').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('quiz_sessions').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('country_comments').select('*', { count: 'exact', head: true }).eq('is_hidden', false),
       supabaseAdmin.from('globe_pins').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('country_views').select('view_count'),
     ])
 
-  const dateMap: Record<string, { votes: number; quizSessions: number; comments: number; pins: number }> = {}
+  const dateMap: Record<string, { votes: number; quizSessions: number; comments: number; pins: number; clicks: number }> = {}
 
   function ensureDate(d: string) {
-    if (!dateMap[d]) dateMap[d] = { votes: 0, quizSessions: 0, comments: 0, pins: 0 }
+    if (!dateMap[d]) dateMap[d] = { votes: 0, quizSessions: 0, comments: 0, pins: 0, clicks: 0 }
   }
 
   for (const row of (pollRes.data ?? [])) {
@@ -64,11 +66,20 @@ export async function GET(req: NextRequest) {
     dateMap[d].pins++
   }
 
+  for (const row of (clicksRes.data ?? [])) {
+    const d = row.view_date as string
+    ensureDate(d)
+    dateMap[d].clicks += Number(row.view_count) || 0
+  }
+
   const daily = Object.entries(dateMap)
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([date, counts]) => ({ date, ...counts }))
 
+  const totalClicks = (totalClicksRes.data ?? []).reduce((sum, row) => sum + (Number(row.view_count) || 0), 0)
+
   const totals = {
+    clicks: totalClicks,
     votes: totalPollRes.count ?? 0,
     quizSessions: totalQuizRes.count ?? 0,
     comments: totalCommentRes.count ?? 0,
