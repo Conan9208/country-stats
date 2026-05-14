@@ -34,3 +34,7 @@ CREATE POLICY "allow_all_quiz_sessions" ON quiz_sessions
 
 CREATE POLICY "allow_all_quiz_answers" ON quiz_answers
   FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- Explicit grants required for Data API access (enforced from Oct 30, 2026)
+GRANT SELECT, INSERT, UPDATE ON public.quiz_sessions TO anon;
+GRANT SELECT, INSERT ON public.quiz_answers TO anon;
