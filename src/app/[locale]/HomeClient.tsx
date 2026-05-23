@@ -49,6 +49,13 @@ function HomeContent() {
     fetch('/api/track', { method: 'POST' }).catch(() => {})
   }, [])
 
+  // 지구본 화면이 활성화된 동안 문서 스크롤 잠금 (아래 SEO 콘텐츠로 스크롤되는 문제 방지)
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
   const switchTab = useCallback((tab: TabId) => {
     setActiveTab(tab)
     if (tab === 'map' || tab === 'feed') {
@@ -174,7 +181,11 @@ function HomeContent() {
         </div>
       )}
 
-      {activeTab === 'feed' && <CombinedFeed />}
+      {activeTab === 'feed' && (
+        <div className="flex-1 overflow-y-auto">
+          <CombinedFeed />
+        </div>
+      )}
 
       {activeTab === 'donate' && (
         <div className="flex-1 overflow-y-auto bg-zinc-950">
