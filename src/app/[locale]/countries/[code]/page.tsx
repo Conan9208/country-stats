@@ -4,6 +4,7 @@ import DebtTicker from './DebtTicker'
 import { CURATED_FACTS_KO, CURATED_FACTS_EN } from '@/data/countryFacts'
 import { routing } from '@/i18n/routing'
 import { buildNarrative, type NarrativeInput } from '@/lib/countryNarrative'
+import { getCountryFull } from '@/lib/countryData'
 import AdSlot from '@/components/AdSlot'
 import { AD_SLOTS } from '@/lib/adSlots'
 
@@ -49,14 +50,14 @@ type CountryData = {
   iddRoot: string | null
   iddSuffixes: string[] | null
   continents: string[] | null
-  gdpUSD: number
-  gdpYear: string
-  debtRatio: number
-  debtYear: string
-  interestRate: number
+  gdpUSD: number | null
+  gdpYear: string | null
+  debtRatio: number | null
+  debtYear: string | null
+  interestRate: number | null
   interestYear: string | null
-  totalDebtUSD: number
-  perSecondUSD: number
+  totalDebtUSD: number | null
+  perSecondUSD: number | null
   localDebt: number | null
   perSecondLocal: number | null
   exchangeRate: number | null
@@ -80,16 +81,19 @@ async function wbFetch(country: string, indicator: string) {
 }
 
 async function fetchCountryData(code: string): Promise<CountryData | null> {
-  const upper = code.toUpperCase()
+  // 국가 기본 정보는 오프라인 번들에서 (restcountries.com 다운 대응).
+  // 유효한 ISO alpha-2 가 아닐 때만 null → notFound.
+  const offline = getCountryFull(code)
+  if (!offline) return null
 
-  const [gdpRes, debtRatioRes, interestRes, exRateRes, countryRes] = await Promise.allSettled([
+  const upper = offline.cca2
+
+  // 부채/금리/환율은 World Bank·환율 API 에서 (있으면 표시, 없으면 생략).
+  const [gdpRes, debtRatioRes, interestRes, exRateRes] = await Promise.allSettled([
     wbFetch(upper, 'NY.GDP.MKTP.CD'),
     wbFetch(upper, 'GC.DOD.TOTL.GD.ZS'),
     wbFetch(upper, 'FR.INR.RINR'),
     fetch('https://open.er-api.com/v6/latest/USD', { next: { revalidate: 3600 } }),
-    fetch(`https://restcountries.com/v3.1/alpha/${upper}?fields=name,flags,currencies,region,subregion,capital,population,area,languages,timezones,borders,landlocked,unMember,startOfWeek,car,demonyms,tld,independent,fifa,idd,continents`, {
-      next: { revalidate: 86400 },
-    }),
   ])
 
   const gdp       = gdpRes.status       === 'fulfilled' ? gdpRes.value       : null
@@ -98,111 +102,70 @@ async function fetchCountryData(code: string): Promise<CountryData | null> {
 
   let exchangeRates: Record<string, number> = {}
   if (exRateRes.status === 'fulfilled' && exRateRes.value.ok) {
-    const d = await exRateRes.value.json()
-    exchangeRates = d.rates ?? {}
+    try {
+      const d = await exRateRes.value.json()
+      exchangeRates = d.rates ?? {}
+    } catch { /* ignore */ }
   }
 
-  type CurrencyInfo = { code: string; symbol: string; name: string } | null
-  let countryName = upper
-  let flagUrl     = ''
-  let currency: CurrencyInfo = null
-  let population: number | null = null
-  let area:       number | null = null
-  let capital:    string | null = null
-  let region:     string | null = null
-  let subregion:  string | null = null
-  let languages:  Record<string, string> | null = null
-  let timezones:  string[] | null = null
-  let borders:    string[] | null = null
-  let landlocked: boolean | null = null
-  let unMember:   boolean | null = null
-  let startOfWeek: string | null = null
-  let drivingSide: 'left' | 'right' | null = null
-  let demonym:    string | null = null
-  let tld:        string[] | null = null
-  let independent: boolean | null = null
-  let fifa:       string | null = null
-  let iddRoot:    string | null = null
-  let iddSuffixes: string[] | null = null
-  let continents: string[] | null = null
+  const currency = offline.currency
 
-  if (countryRes.status === 'fulfilled' && countryRes.value.ok) {
-    const raw  = await countryRes.value.json()
-    const c    = Array.isArray(raw) ? raw[0] : raw
-    const entries = Object.entries(c?.currencies ?? {}) as [string, { symbol?: string; name?: string }][]
-    const [cCode, cMeta] = entries[0] ?? []
-    countryName = c?.name?.common ?? upper
-    flagUrl     = c?.flags?.svg ?? ''
-    population  = c?.population ?? null
-    area        = c?.area ?? null
-    capital     = Array.isArray(c?.capital) ? c.capital[0] ?? null : null
-    region      = c?.region ?? null
-    subregion   = c?.subregion ?? null
-    languages   = c?.languages ?? null
-    timezones   = Array.isArray(c?.timezones) ? c.timezones : null
-    borders     = Array.isArray(c?.borders) && c.borders.length > 0 ? c.borders : null
-    landlocked  = typeof c?.landlocked === 'boolean' ? c.landlocked : null
-    unMember    = typeof c?.unMember === 'boolean' ? c.unMember : null
-    startOfWeek = typeof c?.startOfWeek === 'string' ? c.startOfWeek : null
-    drivingSide = c?.car?.side === 'left' || c?.car?.side === 'right' ? c.car.side : null
-    demonym     = c?.demonyms?.eng?.m ?? c?.demonyms?.eng?.f ?? null
-    tld         = Array.isArray(c?.tld) ? c.tld : null
-    independent = typeof c?.independent === 'boolean' ? c.independent : null
-    fifa        = typeof c?.fifa === 'string' ? c.fifa : null
-    iddRoot     = typeof c?.idd?.root === 'string' ? c.idd.root : null
-    iddSuffixes = Array.isArray(c?.idd?.suffixes) ? c.idd.suffixes : null
-    continents  = Array.isArray(c?.continents) ? c.continents : null
-    if (cCode) {
-      currency = { code: cCode, symbol: cMeta?.symbol ?? cCode, name: cMeta?.name ?? cCode }
-    }
-  }
+  // ─── 부채 추산 (GDP·부채비율이 모두 있을 때만) ──────────────────────────────
+  const gdpUSD       = gdp?.value ?? null
+  const debtRatioVal = debtRatio?.value ?? null
 
-  if (!gdp || !debtRatio) return null
-
-  const totalDebtUSD = gdp.value * (debtRatio.value / 100)
-  const annualRate   = interest?.value != null && interest.value > 0 ? interest.value / 100 : 0.04
-  const perSecondUSD = totalDebtUSD * annualRate / (365 * 24 * 3600)
-
+  let interestRate:   number | null = null
+  let totalDebtUSD:   number | null = null
+  let perSecondUSD:   number | null = null
   let localDebt:      number | null = null
   let perSecondLocal: number | null = null
   let exchangeRate:   number | null = null
 
+  if (gdpUSD != null && debtRatioVal != null) {
+    const annualRate = interest?.value != null && interest.value > 0 ? interest.value / 100 : 0.04
+    interestRate = annualRate * 100
+    totalDebtUSD = gdpUSD * (debtRatioVal / 100)
+    perSecondUSD = totalDebtUSD * annualRate / (365 * 24 * 3600)
+  }
+
   if (currency && currency.code !== 'USD' && exchangeRates[currency.code]) {
-    exchangeRate   = exchangeRates[currency.code]
-    localDebt      = totalDebtUSD  * exchangeRate
-    perSecondLocal = perSecondUSD  * exchangeRate
+    exchangeRate = exchangeRates[currency.code]
+    if (totalDebtUSD != null && perSecondUSD != null) {
+      localDebt      = totalDebtUSD * exchangeRate
+      perSecondLocal = perSecondUSD * exchangeRate
+    }
   }
 
   return {
     code: upper,
-    name: countryName,
-    flag: flagUrl,
+    name: offline.nameEn,
+    flag: offline.flag,
     currency,
-    population,
-    area,
-    capital,
-    region,
-    subregion,
-    languages,
-    timezones,
-    borders,
-    landlocked,
-    unMember,
-    startOfWeek,
-    drivingSide,
-    demonym,
-    tld,
-    independent,
-    fifa,
-    iddRoot,
-    iddSuffixes,
-    continents,
-    gdpUSD:        gdp.value,
-    gdpYear:       gdp.year,
-    debtRatio:     debtRatio.value,
-    debtYear:      debtRatio.year,
-    interestRate:  annualRate * 100,
-    interestYear:  interest?.year ?? null,
+    population:  offline.population,
+    area:        offline.area,
+    capital:     offline.capital,
+    region:      offline.region,
+    subregion:   offline.subregion,
+    languages:   offline.languages,
+    timezones:   offline.timezones,
+    borders:     offline.borders,
+    landlocked:  offline.landlocked,
+    unMember:    offline.unMember,
+    startOfWeek: null,
+    drivingSide: offline.drivingSide,
+    demonym:     offline.demonym,
+    tld:         offline.tld,
+    independent: offline.independent,
+    fifa:        null,
+    iddRoot:     offline.iddRoot,
+    iddSuffixes: offline.iddSuffixes,
+    continents:  null,
+    gdpUSD,
+    gdpYear:      gdp?.year ?? null,
+    debtRatio:    debtRatioVal,
+    debtYear:     debtRatio?.year ?? null,
+    interestRate,
+    interestYear: interest?.year ?? null,
     totalDebtUSD,
     perSecondUSD,
     localDebt,
@@ -252,23 +215,35 @@ export async function generateMetadata({
     : `${BASE_URL}/${locale}/countries/${code.toLowerCase()}`
 
   if (!data) {
+    // 유효하지 않은 ISO 코드 — 색인 제외
     return {
-      title: locale === 'ko' ? '국가 부채 데이터 없음 | PostMyGlobe' : 'No Debt Data | PostMyGlobe',
+      title: locale === 'ko' ? '국가를 찾을 수 없음 | PostMyGlobe' : 'Country Not Found | PostMyGlobe',
+      robots: { index: false, follow: false },
       alternates: { canonical: pageUrl },
     }
   }
 
-  const { name, debtRatio, totalDebtUSD } = data
-  const totalFmt = formatUSD(totalDebtUSD)
-  const ratioFmt = debtRatio.toFixed(1)
+  const name = data.name
+  let title: string
+  let description: string
 
-  const title = locale === 'ko'
-    ? `${name} 국가 부채 실시간 | PostMyGlobe`
-    : `${name} National Debt Clock | PostMyGlobe`
-
-  const description = locale === 'ko'
-    ? `${name}의 국가 부채를 실시간으로 추산합니다. GDP 대비 ${ratioFmt}%, 현재 추산 부채 ${totalFmt}.`
-    : `Real-time national debt estimate for ${name}. Debt-to-GDP ratio: ${ratioFmt}%, estimated total: ${totalFmt}.`
+  if (data.debtRatio != null && data.totalDebtUSD != null) {
+    const ratioFmt = data.debtRatio.toFixed(1)
+    const totalFmt = formatUSD(data.totalDebtUSD)
+    title = locale === 'ko'
+      ? `${name} 국가 부채 실시간 | PostMyGlobe`
+      : `${name} National Debt Clock | PostMyGlobe`
+    description = locale === 'ko'
+      ? `${name}의 국가 부채를 실시간으로 추산합니다. GDP 대비 ${ratioFmt}%, 현재 추산 부채 ${totalFmt}.`
+      : `Real-time national debt estimate for ${name}. Debt-to-GDP ratio: ${ratioFmt}%, estimated total: ${totalFmt}.`
+  } else {
+    title = locale === 'ko'
+      ? `${name} 국가 정보 — 인구·경제·문화 | PostMyGlobe`
+      : `${name} Country Profile — Population, Economy, Culture | PostMyGlobe`
+    description = locale === 'ko'
+      ? `${name}의 지리, 인구, 경제, 문화, 정치적 지위, 실용 정보를 공개 데이터 기반으로 정리했습니다.`
+      : `An overview of ${name}: geography, demographics, economy, culture, political status, and practical information from open data.`
+  }
 
   return {
     title,
@@ -346,7 +321,7 @@ export default async function CountryDebtPage({
 
   const narrative = narrativeInput ? buildNarrative(narrativeInput, isKo ? 'ko' : 'en') : null
 
-  const datasetJsonLd = data
+  const datasetJsonLd = data && data.debtRatio != null && data.totalDebtUSD != null
     ? {
         '@context': 'https://schema.org',
         '@type': 'Dataset',
@@ -480,10 +455,10 @@ export default async function CountryDebtPage({
           <div style={{ textAlign: 'center', marginTop: 80 }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>📭</div>
             <div style={{ color: '#f87171', fontSize: 15, marginBottom: 8 }}>
-              {isKo ? '이 나라의 부채 데이터를 찾을 수 없어요' : 'No debt data available for this country'}
+              {isKo ? '국가 정보를 찾을 수 없어요' : 'Country information not found'}
             </div>
             <div style={{ color: '#334155', fontSize: 13 }}>
-              {isKo ? 'World Bank에 해당 국가의 부채 데이터가 없어요' : 'World Bank has no debt data for this country'}
+              {isKo ? '올바른 국가 코드인지 확인해 주세요' : 'Please check that the country code is valid'}
             </div>
           </div>
         )}
@@ -497,7 +472,9 @@ export default async function CountryDebtPage({
               margin: '0 0 8px',
               letterSpacing: '-0.01em',
             }}>
-              {isKo ? `${data.name} 국가 정보 및 부채 현황` : `${data.name} — Country Profile & National Debt`}
+              {data.debtRatio != null
+                ? (isKo ? `${data.name} 국가 정보 및 부채 현황` : `${data.name} — Country Profile & National Debt`)
+                : (isKo ? `${data.name} 국가 정보` : `${data.name} — Country Profile`)}
             </h1>
             <p style={{ color: '#64748b', fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
               {isKo
@@ -505,6 +482,8 @@ export default async function CountryDebtPage({
                 : `An overview of ${data.name} covering geography, demographics, economy, culture, political status, and practical information, sourced from World Bank and REST Countries open data.`}
             </p>
 
+            {data.totalDebtUSD != null && data.perSecondUSD != null && data.gdpUSD != null && data.debtRatio != null && data.interestRate != null && (
+            <>
             {/* 메인 티커 */}
             <div style={{
               background: 'rgba(255,255,255,0.03)',
@@ -599,6 +578,8 @@ export default async function CountryDebtPage({
                 </div>
               ))}
             </div>
+            </>
+            )}
 
             <div style={{ margin: '8px 0 16px' }}>
               <AdSlot slot={AD_SLOTS.countryMid} className="rounded-lg" />

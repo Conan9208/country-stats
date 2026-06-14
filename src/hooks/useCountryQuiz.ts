@@ -35,9 +35,7 @@ let capitalsCachePromise: Promise<CapitalEntry[]> | null = null
 export function getCapitalsData(): Promise<CapitalEntry[]> {
   if (capitalsCache) return Promise.resolve(capitalsCache)
   if (!capitalsCachePromise) {
-    capitalsCachePromise = fetch(
-      'https://restcountries.com/v3.1/all?fields=cca2,capital,region,subregion,flags'
-    )
+    capitalsCachePromise = fetch('/api/countries')
       .then(r => r.json())
       .then((all: CapitalEntry[]) => {
         capitalsCache = all.filter(c => Array.isArray(c.capital) && c.capital.length > 0 && c.capital[0])

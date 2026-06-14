@@ -16,7 +16,7 @@ let rankCachePromise: Promise<Map<string, { popRank: number; areaRank: number }>
 function getRankCache(): Promise<Map<string, { popRank: number; areaRank: number }>> {
   if (rankCache) return Promise.resolve(rankCache)
   if (!rankCachePromise) {
-    rankCachePromise = fetch('https://restcountries.com/v3.1/all?fields=cca2,population,area')
+    rankCachePromise = fetch('/api/countries')
       .then(r => r.json())
       .then((all: { cca2: string; population: number; area: number }[]) => {
         const byPop  = [...all].sort((a, b) => (b.population ?? 0) - (a.population ?? 0))
@@ -209,7 +209,7 @@ export function useSpinRoulette({ canvasRef, rotationRef, scaleRef, autoRotateRe
         } else {
           // Normal mode: show fact card for 6 seconds
           Promise.all([
-            fetch(`https://restcountries.com/v3.1/alpha/${final.code}?fields=population,area,region,capital,landlocked,borders,languages,timezones,car,tld`)
+            fetch(`/api/countries?code=${final.code}`)
               .then(r => r.json()),
             getRankCache(),
           ]).then(([raw, ranks]) => {

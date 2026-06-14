@@ -277,7 +277,7 @@ function TravelClientContent({ fromData, toData, visa }: TravelClientProps) {
 
   // 국가 목록 (검색용)
   useEffect(() => {
-    fetch('https://restcountries.com/v3.1/all?fields=cca2,name,flags')
+    fetch('/api/countries')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         const list: CountryOption[] = data

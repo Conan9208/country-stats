@@ -4,8 +4,9 @@ import isoCountries from 'i18n-iso-countries'
 import localeKo from 'i18n-iso-countries/langs/ko.json'
 import localeEn from 'i18n-iso-countries/langs/en.json'
 import TravelClient from './TravelClient'
-import { parseCountry, calcTimeDiff, formatTimeDiff } from '@/lib/travelUtils'
+import { calcTimeDiff, formatTimeDiff } from '@/lib/travelUtils'
 import { getVisaRequirement } from '@/lib/visaCheck'
+import { getCountryBasic } from '@/lib/countryData'
 import type { CountryBasic } from '@/types/travel'
 
 isoCountries.registerLocale(localeKo)
@@ -13,20 +14,11 @@ isoCountries.registerLocale(localeEn)
 
 const BASE_URL = 'https://postmyglobe.com'
 
-// ─── 국가 데이터 fetch (24h 캐시) ────────────────────────────────────────────
+// ─── 국가 데이터 조회 (오프라인 번들 — 외부 API 의존 없음) ────────────────────
+// restcountries.com 다운 이후 번들 데이터로 전환. 유효 ISO alpha-2 면 항상 반환.
 
-async function fetchCountry(code: string): Promise<CountryBasic | null> {
-  try {
-    const res = await fetch(
-      `https://restcountries.com/v3.1/alpha/${code.toUpperCase()}`,
-      { next: { revalidate: 86400 } }
-    )
-    if (!res.ok) return null
-    const raw: Record<string, unknown>[] = await res.json()
-    return parseCountry(raw[0])
-  } catch {
-    return null
-  }
+function fetchCountry(code: string): CountryBasic | null {
+  return getCountryBasic(code, false)
 }
 
 // ─── 표시 이름 (로케일 반영) ──────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
+import worldCountries from 'world-countries'
+import { COUNTRY_POPULATION } from '@/data/countryPopulation'
 
 const BASE_URL = 'https://postmyglobe.com'
 
@@ -12,16 +14,23 @@ type CountryRank = {
   region: string
 }
 
-async function fetchRankings(): Promise<CountryRank[]> {
-  try {
-    const res = await fetch(
-      'https://restcountries.com/v3.1/all?fields=cca2,name,population,area,flags,region',
-      { next: { revalidate: 86400 } }
-    )
-    return await res.json()
-  } catch {
-    return []
-  }
+// 오프라인 번들 기반 랭킹 (restcountries.com 다운 대응).
+// 인구는 World Bank 스냅샷, 면적/이름은 world-countries.
+// UN 회원국·독립국만 포함해 남극·속령이 면적 랭킹을 오염시키지 않도록 한다.
+function getRankings(): CountryRank[] {
+  return worldCountries
+    .filter(c => c.unMember || c.independent)
+    .map(c => {
+      const cc = c.cca2.toUpperCase()
+      return {
+        cca2: c.cca2,
+        name: { common: c.name.common },
+        population: COUNTRY_POPULATION[cc] ?? 0,
+        area: typeof c.area === 'number' && c.area > 0 ? c.area : 0,
+        flags: { svg: `https://flagcdn.com/${c.cca2.toLowerCase()}.svg` },
+        region: c.region ?? '',
+      }
+    })
 }
 
 export async function generateMetadata({
@@ -85,7 +94,7 @@ export default async function RankingsPage({
 }) {
   const { locale } = await params
   const isKo = locale === 'ko'
-  const all = await fetchRankings()
+  const all = getRankings()
 
   const byPop = [...all]
     .filter(c => c.population > 0)
@@ -284,8 +293,8 @@ export default async function RankingsPage({
         <div style={{ marginTop: 48, paddingTop: 32, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           <p style={{ fontSize: 12, color: '#1e293b', textAlign: 'center', marginBottom: 24 }}>
             {isKo
-              ? '데이터 출처: REST Countries API · 매일 갱신'
-              : 'Data source: REST Countries API · Updated daily'}
+              ? '데이터 출처: World Bank (인구) · REST Countries (면적)'
+              : 'Data source: World Bank (population) · REST Countries (area)'}
           </p>
           <div style={{ textAlign: 'center' }}>
             <Link

@@ -61,7 +61,7 @@ export default function Calculator() {
   }, [])
 
   useEffect(() => {
-    fetch('https://restcountries.com/v3.1/all?fields=name,flags,population,area,region,capital,languages,currencies,cca2')
+    fetch('/api/countries')
       .then(r => r.json())
       .then((data: CountryBasic[]) => {
         setCountries(data.sort((a, b) => a.name.common.localeCompare(b.name.common)))

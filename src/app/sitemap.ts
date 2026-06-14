@@ -40,9 +40,9 @@ const COUNTRY_CODES = [
 ]
 
 // 사이트 마지막 업데이트 날짜 (배포 시 수동 갱신)
-const SITE_UPDATED = new Date('2025-01-15')
+const SITE_UPDATED = new Date('2026-06-14')
 // 국가 데이터는 World Bank 기준으로 연간 업데이트
-const COUNTRY_DATA_UPDATED = new Date('2025-01-01')
+const COUNTRY_DATA_UPDATED = new Date('2026-06-01')
 
 const ACTION_ROUTES = new Set(['/contact', '/donate'])
 

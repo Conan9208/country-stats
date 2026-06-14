@@ -29,10 +29,10 @@ export type NarrativeInput = {
   continents?: string[] | null
   currency?: { code: string; name: string; symbol: string } | null
   exchangeRate?: number | null
-  gdpUSD: number
-  gdpYear: string
-  debtRatio: number
-  debtYear: string
+  gdpUSD: number | null
+  gdpYear: string | null
+  debtRatio: number | null
+  debtYear: string | null
 }
 
 export type Narrative = {
@@ -188,8 +188,12 @@ function demographicsParagraph(d: NarrativeInput, locale: Locale): string {
 function economyParagraph(d: NarrativeInput, locale: Locale): string {
   const parts: string[] = []
   if (locale === 'ko') {
-    parts.push(`${d.gdpYear}년 기준 ${d.name}의 명목 GDP는 약 ${fmtUSD(d.gdpUSD, 'ko')}로 집계됩니다.`)
-    parts.push(`${d.debtYear}년 기준 GDP 대비 정부 부채 비율은 ${d.debtRatio.toFixed(1)}% 수준입니다.`)
+    if (d.gdpUSD != null && d.gdpYear) {
+      parts.push(`${d.gdpYear}년 기준 ${d.name}의 명목 GDP는 약 ${fmtUSD(d.gdpUSD, 'ko')}로 집계됩니다.`)
+    }
+    if (d.debtRatio != null && d.debtYear) {
+      parts.push(`${d.debtYear}년 기준 GDP 대비 정부 부채 비율은 ${d.debtRatio.toFixed(1)}% 수준입니다.`)
+    }
     if (d.currency) {
       parts.push(`공식 통화는 ${d.currency.name}(${d.currency.code}, 기호 ${d.currency.symbol})입니다.`)
     }
@@ -197,8 +201,12 @@ function economyParagraph(d: NarrativeInput, locale: Locale): string {
       parts.push(`현재 환율은 1 USD = ${d.exchangeRate.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${d.currency.code} 수준에서 거래되고 있습니다.`)
     }
   } else {
-    parts.push(`As of ${d.gdpYear}, ${d.name} reports a nominal GDP of about ${fmtUSD(d.gdpUSD, 'en')}.`)
-    parts.push(`Government debt stood at roughly ${d.debtRatio.toFixed(1)}% of GDP in ${d.debtYear}.`)
+    if (d.gdpUSD != null && d.gdpYear) {
+      parts.push(`As of ${d.gdpYear}, ${d.name} reports a nominal GDP of about ${fmtUSD(d.gdpUSD, 'en')}.`)
+    }
+    if (d.debtRatio != null && d.debtYear) {
+      parts.push(`Government debt stood at roughly ${d.debtRatio.toFixed(1)}% of GDP in ${d.debtYear}.`)
+    }
     if (d.currency) {
       parts.push(`The official currency is the ${d.currency.name} (${d.currency.code}, symbol ${d.currency.symbol}).`)
     }
