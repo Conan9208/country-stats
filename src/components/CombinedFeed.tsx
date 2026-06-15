@@ -10,13 +10,13 @@ export default function CombinedFeed() {
   return (
     <>
       {/* 데스크탑: 2칸 나란히 */}
-      <div className="hidden sm:grid sm:grid-cols-2 sm:divide-x sm:divide-zinc-800 flex-1 overflow-hidden">
+      <div className="hidden sm:grid sm:grid-cols-2 sm:divide-x sm:divide-zinc-800 flex-1 min-h-0 overflow-hidden">
         <CommentFeed />
         <PollReasonFeed />
       </div>
 
       {/* 모바일: 상단 서브탭 */}
-      <div className="sm:hidden flex-1 overflow-hidden flex flex-col">
+      <div className="sm:hidden flex-1 min-h-0 overflow-hidden flex flex-col">
         <div className="flex border-b border-zinc-800 flex-shrink-0">
           <button
             onClick={() => setSubTab('comments')}

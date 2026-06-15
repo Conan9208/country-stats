@@ -50,10 +50,18 @@ function HomeContent() {
   }, [])
 
   // 지구본 화면이 활성화된 동안 문서 스크롤 잠금 (아래 SEO 콘텐츠로 스크롤되는 문제 방지)
+  // iOS Safari의 스크롤 주체는 body가 아니라 html(documentElement)이라 둘 다 잠가야 함
   useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
+    const html = document.documentElement
+    const body = document.body
+    const prevHtmlOverflow = html.style.overflow
+    const prevBodyOverflow = body.style.overflow
+    html.style.overflow = 'hidden'
+    body.style.overflow = 'hidden'
+    return () => {
+      html.style.overflow = prevHtmlOverflow
+      body.style.overflow = prevBodyOverflow
+    }
   }, [])
 
   const switchTab = useCallback((tab: TabId) => {
@@ -124,7 +132,7 @@ function HomeContent() {
   }, [])
 
   return (
-    <main className="h-dvh bg-zinc-950 text-white flex flex-col overflow-hidden">
+    <main className="fixed inset-x-0 top-0 h-dvh bg-zinc-950 text-white flex flex-col overflow-hidden">
       <div className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center gap-4 sm:gap-6 h-12">
           <span className="text-base font-bold tracking-tight whitespace-nowrap flex items-center gap-1.5"><Globe size={16} /> PostMyGlobe</span>
@@ -182,7 +190,7 @@ function HomeContent() {
       )}
 
       {activeTab === 'feed' && (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 flex flex-col">
           <CombinedFeed />
         </div>
       )}

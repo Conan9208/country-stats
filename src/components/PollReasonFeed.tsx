@@ -117,7 +117,7 @@ export default function PollReasonFeed() {
   }, [clearNewFlag])
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col bg-zinc-950" style={{ height: 'calc(100vh - 48px)' }}>
+    <div className="flex-1 min-h-0 overflow-hidden flex flex-col bg-zinc-950">
       <div className="border-b border-zinc-800 px-6 py-4 flex items-center gap-3 flex-shrink-0">
         <span className="text-base font-bold text-white">{t('title')}</span>
         <div className="flex items-center gap-1.5">
