@@ -6,17 +6,28 @@ type TranslateFn = (key: string) => string
 
 type Props = {
   pollMode?: boolean
+  promoteMode?: boolean
   isMobile: boolean
   t: TranslateFn
 }
 
-export function GuidePanel({ pollMode, isMobile, t }: Props) {
+export function GuidePanel({ pollMode, promoteMode, isMobile, t }: Props) {
   return (
     <div
       className="glass-panel"
       style={{ position: 'absolute', top: 16, left: 16, zIndex: 1000, borderRadius: 12, padding: '8px 12px', lineHeight: 1.35 }}
     >
-      {pollMode ? (
+      {promoteMode ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span
+            className="animate-pulse"
+            style={{ width: 7, height: 7, borderRadius: '50%', background: '#fbbf24', display: 'inline-block', flexShrink: 0 }}
+          />
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', whiteSpace: 'nowrap' }}>
+            {t('promoteModeGuide')}
+          </span>
+        </div>
+      ) : pollMode ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span
             className="animate-pulse"

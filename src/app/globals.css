@@ -291,6 +291,53 @@ html {
   animation: globeSpinnerRotate 0.8s linear infinite;
 }
 
+/* 지구본 글로우 커서 — 네이티브 포인터를 따라가는 컴포지터 레이어.
+   이전에는 캔버스 draw 루프에서 직접 그려서 마우스 부드러움이 프레임레이트에 묶였음.
+   transform만 JS로 갱신(GPU), 펄스는 opacity/box-shadow로 → 매 프레임 캔버스 리드로우 불필요. */
+.globe-cursor-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30px;
+  height: 30px;
+  margin-left: -15px;
+  margin-top: -15px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 14px 4px rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  z-index: 3;
+  display: none;
+  will-change: transform, opacity;
+  transform: translate3d(-100px, -100px, 0);
+  animation: cursorGlowPulse 1.6s ease-in-out infinite;
+}
+.globe-cursor-glow::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+}
+.globe-cursor-glow.over-country {
+  border-color: rgba(250, 204, 21, 0.6);
+  box-shadow: 0 0 16px 5px rgba(250, 204, 21, 0.14);
+}
+.globe-cursor-glow.over-country::after {
+  background: #facc15;
+}
+@keyframes cursorGlowPulse {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 0.9; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .globe-cursor-glow { animation: none; opacity: 0.7; }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

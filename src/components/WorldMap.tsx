@@ -115,6 +115,15 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const [quizMode, setQuizMode] = useState(false)
   const quizModeRef = useRef(false)
   const [quizCountry, setQuizCountry] = useState<{ code: string; name: string } | null>(null)
+  // 홍보 모드 — 모드 진입 후 나라 클릭 시 핀 등록 모달 오픈 (퀴즈 모드와 동일 패턴)
+  const [promoteMode, setPromoteMode] = useState(false)
+  const promoteModeRef = useRef(false)
+  // 글로우 커서 DOM 레이어 (네이티브 포인터를 따라가는 컴포지터 레이어)
+  const glowRef = useRef<HTMLDivElement>(null)
+  const glowOverCountryRef = useRef(false)
+  // DPR(고해상도) 렌더링 — 백킹스토어는 device px, 좌표/그리기는 논리(CSS) px 유지
+  const dprRef = useRef(1)
+  const cssSizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 })
   // 모달
   const [debtCountry, setDebtCountry]   = useState<{ code: string; name: string } | null>(null)
   const [infoCountry, setInfoCountry]   = useState<{ code: string; name: string } | null>(null)
@@ -147,6 +156,30 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const [showTierPopup, setShowTierPopup] = useState(false)
 
   useEffect(() => { quizModeRef.current = quizMode }, [quizMode])
+  useEffect(() => { promoteModeRef.current = promoteMode }, [promoteMode])
+
+  // 모드 토글 — 퀴즈/홍보는 상호 배타 (한쪽 켜면 다른쪽 해제). ref로 현재값 읽어 중첩 setState 회피
+  const togglePromoteMode = useCallback(() => {
+    const next = !promoteModeRef.current
+    setPromoteMode(next)
+    if (next) { setQuizMode(false); setQuizCountry(null) }
+  }, [])
+  const toggleQuizMode = useCallback(() => {
+    const next = !quizModeRef.current
+    setQuizMode(next)
+    if (next) setPromoteMode(false)
+    else setQuizCountry(null)
+  }, [])
+
+  // 홍보 모드일 때 Esc로 모드 종료 — 단, 핀 등록 모달이 열려 있으면 모달부터 닫히도록 양보
+  useEffect(() => {
+    if (!promoteMode) return
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !pinSubmitCountry) setPromoteMode(false)
+    }
+    window.addEventListener('keydown', onEsc)
+    return () => window.removeEventListener('keydown', onEsc)
+  }, [promoteMode, pinSubmitCountry])
 
   const handleQuizTrigger = useCallback((country: { code: string; name: string }) => {
     setQuizCountry(country)
@@ -320,19 +353,23 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const getProjection = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return null
-    const size = Math.min(canvas.width, canvas.height)
+    // 논리(CSS) px 기준으로 프로젝션 구성 — 백킹스토어는 DPR로 확대되지만 좌표계는 CSS px 유지
+    const { w, h } = cssSizeRef.current
+    const cw = w || canvas.width
+    const ch = h || canvas.height
+    const size = Math.min(cw, ch)
     // 화면보다 훨씬 큰 지구본 → 가까이서 보는 거대한 지구 느낌
     const baseScale = size * 1.6
     const scale = baseScale * Math.pow(1.3, scaleRef.current)
     // 모바일(≤640px)에서는 지구본을 정중앙에, 데스크탑에서는 왼쪽으로 오프셋
-    const isMobile = canvas.width <= 640
-    const translateX = isMobile ? canvas.width / 2 : canvas.width / 2 - 128
+    const isMobile = cw <= 640
+    const translateX = isMobile ? cw / 2 : cw / 2 - 128
     // 프로젝션 캐시: rotation/scale/size/translate가 모두 같으면 기존 인스턴스 재사용
-    const projKey = `${canvas.width},${canvas.height},${scale.toFixed(2)},${rotationRef.current[0].toFixed(4)},${rotationRef.current[1].toFixed(4)}`
+    const projKey = `${cw},${ch},${scale.toFixed(2)},${rotationRef.current[0].toFixed(4)},${rotationRef.current[1].toFixed(4)}`
     if (projCacheRef.current?.key === projKey) return projCacheRef.current.proj
     const proj = geoOrthographic()
       .scale(scale)
-      .translate([translateX, canvas.height / 2])
+      .translate([translateX, ch / 2])
       .rotate([rotationRef.current[0], rotationRef.current[1], 0])
       .clipAngle(90)
     projCacheRef.current = { key: projKey, proj }
@@ -346,19 +383,25 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     if (!ctx) return
     const proj = getProjection()
     if (!proj) return
+    // DPR 변환: 백킹스토어는 device px(=논리 px × dpr)지만, 이 변환으로 모든 그리기를 논리 px로 다룸 → 선명 + 좌표 무변경
+    const dpr = dprRef.current
+    const { w: cw, h: ch } = cssSizeRef.current
+    const W = cw || canvas.width
+    const H = ch || canvas.height
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     const path = geoPath(proj, ctx)
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.clearRect(0, 0, W, H)
 
     // 바다 (구 배경)
     ctx.beginPath()
     path({ type: 'Sphere' } as unknown as Feature<Geometry, GeoJsonProperties>)
-    const centerX = canvas.width / 2
-    const centerY = canvas.height / 2
+    const centerX = W / 2
+    const centerY = H / 2
     const radius = proj.scale()
 
     // 그라디언트 캐시: 크기·줌이 바뀔 때만 재생성 (5px 단위로 반올림 → 줌 중 jitter 방지)
-    const gKey = `${canvas.width},${canvas.height},${Math.round(radius / 5)}`
+    const gKey = `${W},${H},${Math.round(radius / 5)}`
     if (!gradientCacheRef.current || gradientCacheRef.current.key !== gKey) {
       const ocean = ctx.createRadialGradient(
         centerX - radius * 0.2, centerY - radius * 0.25, radius * 0.05,
@@ -389,9 +432,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
     // 육지 베이스
     const isQuiz = quizModeRef.current
+    const isPromote = promoteModeRef.current
     ctx.beginPath()
     path(landGeo)
-    ctx.fillStyle = isQuiz ? '#031a17' : '#2a5a3a'
+    ctx.fillStyle = isQuiz ? '#031a17' : isPromote ? '#33304a' : '#2a5a3a'
     ctx.fill()
 
     // 루프 밖에서 한 번만 계산 — 매 프레임 재계산 방지
@@ -445,9 +489,9 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         ctx.lineWidth = 1.5
         ctx.stroke()
       } else if (isHovered) {
-        ctx.fillStyle = isPoll ? 'rgba(167,139,250,0.45)' : 'rgba(255,255,255,0.30)'
+        ctx.fillStyle = isPoll ? 'rgba(167,139,250,0.45)' : isPromote ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.30)'
         ctx.fill()
-        ctx.strokeStyle = isPoll ? 'rgba(167,139,250,0.85)' : 'rgba(255,255,255,0.75)'
+        ctx.strokeStyle = isPoll ? 'rgba(167,139,250,0.85)' : isPromote ? 'rgba(251,191,36,0.9)' : 'rgba(255,255,255,0.75)'
         ctx.lineWidth = 1.2
         ctx.stroke()
       } else if (isPoll && pData?.[alpha2]) {
@@ -521,45 +565,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       ctx.fill()
     }
 
-    // 커서 — 드래그 중에는 단순 도트, 평시에는 글로우 링
-    const mp = mousePosRef.current
-    if (mp) {
-      if (isDragging) {
-        ctx.beginPath()
-        ctx.arc(mp.x, mp.y, 4, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(255,255,255,0.75)'
-        ctx.fill()
-      } else {
-        const onCountry = hoveredAlpha2Ref.current !== null
-        const pulse = (Math.sin(now * 0.004) + 1) / 2        // 0→1 맥동
-        const outerR = 14 + pulse * 5                          // 14~19px
-        const outerA = 0.35 + pulse * 0.25                     // 0.35~0.60
-        const cr = onCountry ? '250,204,21' : '255,255,255'
-
-        // 소프트 글로우 — layered arc (RadialGradient 객체 생성 없이 동일 효과)
-        ctx.beginPath()
-        ctx.arc(mp.x, mp.y, outerR * 2, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(${cr},${onCountry ? 0.06 : 0.025})`
-        ctx.fill()
-        ctx.beginPath()
-        ctx.arc(mp.x, mp.y, outerR, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(${cr},${onCountry ? 0.12 : 0.05})`
-        ctx.fill()
-
-        // 외곽 링
-        ctx.beginPath()
-        ctx.arc(mp.x, mp.y, outerR, 0, Math.PI * 2)
-        ctx.strokeStyle = `rgba(${cr},${outerA})`
-        ctx.lineWidth = 1
-        ctx.stroke()
-
-        // 중심 도트
-        ctx.beginPath()
-        ctx.arc(mp.x, mp.y, onCountry ? 4 : 3, 0, Math.PI * 2)
-        ctx.fillStyle = onCountry ? '#facc15' : 'rgba(255,255,255,0.9)'
-        ctx.fill()
-      }
-    }
+    // (커서는 더 이상 캔버스에 그리지 않음 — 네이티브 포인터 + .globe-cursor-glow DOM 레이어가 담당)
 
     // 실시간 뷰어 점 — 다른 사람이 보고 있는 나라 표시
     const viewerCounts = viewersByCountryRef.current
@@ -644,9 +650,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         ctx.fill()
       }
 
-      // 나라 면적 기반 그리드 레이아웃 계산
-      const canvas = canvasRef.current!
-      const size = Math.min(canvas.width, canvas.height)
+      // 나라 면적 기반 그리드 레이아웃 계산 (논리 px 기준 — getProjection과 동일 좌표계)
+      const size = Math.min(W, H)
       const projScale = size * 1.6 * Math.pow(1.3, scaleRef.current)
       const DEG_TO_PX = projScale * Math.PI / 180
 
@@ -904,8 +909,17 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       const canvas = canvasRef.current
       const container = containerRef.current
       if (!canvas || !container) return
-      canvas.width = container.clientWidth
-      canvas.height = container.clientHeight
+      const cw = container.clientWidth
+      const ch = container.clientHeight
+      // DPR 캡 2 — 4K에서 백킹스토어가 폭주(×4 면적)하지 않게. 선명도/성능 균형점.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      dprRef.current = dpr
+      cssSizeRef.current = { w: cw, h: ch }
+      canvas.width = Math.round(cw * dpr)
+      canvas.height = Math.round(ch * dpr)
+      // 캐시 무효화 — 다음 draw에서 프로젝션/그라디언트 재생성
+      projCacheRef.current = null
+      gradientCacheRef.current = null
     }
     resize()
     window.addEventListener('resize', resize)
@@ -920,6 +934,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     if (!canvas) return null
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
+    // ⚠️ isPointInPath는 "경로"에는 CTM을 적용하지만 "점"에는 적용하지 않는다.
+    // 따라서 DPR 변환을 걸면 경로만 device px(×dpr)로 저장되고 점(CSS px)과 어긋난다(원점에서 멀수록 더 벌어짐).
+    // → 히트테스트는 항등 변환으로 경로를 논리(CSS) px에 그려두고, CSS px 점을 그대로 비교한다. (proj도 논리 px 기준)
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
     const pathInCtx = geoPath(proj, ctx)
     const features = worldGeo.features
     // 가시 반구 pre-filter: dot product ≤ 0인 피처는 isPointInPath 없이 스킵 (~50% 절감)
@@ -974,8 +992,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       const hitRadius = Math.max(7, Math.min(60, Math.round(13 * hitZoom)))
       const hitSpacing = hitRadius
 
-      const hitCanvas = canvasRef.current!
-      const hitSize = Math.min(hitCanvas.width, hitCanvas.height)
+      const hitSize = Math.min(cssSizeRef.current.w, cssSizeRef.current.h)
       const hitProjScale = hitSize * 1.6 * Math.pow(1.3, scaleRef.current)
       const hitDEG_TO_PX = hitProjScale * Math.PI / 180
 
@@ -1063,12 +1080,23 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         overlayRef.current?.setTooltip(null)
       }
       const rect = canvas.getBoundingClientRect()
-      mousePosRef.current = { x: ev.clientX - rect.left, y: ev.clientY - rect.top }
+      const gx = ev.clientX - rect.left
+      const gy = ev.clientY - rect.top
+      mousePosRef.current = { x: gx, y: gy }
+      const glow = glowRef.current
+      if (glow) glow.style.transform = `translate3d(${gx}px, ${gy}px, 0)`
     }
 
-    const handleWindowUp = () => {
+    const handleWindowUp = (ev?: MouseEvent) => {
       dragStartRef.current = null
       lastMouseRef.current = null
+      // 캔버스 밖에서 드래그를 놓으면 글로우가 멈춘 채 남으므로 숨김
+      if (ev) {
+        const c = canvasRef.current
+        const r = c?.getBoundingClientRect()
+        const outside = !r || ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom
+        if (outside && glowRef.current) glowRef.current.style.display = 'none'
+      }
       window.removeEventListener('mousemove', handleWindowMove)
       window.removeEventListener('mouseup', handleWindowUp)
       globalDragCleanupRef.current = null
@@ -1088,6 +1116,13 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
     // 커서 렌더링용으로는 즉시 업데이트
     mousePosRef.current = { x, y }
+
+    // 글로우 DOM 레이어를 포인터 위치로 (compositor transform — 캔버스 리드로우와 무관)
+    const glow = glowRef.current
+    if (glow) {
+      if (glow.style.display !== 'block') glow.style.display = 'block'
+      glow.style.transform = `translate3d(${x}px, ${y}px, 0)`
+    }
 
     // 드래그 중이면 window 레벨 리스너가 처리 — 여기서는 건너뜀
     if (dragStartRef.current) return
@@ -1137,6 +1172,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
             ?? hit.alpha2
           hoveredAlpha2Ref.current = hit.alpha2
           hoveredNameRef.current   = name
+          if (!glowOverCountryRef.current) {
+            glowOverCountryRef.current = true
+            glowRef.current?.classList.add('over-country')
+          }
           overlayRef.current?.setTooltip({ name, count, x: hx, y: hy, alpha2: hit.alpha2, viewers: viewersByCountryRef.current[hit.alpha2] ?? 0 })
           // 뷰어 broadcast — 나라가 바뀔 때만 전송
           if (hit.alpha2 !== lastBroadcastCountryRef.current) {
@@ -1151,6 +1190,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         } else {
           hoveredAlpha2Ref.current = null
           hoveredNameRef.current   = null
+          if (glowOverCountryRef.current) {
+            glowOverCountryRef.current = false
+            glowRef.current?.classList.remove('over-country')
+          }
           overlayRef.current?.setTooltip(null)
           if (lastBroadcastCountryRef.current !== null) {
             lastBroadcastCountryRef.current = null
@@ -1175,6 +1218,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     mousePosRef.current = null
     pendingHitRef.current = null  // 대기 중인 히트 테스트 취소
     hoveredAlpha2Ref.current = null
+    // 글로우 숨김 — 단, 캔버스 밖 드래그 중이면 유지(window 리스너가 계속 따라감)
+    if (!dragStartRef.current && glowRef.current) glowRef.current.style.display = 'none'
+    glowOverCountryRef.current = false
+    glowRef.current?.classList.remove('over-country')
     overlayRef.current?.setTooltip(null)
     isOverPinRef.current = false
     pinHoverTooltipRef.current = null
@@ -1197,6 +1244,26 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const onClick = useCallback(async (e: React.MouseEvent) => {
     if (contextMenuRef.current) { closeContextMenu(); return }
     if (hasDraggedRef.current) return
+
+    // 홍보 모드: 어떤 나라든(이미 핀이 있어도) 클릭 시 곧장 등록 모달.
+    // 핀 팝업보다 먼저 가로채고, 나라 우선 → 핀이 올라간 나라 순으로 좌표 해석. 모드는 유지(잘못 클릭해도 재선택 가능)
+    if (promoteModeRef.current) {
+      const c = canvasRef.current
+      if (c) {
+        const rect = c.getBoundingClientRect()
+        const cx = e.clientX - rect.left
+        const cy = e.clientY - rect.top
+        const cHit = getAlpha2AtPoint(cx, cy)
+        if (cHit?.alpha2) {
+          const cName = isoCountries.getName(cHit.alpha2.toUpperCase(), locale) ?? cHit.alpha2
+          setPinSubmitCountry({ code: cHit.alpha2, name: cName })
+          return
+        }
+        const pHit = getPinsAtPoint(cx, cy)
+        if (pHit) { setPinSubmitCountry({ code: pHit.alpha2, name: pHit.countryName }); return }
+      }
+      return // 빈 바다 클릭 → 무시 (모드 유지)
+    }
 
     // 핀 클릭 감지 (나라 클릭보다 우선)
     const canvas = canvasRef.current
@@ -1365,7 +1432,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       setMyClickCount(myClicksRef.current.size)
       try { localStorage.setItem('my_clicked_countries', JSON.stringify([...myClicksRef.current])) } catch { /* ignore */ }
     }
-  }, [closeContextMenu, t, locale])
+  }, [closeContextMenu, t, locale, getAlpha2AtPoint, getPinsAtPoint])
 
   // 스크롤 줌 — passive: false로 직접 등록 (React onWheel은 passive라 preventDefault 불가)
   useEffect(() => {
@@ -1569,7 +1636,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       <StarField />
       <canvas
         ref={canvasRef}
-        style={{ display: 'block', width: '100%', height: '100%', cursor: pinHoverTooltip ? 'pointer' : 'none', position: 'relative', zIndex: 1, background: 'transparent', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' }}
+        style={{ display: 'block', width: '100%', height: '100%', cursor: pinHoverTooltip ? 'pointer' : 'grab', position: 'relative', zIndex: 1, background: 'transparent', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -1578,11 +1645,14 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         onContextMenu={onContextMenu}
       />
 
+      {/* 글로우 커서 레이어 — 데스크탑 전용 (터치 기기는 렌더 안 함) */}
+      {!isMobile && <div ref={glowRef} className="globe-cursor-glow" aria-hidden="true" />}
+
       <WorldMapOverlay ref={overlayRef} onSpinClose={() => setIsSpinning(false)} />
 
       {pinHoverTooltip && <PinHoverTooltip tooltip={pinHoverTooltip} detailsLabel={t('clickToSeeDetails')} />}
 
-      <GuidePanel pollMode={pollMode} isMobile={isMobile} t={t} />
+      <GuidePanel pollMode={pollMode} promoteMode={promoteMode} isMobile={isMobile} t={t} />
 
       {tapBadge && <MobileTapBadge badge={tapBadge} />}
 
@@ -1678,15 +1748,16 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         <div style={{ position: 'absolute', bottom: 80, left: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
           <GlobeBottomControls
             quizMode={quizMode}
+            promoteMode={promoteMode}
             isSpinning={isSpinning}
-            onToggleQuizMode={() => {
-              setQuizMode(m => !m)
-              if (quizMode) setQuizCountry(null)
-            }}
+            onToggleQuizMode={toggleQuizMode}
+            onTogglePromoteMode={togglePromoteMode}
             onRandomSpin={handleRandomSpin}
             labels={{
               quizButton: tQuiz('quizButton'),
               exitQuiz: tQuiz('exitQuiz'),
+              promoteButton: t('promoteButton'),
+              exitPromote: t('exitPromote'),
               spinning: t('spinning'),
               quizSpin: tQuiz('quizSpin'),
               randomSpin: t('randomSpin'),

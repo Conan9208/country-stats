@@ -10,11 +10,12 @@ const starOptions: ISourceOptions = {
   background: { color: { value: '#050a10' } },
   fpsLimit: 60,
   particles: {
-    number: { value: 3000, density: { enable: true } },
+    // density.enable:true 였을 때 4K처럼 큰 화면에서 입자 수가 면적 비례로 폭증했음 →
+    // 고정 개수로 캡. opacity 애니메이션을 끄면 매 프레임 리드로우가 사라져 거의 정적(0 비용)이 됨.
+    number: { value: 800, density: { enable: false } },
     color: { value: ['#ffffff', '#cce0ff', '#ffeedd', '#e0ccff'] },
     opacity: {
-      value: { min: 0.1, max: 0.9 },
-      animation: { enable: true, speed: 0.4, sync: false },
+      value: { min: 0.15, max: 0.9 },
     },
     size: {
       value: { min: 0.2, max: 2.2 },
@@ -22,7 +23,8 @@ const starOptions: ISourceOptions = {
     move: { enable: false },
     shape: { type: 'circle' },
   },
-  detectRetina: true,
+  // 4K에서 retina(×2~×4 픽셀) 렌더 비용 제거 — 정적 배경이라 선명도 손실 체감 작음
+  detectRetina: false,
 }
 
 function StarField() {

@@ -2,21 +2,49 @@
 
 type Props = {
   quizMode: boolean
+  promoteMode: boolean
   isSpinning: boolean
   onToggleQuizMode: () => void
+  onTogglePromoteMode: () => void
   onRandomSpin: () => void
   labels: {
     quizButton: string
     exitQuiz: string
+    promoteButton: string
+    exitPromote: string
     spinning: string
     quizSpin: string
     randomSpin: string
   }
 }
 
-export function GlobeBottomControls({ quizMode, isSpinning, onToggleQuizMode, onRandomSpin, labels }: Props) {
+export function GlobeBottomControls({
+  quizMode,
+  promoteMode,
+  isSpinning,
+  onToggleQuizMode,
+  onTogglePromoteMode,
+  onRandomSpin,
+  labels,
+}: Props) {
   return (
     <>
+      {/* 홍보 모드 진입 — 수익 동선이라 앰버 강조로 도드라지게 */}
+      <button
+        onClick={onTogglePromoteMode}
+        className="glass-panel globe-overlay-btn"
+        style={{
+          borderRadius: 12,
+          padding: '8px 16px',
+          border: `1px solid ${promoteMode ? 'rgba(251,191,36,0.7)' : 'rgba(251,191,36,0.4)'}`,
+          color: promoteMode ? '#fcd34d' : '#fbbf24',
+          fontSize: 13,
+          fontWeight: 600,
+          background: promoteMode ? 'rgba(251,191,36,0.18)' : 'rgba(251,191,36,0.1)',
+        }}
+      >
+        {promoteMode ? labels.exitPromote : labels.promoteButton}
+      </button>
       <button
         onClick={onToggleQuizMode}
         className="glass-panel globe-overlay-btn"

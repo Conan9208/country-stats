@@ -155,12 +155,29 @@ export default function PinSubmitModal({ countryName, countryAlpha2, onClose, on
       <div style={{ ...glass, borderRadius: 16, padding: 24, width: 360, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* 헤더 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>{t('title')}</div>
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{countryName}</div>
+            {/* 클릭한 나라를 또렷하게 — 국기 + 국가명 칩 */}
+            <div
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 8,
+                padding: '4px 10px', borderRadius: 999,
+                background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.35)',
+              }}
+            >
+              <img
+                src={`https://flagcdn.com/24x18/${countryAlpha2.toLowerCase()}.png`}
+                alt=""
+                width={18}
+                height={13}
+                style={{ borderRadius: 2, display: 'block', flexShrink: 0 }}
+                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+              />
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#fcd34d' }}>{countryName}</span>
+            </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={16} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}><X size={16} /></button>
         </div>
 
         {status !== 'done' ? (
