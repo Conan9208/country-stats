@@ -200,6 +200,8 @@
     "promoteButton": "📣 Promote",
     "exitPromote": "✕ Exit",
     "promoteModeGuide": "Click a country to promote",
+    "promoteHintTitle": "📣 Promote mode on!",
+    "promoteHintBody": "Select a country to open the promo form. Picked the wrong one? Just pick again.",
     "tierButton": "Tier",
     "clickTier": "CLICK TIER",
     "tierTag0": "Novice",

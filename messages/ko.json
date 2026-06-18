@@ -200,6 +200,8 @@
     "promoteButton": "📣 홍보하기",
     "exitPromote": "✕ 홍보 종료",
     "promoteModeGuide": "나라를 클릭해 홍보하세요",
+    "promoteHintTitle": "📣 홍보 모드 시작!",
+    "promoteHintBody": "홍보할 나라를 선택하면 등록 창이 열려요. 잘못 골라도 다시 선택할 수 있어요.",
     "tierButton": "티어",
     "clickTier": "클릭 수 티어",
     "tierTag0": "입문",

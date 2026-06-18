@@ -19,6 +19,7 @@ import { MobileTapBadge } from '@/components/worldmap/MobileTapBadge'
 import { GlobeContextMenu } from '@/components/worldmap/GlobeContextMenu'
 import { LoadingOverlay } from '@/components/worldmap/LoadingOverlay'
 import { GlobeBottomControls } from '@/components/worldmap/GlobeBottomControls'
+import { PromoteHintToast } from '@/components/worldmap/PromoteHintToast'
 import { TierLegend } from '@/components/worldmap/TierLegend'
 import type { ClickData, ClickEntry } from '@/types/map'
 import type { PollQuestion } from '@/types/poll'
@@ -118,6 +119,8 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   // 홍보 모드 — 모드 진입 후 나라 클릭 시 핀 등록 모달 오픈 (퀴즈 모드와 동일 패턴)
   const [promoteMode, setPromoteMode] = useState(false)
   const promoteModeRef = useRef(false)
+  // 홍보 모드 진입 시 5초간 뜨는 온보딩 안내 토스트
+  const [showPromoteHint, setShowPromoteHint] = useState(false)
   // 글로우 커서 DOM 레이어 (네이티브 포인터를 따라가는 컴포지터 레이어)
   const glowRef = useRef<HTMLDivElement>(null)
   const glowOverCountryRef = useRef(false)
@@ -157,6 +160,14 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
 
   useEffect(() => { quizModeRef.current = quizMode }, [quizMode])
   useEffect(() => { promoteModeRef.current = promoteMode }, [promoteMode])
+
+  // 홍보 모드 진입할 때마다 안내 토스트를 5초간 노출 후 자동 제거 (CSS가 페이드 인·아웃 처리)
+  useEffect(() => {
+    if (!promoteMode) { setShowPromoteHint(false); return }
+    setShowPromoteHint(true)
+    const tmr = setTimeout(() => setShowPromoteHint(false), 5000)
+    return () => clearTimeout(tmr)
+  }, [promoteMode])
 
   // 모드 토글 — 퀴즈/홍보는 상호 배타 (한쪽 켜면 다른쪽 해제). ref로 현재값 읽어 중첩 setState 회피
   const togglePromoteMode = useCallback(() => {
@@ -1636,7 +1647,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       <StarField />
       <canvas
         ref={canvasRef}
-        style={{ display: 'block', width: '100%', height: '100%', cursor: pinHoverTooltip ? 'pointer' : 'grab', position: 'relative', zIndex: 1, background: 'transparent', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' }}
+        style={{ display: 'block', width: '100%', height: '100%', cursor: isMobile ? 'default' : 'none', position: 'relative', zIndex: 1, background: 'transparent', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -1653,6 +1664,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       {pinHoverTooltip && <PinHoverTooltip tooltip={pinHoverTooltip} detailsLabel={t('clickToSeeDetails')} />}
 
       <GuidePanel pollMode={pollMode} promoteMode={promoteMode} isMobile={isMobile} t={t} />
+
+      {showPromoteHint && (
+        <PromoteHintToast isMobileUI={isMobileUI} title={t('promoteHintTitle')} body={t('promoteHintBody')} />
+      )}
 
       {tapBadge && <MobileTapBadge badge={tapBadge} />}
 
@@ -1714,8 +1729,10 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           countryAlpha2={pinSubmitCountry.code}
           onClose={() => setPinSubmitCountry(null)}
           onSuccess={(_shareText, newPin) => {
-            // POST 응답으로 받은 핀을 캐시 우회하여 즉시 반영
+            // POST 응답으로 받은 핀을 캐시 우회하여 즉시 반영.
+            // draw()/getPinsAtPoint()는 pinsByCountryRef(그룹 캐시)를 읽으므로 반드시 재생성해야 바로 보임
             pinsRef.current = [newPin, ...pinsRef.current]
+            rebuildPinsByCountry(pinsRef.current)
             setPinSubmitCountry(null)
           }}
         />
