@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { createHash } from 'crypto'
 import { lookup as dnsLookup } from 'dns/promises'
+import { isAllowedPinEmoji, MAX_MESSAGE_LEN } from '@/lib/pinEmojis'
 
 export const runtime = 'nodejs'
 
@@ -119,7 +120,7 @@ function isTrustedLogoUrl(url: string): boolean {
   }
 }
 
-const SELECT_FIELDS = 'id, country_alpha2, business_name, description, logo_url, website_url, tier, created_at, expires_at'
+const SELECT_FIELDS = 'id, country_alpha2, kind, business_name, description, logo_url, website_url, emoji, message, tier, created_at, expires_at'
 
 // GET /api/pins?country=KR  또는  GET /api/pins?all=1
 export async function GET(req: NextRequest) {
@@ -162,6 +163,59 @@ export async function POST(req: NextRequest) {
   const ip = getIp(req)
   const ipHash = hashIp(ip)
   const body = await req.json()
+
+  // ── 메시지 핀 (무료 · 표현형 · 바이럴 엔진) ─────────────────────────────────
+  if (body.kind === 'message') {
+    const { country_alpha2, emoji, message } = body
+
+    if (!country_alpha2 || !/^[A-Z]{2}$/.test(country_alpha2)) {
+      return Response.json({ error: '유효하지 않은 국가 코드예요' }, { status: 400 })
+    }
+    if (!isAllowedPinEmoji(emoji)) {
+      return Response.json({ error: '허용되지 않은 이모지예요' }, { status: 400 })
+    }
+    const msg = typeof message === 'string' ? message.trim() : ''
+    if (!msg) {
+      return Response.json({ error: '메시지를 입력해주세요' }, { status: 400 })
+    }
+    if (msg.length > MAX_MESSAGE_LEN) {
+      return Response.json({ error: `메시지는 최대 ${MAX_MESSAGE_LEN}자` }, { status: 400 })
+    }
+
+    // 하루 제한 (메시지·업체 핀 공통 카운트)
+    if (!DISABLE_RATE_LIMIT) {
+      const since = new Date(Date.now() - RATE_WINDOW_MS).toISOString()
+      const { count } = await supabaseAdmin
+        .from('globe_pins')
+        .select('id', { count: 'exact', head: true })
+        .eq('ip_hash', ipHash)
+        .gte('created_at', since)
+      if ((count ?? 0) >= MAX_PINS_PER_DAY) {
+        return Response.json({ code: 'rate_limit' }, { status: 429 })
+      }
+    }
+
+    const expiresAt = new Date(Date.now() + PIN_FREE_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    const { data, error } = await supabaseAdmin
+      .from('globe_pins')
+      .insert({
+        country_alpha2,
+        kind: 'message',
+        emoji,
+        message: msg,
+        tier: 'free',
+        is_approved: true,
+        ip_hash: ipHash,
+        expires_at: expiresAt,
+      })
+      .select(SELECT_FIELDS)
+      .single()
+
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json(data, { status: 201 })
+  }
+
+  // ── 업체 핀 (기존 · 프리미엄/홍보) ──────────────────────────────────────────
   const { country_alpha2, business_name, description, logo_url, website_url } = body
 
   if (!country_alpha2 || !business_name?.trim()) {
@@ -239,6 +293,7 @@ export async function POST(req: NextRequest) {
     .from('globe_pins')
     .insert({
       country_alpha2,
+      kind: 'business',
       business_name: business_name.trim(),
       description: description?.trim() || null,
       logo_url: logo_url || null,

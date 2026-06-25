@@ -32,6 +32,7 @@ import PinSubmitModal from '@/components/PinSubmitModal'
 import PromoListPanel from '@/components/PromoListPanel'
 import QuizModal from '@/components/QuizModal'
 import type { GlobePin } from '@/types/pin'
+import { pinDisplayTitle } from '@/types/pin'
 import { useLocale, useTranslations } from 'next-intl'
 
 isoCountries.registerLocale(localeKo)
@@ -112,6 +113,11 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
   const isOverPinRef = useRef(false)
   const [pinSubmitCountry, setPinSubmitCountry] = useState<{ code: string; name: string } | null>(null)
   const [activePinPopup, setActivePinPopup] = useState<{ alpha2: string; pins: GlobePin[]; countryName: string; x: number; y: number } | null>(null)
+  // 딥링크 착륙: ?pin=<id> 로 들어오면 그 나라로 회전 + 핀 강조
+  const [highlightPinId, setHighlightPinId] = useState<string | null>(null)
+  const focusAnimRef = useRef<{ start: [number, number]; target: [number, number]; startTime: number; duration: number; alpha2: string; pinId: string } | null>(null)
+  const onArriveRef = useRef<((alpha2: string, pinId: string) => void) | null>(null)
+  const deepLinkDoneRef = useRef(false)
   // 퀴즈 모드
   const [quizMode, setQuizMode] = useState(false)
   const quizModeRef = useRef(false)
@@ -264,6 +270,59 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
     return () => clearInterval(iv)
   }, [rebuildPinsByCountry])
 
+  // 딥링크 착륙: 해당 나라로 부드럽게 회전 (draw 루프가 focusAnimRef를 보간)
+  const flyToPin = useCallback((alpha2: string, pinId: string, fallbackPin?: GlobePin) => {
+    const centroid = centroidByAlpha2.get(alpha2)
+    if (!centroid) return
+
+    // 로드된 목록에 없으면(만료/500개 초과) 단건 핀을 끼워넣어 팝업에서 보이게
+    if (fallbackPin && !(pinsByCountryRef.current.get(alpha2) ?? []).some(p => p.id === fallbackPin.id)) {
+      pinsRef.current = [fallbackPin, ...pinsRef.current]
+      rebuildPinsByCountry(pinsRef.current)
+    }
+
+    autoRotateRef.current = false
+    velocityRef.current = [0, 0]
+    focusAnimRef.current = {
+      start: [...rotationRef.current] as [number, number],
+      target: [-centroid[0], Math.max(-75, Math.min(75, -centroid[1]))],
+      startTime: performance.now(),
+      duration: 1100,
+      alpha2,
+      pinId,
+    }
+  }, [rebuildPinsByCountry])
+
+  // 착륙 완료 시(draw 루프에서 호출) 팝업 열고 핀 강조 — ref로 최신 클로저 유지
+  useEffect(() => {
+    onArriveRef.current = (alpha2, pinId) => {
+      const pins = pinsByCountryRef.current.get(alpha2) ?? []
+      const countryName = isoCountries.getName(alpha2.toUpperCase(), locale) ?? alpha2
+      const cw = canvasRef.current?.clientWidth ?? (typeof window !== 'undefined' ? window.innerWidth : 1200)
+      const ch = canvasRef.current?.clientHeight ?? (typeof window !== 'undefined' ? window.innerHeight : 800)
+      setHighlightPinId(pinId)
+      setActivePinPopup({ alpha2, pins, countryName, x: Math.round(cw * 0.5), y: Math.round(ch * 0.42) })
+    }
+  }, [locale])
+
+  // ?pin=<id> 감지 → 핀 찾아 착륙 (데이터 준비 후 1회)
+  useEffect(() => {
+    if (deepLinkDoneRef.current || !isDataReady) return
+    const pinId = new URLSearchParams(window.location.search).get('pin')
+    if (!pinId) { deepLinkDoneRef.current = true; return }
+    deepLinkDoneRef.current = true
+    ;(async () => {
+      let pin: GlobePin | null = pinsRef.current.find(p => p.id === pinId) ?? null
+      if (!pin) {
+        try {
+          const res = await fetch(`/api/pins/${pinId}`)
+          if (res.ok) pin = await res.json()
+        } catch { /* ignore */ }
+      }
+      if (pin) flyToPin(pin.country_alpha2, pin.id, pin)
+    })()
+  }, [isDataReady, flyToPin])
+
   // localStorage에서 내 클릭 기록 불러오기
   useEffect(() => {
     try {
@@ -304,6 +363,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       if (e.key !== 'Escape') return
       if (contextMenuRef.current) { closeContextMenu(); return }
       setActivePinPopup(prev => { if (prev) return null; return prev })
+      setHighlightPinId(null)
       setPinSubmitCountry(prev => { if (prev) return null; return prev })
       setInfoCountry(prev => { if (prev) return null; return prev })
       setCommentCountry(prev => { if (prev) return null; return prev })
@@ -753,11 +813,17 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           ctx.strokeStyle = 'rgba(255,255,255,0.5)'
           ctx.lineWidth = 1.5
           ctx.stroke()
-          ctx.font = `bold ${Math.max(7, Math.round(pinRadius * 0.85))}px sans-serif`
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
-          ctx.fillStyle = '#fff'
-          ctx.fillText((pin.business_name.charAt(0) || '?').toUpperCase(), ix, iy)
+          if (pin.kind === 'message') {
+            // 메시지 핀: 이모지를 마커로
+            ctx.font = `${Math.round(pinRadius * 1.15)}px serif`
+            ctx.fillText(pin.emoji || '💬', ix, iy)
+          } else {
+            ctx.font = `bold ${Math.max(7, Math.round(pinRadius * 0.85))}px sans-serif`
+            ctx.fillStyle = '#fff'
+            ctx.fillText((pin.business_name?.charAt(0) || '?').toUpperCase(), ix, iy)
+          }
         }
         ctx.textAlign = 'left'
         ctx.textBaseline = 'alphabetic'
@@ -876,6 +942,25 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         if (spinProgressRef.current >= 1) {
           spinningRef.current = false
           autoRotateRef.current = true
+        }
+      } else if (focusAnimRef.current) {
+        // 딥링크 착륙 회전 (ease-out cubic). 사용자가 잡으면 즉시 취소.
+        const fa = focusAnimRef.current
+        if (dragStartRef.current) {
+          focusAnimRef.current = null
+        } else {
+          const p = Math.min(1, (now - fa.startTime) / fa.duration)
+          const eased = 1 - Math.pow(1 - p, 3)
+          const dLng = ((fa.target[0] - fa.start[0]) % 360 + 540) % 360 - 180  // 최단 경로
+          rotationRef.current = [
+            fa.start[0] + dLng * eased,
+            fa.start[1] + (fa.target[1] - fa.start[1]) * eased,
+          ]
+          if (p >= 1) {
+            landingMarkerRef.current = { alpha2: fa.alpha2, startTime: performance.now() }
+            onArriveRef.current?.(fa.alpha2, fa.pinId)
+            focusAnimRef.current = null
+          }
         }
       } else if (!dragStartRef.current || !hasDraggedRef.current) {
         // drag 누름 but 아직 이동 없음 → 자동회전/관성 유지, dragStart.rotation도 같이 따라옴
@@ -1155,7 +1240,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
         if (pinHit) {
           isOverPinRef.current = true
           const topPin = pinHit.pins[0]
-          const newTooltip = { name: topPin.business_name, website: topPin.website_url ?? undefined, x: hx, y: hy }
+          const newTooltip = { name: pinDisplayTitle(topPin), website: topPin.website_url ?? undefined, x: hx, y: hy }
           if (
             pinHoverTooltipRef.current?.name !== newTooltip.name ||
             Math.abs((pinHoverTooltipRef.current?.x ?? 0) - hx) > 4 ||
@@ -1742,7 +1827,7 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
       {activePinPopup && (
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 2499 }}
-          onClick={e => { e.stopPropagation(); setActivePinPopup(null) }}
+          onClick={e => { e.stopPropagation(); setActivePinPopup(null); setHighlightPinId(null) }}
         />
       )}
       {activePinPopup && (
@@ -1751,9 +1836,11 @@ export default function WorldMap({ pollMode, onPollVote, pollVotedCountry, pollD
           pins={activePinPopup.pins}
           x={activePinPopup.x}
           y={activePinPopup.y}
-          onClose={() => setActivePinPopup(null)}
+          highlightId={highlightPinId}
+          onClose={() => { setActivePinPopup(null); setHighlightPinId(null) }}
           onAddPin={() => {
             setActivePinPopup(null)
+            setHighlightPinId(null)
             setPinSubmitCountry({ code: activePinPopup.alpha2, name: activePinPopup.countryName })
           }}
         />

@@ -151,7 +151,19 @@
     "reported": "신고됨",
     "promoCount": "{count}개 홍보 중",
     "visitSite": "사이트 방문",
-    "addPromo": "{country}에 홍보하기"
+    "addPromo": "{country}에 홍보하기",
+    "messageTitle": "🌍 지구본에 메시지 남기기",
+    "tabMessage": "💬 메시지",
+    "tabBusiness": "🏢 업체 홍보",
+    "emojiLabel": "이모지 선택",
+    "messageLabel": "메시지",
+    "messagePlaceholder": "이 나라에 한마디 남겨보세요",
+    "messageNotice": "✨ 3일간 표시 · 하루 3개 · 신고 3회 시 숨김",
+    "messageSubmit": "지구본에 남기기 ✨",
+    "messageSuccessDesc": "{country} 위에 메시지가 남겨졌어요.",
+    "messageShareText": "{country} 지구본에 메시지 남겼어! 🌍",
+    "sharePinText": "{country} 지구본에서 이 핀 봐! 🌍",
+    "copied": "복사됨"
   },
   "Quiz": {
     "title": "수도 퀴즈",

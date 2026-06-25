@@ -151,7 +151,19 @@
     "reported": "Reported",
     "promoCount": "{count} promos",
     "visitSite": "Visit Site",
-    "addPromo": "Promote on {country}"
+    "addPromo": "Promote on {country}",
+    "messageTitle": "🌍 Leave a message on the Globe",
+    "tabMessage": "💬 Message",
+    "tabBusiness": "🏢 Business",
+    "emojiLabel": "Pick an emoji",
+    "messageLabel": "Message",
+    "messagePlaceholder": "Leave a note on this country",
+    "messageNotice": "✨ Shows for 3 days · 3 per day · hidden after 3 reports",
+    "messageSubmit": "Leave it on the Globe ✨",
+    "messageSuccessDesc": "Your message is now on {country}.",
+    "messageShareText": "I left a message on {country} on the globe! 🌍",
+    "sharePinText": "Check out this pin on {country}'s globe! 🌍",
+    "copied": "Copied"
   },
   "Quiz": {
     "title": "Capital Quiz",
